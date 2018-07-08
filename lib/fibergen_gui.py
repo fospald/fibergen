@@ -949,6 +949,7 @@ class DocWidget(QtWebKitWidgets.QWebView):
 class DemoWidget(QtWebKitWidgets.QWebView):
 
 	openProjectRequest = QtCore.pyqtSignal('QString')
+	newProjectRequest = QtCore.pyqtSignal()
 
 	def __init__(self, parent = None):
 
@@ -973,6 +974,8 @@ class DemoWidget(QtWebKitWidgets.QWebView):
 			self.loadDir(path)
 		elif action == "open":
 			self.openProjectRequest.emit(path)
+		elif action == "new":
+			self.newProjectRequest.emit()
 
 
 	def loadDir(self, path=None):
@@ -1004,6 +1007,13 @@ body {
 img {
 	max-height: 256;
 	max-width: 256;
+}
+.empty {
+	border: 1px solid #000;
+	width: 256;
+	height: 256;
+	overflow: hidden;
+	background-color: Control;
 }
 .header {
 	padding: 5px;
@@ -1059,6 +1069,13 @@ a {
 			html += '<a class="back" href="http://x#cd#' + path + '/..">&#x21a9; Back</a>'
 			
 		html += '<center class="body">'
+
+		html += '<a href="http://x#new#">'
+		html += '<div class="demo">'
+		html += '<h2>Empty file</h2>'
+		html += '<div class="empty"></div>'
+		html += '</div>'
+		html += '</a>'
 
 		items = []
 		indices = []
@@ -1308,6 +1325,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			if self.demoTab is None:
 				self.demoTab = DemoWidget()
 				self.demoTab.openProjectRequest.connect(self.openDemo)
+				self.demoTab.newProjectRequest.connect(self.newProject)
 			self.demoTabIndex = self.addTab(self.demoTab, "Demos")
 		self.tabWidget.setCurrentIndex(self.demoTabIndex)
 
@@ -1385,6 +1403,14 @@ class MainWindow(QtWidgets.QMainWindow):
 			QtWidgets.QMessageBox.critical(self, "Error", sys.exc_info()[0])
 			return False
 	
+	def newProject(self):
+		if not self.newProjectSave(filename):
+			return False
+		if not self.demoTabIndex is None:
+			self.tabCloseRequested(self.demoTabIndex)
+			self.demoTabIndex = None
+		return True
+
 	def openDemo(self, filename):
 		if not self.openProjectSave(filename):
 			return False
@@ -1414,6 +1440,22 @@ class MainWindow(QtWidgets.QMainWindow):
 		except:
 			QtWidgets.QMessageBox.critical(self, "Error", sys.exc_info()[0])
 			return False
+		return True
+
+	def newProject(self):
+		txt = ""
+		filename = os.path.join(self.demoTab.demodir, "empty.xml")
+		try:
+			with open(filename, "rt") as f:
+				txt = f.read()
+		except:
+			pass
+		self.textEdit.setPlainText(txt)
+		self.filename = None
+		self.lastSaveText = self.getSaveText()
+		self.textEdit.document().clearUndoRedoStacks()
+		self.vSplit.setVisible(True)
+		self.updateStatus()
 		return True
 
 	def runProject(self, fg=None):
