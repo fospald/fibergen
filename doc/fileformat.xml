@@ -1,0 +1,403 @@
+<?xml version="1.0" encoding="utf-8"?>
+<settings type="list" help="root of project file">
+  
+  <title help="title of the project" type="str"></title>
+  <description help="description of the project" type="str"></description>
+  <image help="image filename for the project" type="str"></image>
+  
+  <dim help="spatial dimensions" type="int" values="2,3">3</dim>
+  <datatype help="datatype for compuations" type="str" values="float,double">double</datatype>
+  <res_type help="datatype for results" type="str" values="float,double">float</res_type>
+  
+  <seed help="random seed" type="int">0</seed>
+  <n help="maximum number of fibers to generate" type="int">+inf</n>
+  <m help="maximum number of fiber generation loops" type="int">1000000</m>
+  <mcs help="maximum fiber cluster size, affects performance only" type="int">8</mcs>
+  <v help="maximum volume of fibers to generate" type="float">+inf</v>
+  <length help="fiber length to generate" type="float">0.1</length>
+  <radius help="fiber radius to generate" type="float">0.01</radius>
+  <type help="fiber type to generate" type="str" values="capsule,cylinder,halfspace"></type>
+  <intersecting help="allow intersecting fibers" type="bool">0</intersecting>
+  <dmin help="minimum fiber-fiber distance" type="float">0.0</dmin>
+
+  <periodic help="periodic generation of fibers" type="bool">1
+    <attrib name="x" help="periodic generation of fibers in x direction" type="bool">1</attrib>
+    <attrib name="y" help="periodic generation of fibers in y direction" type="bool">1</attrib>
+    <attrib name="z" help="periodic generation of fibers in z direction" type="bool">1</attrib>
+    <attrib name="fast" help="use faster algorithm (obsolete)" type="bool">0</attrib>
+  </periodic>
+
+  <planar help="planar geometry, if a component is set to 1, then geometry is added only to the center of the RVE of that direction and also periodicity in that direction is disabled" type="none">
+    <attrib name="x" help="planar geometry in x direction" type="bool">0</attrib>
+    <attrib name="y" help="planar geometry in y direction" type="bool">0</attrib>
+    <attrib name="z" help="planar geometry in z direction" type="bool">0</attrib>
+  </planar>
+
+  <x0 help="RVE origin x" type="float">0.0</x0>
+  <y0 help="RVE origin y" type="float">0.0</y0>
+  <z0 help="RVE origin z" type="float">0.0</z0>
+  
+  <dx help="RVE length in z direction" type="float">1.0</dx>
+  <dy help="RVE length in z direction" type="float">1.0</dy>
+  <dz help="RVE length in z direction" type="float">1.0</dz>
+  
+  <num_threads help="number of threads to use for OpenMP parallelization, by default uses nproc-1 and nproc-2 if nproc>16 threads, at least one" type="int"></num_threads>
+  <fft_threads help="number of threads to use for FFT parallelization, if &lt; 1 then uses same as num_threads" type="int">-1</fft_threads>
+  <fft_wisdom help="FFTW wisdom file, defaults to ~/.fibergen_fft_wisdom_$(uname -n)" type="str">...</fft_wisdom>
+  
+  <print_precision help="number of digits in terminal output" type="int">4</print_precision>
+  <res_format help="file format for results" type="str" values="binary,ascii">binary</res_format>
+  
+  <variables help="list of Python variables available in expressions" type="list">
+    <variable type="empty" help="a variable">
+      <attrib name="type" type="str" help="type of variable" values="str,int,float">str</attrib>
+      <attrib name="value" type="str" help="value of variable"></attrib>
+    </variable>
+  </variables>
+  
+  <solver type="list" help="specifies solver properties">
+  
+    <attrib name="n" type="int" help="general number of voxels in each direction, if not specified otherwise">0</attrib>
+    <attrib name="mult" type="int" help="resolution multiplier">1</attrib>
+    <attrib name="nx" type="int" help="number of voxels in x direction">n</attrib>
+    <attrib name="ny" type="int" help="number of voxels in y direction">n</attrib>
+    <attrib name="nz" type="int" help="number of voxels in z direction">n</attrib>
+    
+    <tol help="relative error tolerance" type="float">1e-4</tol>
+    <abs_tol help="absolute error tolerance" type="float">2**-52</abs_tol>
+    <bc_tol help="relative error for boundary conditions" type="float">1e-3</bc_tol>
+    <maxiter help="maximum iterations" type="int">10000</maxiter>
+    <error_estimator help="method for convergence check" type="str" values="none,residual,energy,div_sigma,sigma">sigma</error_estimator>
+    <outer_error_estimator help="method for outer loop convergence check" type="str" values="none,residual,energy,div_sigma,sigma">sigma</outer_error_estimator>
+    
+    <mixing_rule help="method for mixing materials at interfaces" type="str" values="voigt,reuss,laminate,maximum,split,fluidity,random,iso">voigt</mixing_rule>
+    
+    <loadstep_filename type="str" help="filename format for writing loadstep results">loadstep_%02d.vtk</loadstep_filename>
+    <first_loadstep help="first loadstep to compute, -1 means 0 if there are more than 2 loadsteps, otherwise 1" type="int">-1</first_loadstep>
+    <loadsteps help="parameter values for each loadstep" type="list">
+      <loadstep help="a loadstep" type="empty">
+        <attrib name="param" help="parameter value (0 to 1) for loadstep" type="float">1.0</attrib>
+      </loadstep>
+    </loadsteps>
+    <loadsteps help="number of loadsteps" type="int">1</loadsteps>
+    <loadstep_extrapolation_order help="loadstep extrapolation order" type="int">1</loadstep_extrapolation_order>
+    <loadstep_extrapolation_method help="loadstep extrapolation order" type="str" values="polynomial,transformation">polynomial</loadstep_extrapolation_method>
+    <write_loadsteps help="write results after each loadstep" type="bool">0</write_loadsteps>
+
+    <gamma_scheme help="scheme for Gamma operator" type="str" values="collocated,staggered,full_staggered,half_staggered,willot">staggered</gamma_scheme>
+
+    <ref_scale help="scaling of reference stiffness" type="float">1.0</ref_scale>
+    <update_ref help="reference media update interval" type="str" values="always,loadstep">loadstep</update_ref>
+    
+    <newton_relax help="Newton step relaxation factor" type="float">1.0</newton_relax>
+    <basic_relax help="Basic scheme relaxation factor" type="float">1.0</basic_relax>
+    <bc_relax help="relaxation of boundary condition mean value adjustment" type="float">1.0</bc_relax>
+
+    <mode help="problem type to solve" type="str" values="elasticity,hyperelasticity,viscosity,heat">elasticity</mode>
+    <method help="solver method" type="str" values="basic,cg,nesterov,basic+el">cg</method>
+    
+    <cg_inner_product help="inner product for CG" type="str" values="l2,energy">l2</cg_inner_product>
+    <cg_reinit help="perform exact residual computation each cg_reinit iteration, if zero residual is updated classically each iteration" type="int">0</cg_reinit>
+
+    <multigrid help="multigrid solver setings" type="list">
+      <scheme help="multigrid scheme" type="str" values="direct,pcg,fft">direct</scheme>
+      <coarse_size help="maximum coarse problem size" type="int">4</coarse_size>
+      <tol help="multigird relative tolerance" type="float">1e-12</tol>
+      <maxiter help="multigird maximum iterations" type="int">16</maxiter>
+      <pre_smoother help="pre smoother" type="str" values="fgs">fgs</pre_smoother>
+      <n_pre_smooth help="number of pre smoothings" type="int">2</n_pre_smooth>
+      <post_smoother help="post smoother" type="str" values="bgs">bgs</post_smoother>
+      <n_post_smooth help="number of post smoothings" type="int">2</n_post_smooth>
+      <smooth_bs help="smooth block size" type="int">-1</smooth_bs>
+      <smooth_relax help="smooth relaxation factor" type="float">1.0</smooth_relax>
+      <coarse_solver help="coarse grid solver" type="str" values="fft,lu">fft</coarse_solver>
+      <prolongation_op help="prolongation operator" type="str" values="straight_injection,full_weighting">full_weighting</prolongation_op>
+      <enable_timing help="enable timing of multigrid operations on fine level" type="bool">0</enable_timing>
+      <residual_checking help="enable residual check" type="bool">0</residual_checking>
+      <safe_mode help="" type="bool">0</safe_mode>
+    </multigrid>
+
+    <nl_cg_beta_scheme help="nonlinear CG update scheme" type="str" values="steepest_descent,polak_ribiere,fletcher_reeves,hestenes_stiefel,day_yuan">polak_ribiere</nl_cg_beta_scheme>
+    <nl_cg_c help="nonlinear CG backtracking parameter" type="float">0.5</nl_cg_c>
+    <nl_cg_tau help="nonlinear CG backtracking parameter for alpha reduction" type="float">0.5</nl_cg_tau>
+    <nl_cg_alpha help="nonlinear CG initial step size" type="float">1.0</nl_cg_alpha>
+
+    <G0_solver help="solver for G0 operator application" type="str" values="fft,multigrid">fft</G0_solver>
+    
+    <fft_planner_flag help="" type="str" values="estimate,measure,patient,exhaustive,wisdom_only">measure</fft_planner_flag>
+    <parallel_fft help="perform FFT of tensors in parallel for loop (note: the FFT itself is also parallelized)" type="bool">0</parallel_fft>
+
+    <freq_hack help="try to fix problems with even FFTs at the highest frequency" type="bool">0</freq_hack>
+    <debug help="debug mode" type="bool">0</debug>
+    <step_mode help="interactive step mode" type="bool">0</step_mode>
+    <print_mean help="print mean of solution during interation" type="bool">0</print_mean>
+    <print_detF help="print min. of det(F) during interation" type="bool">0</print_detF>
+    
+    <smooth_levels help="number of interface approximation levels, -1 means automatic interface smoothing based on smooth_tol" type="int">-1</smooth_levels>
+    <smooth_tol help="relative error toleranace for automatic interface smoothing" type="float">0.001</smooth_tol>
+
+    <materials help="list of materials, each materal needs a unique name, there are two special names: 'matrix' sets the matrix material and 'ref' sets the reference material for the Lippmann-Schwinger solver" type="list">
+      <matrix type="empty" help="specifies a material">
+        <attrib name="law" type="str" help="type of material law" values="iso,tiso,aniso,nh,nh2,gb_matrix1,gb_matrix2,gb_matrix3,gb_matrix4,gb_fiber1,gb_fiber2,gb_fiber3,gb_fiber4,gb_fiber5,gb_fiber6,">iso</attrib>
+        <attrib name="K" type="float" help="bulk modulus"></attrib>
+        <attrib name="E" type="float" help="Young's modulus"></attrib>
+        <attrib name="lambda" type="float" help="first Lamé parameter"></attrib>
+        <attrib name="mu" type="float" help="second Lamé parameter"></attrib>
+        <attrib name="nu" type="float" help="Poisson's ratio"></attrib>
+        <attrib name="M" type="float" help="P-wave modulus"></attrib>
+        TODO: add more parameters for different materials
+      </matrix>
+    </materials>
+
+  </solver>
+  
+  <actions type="list" help="specifies a list of actions to be exectued, actions with an non-zero skip attribute are skipped, actions can be combined into gropus by including into a &lt;group-group_name&gt; tag">
+  
+    <write_png type="empty" help="writes a slice of the distance map of the geometry as image">
+      <attrib name="a0x" type="float" help="origin x point for sampling">0.0</attrib>
+      <attrib name="a0y" type="float" help="origin y point for sampling">0.0</attrib>
+      <attrib name="a0z" type="float" help="origin z point for sampling">0.0</attrib>
+      <attrib name="a1x" type="float" help="u direction x for sampling">1.0</attrib>
+      <attrib name="a1y" type="float" help="u direction y for sampling">0.0</attrib>
+      <attrib name="a1z" type="float" help="u direction z for sampling">0.0</attrib>
+      <attrib name="a2x" type="float" help="v direction x for sampling">0.0</attrib>
+      <attrib name="a2y" type="float" help="v direction y for sampling">1.0</attrib>
+      <attrib name="a2z" type="float" help="v direction z for sampling">0.0</attrib>
+      <attrib name="exponent" type="float" help="exponent">1.0</attrib>
+      <attrib name="scale" type="float" help="scale">1.0</attrib>
+      <attrib name="offset" type="float" help="offset">0.0</attrib>
+      <attrib name="fast" type="bool" help="fast sampling mode">0</attrib>
+      <attrib name="filename" type="str" help="filename for writing the PNG image"></attrib>
+    </write_png>
+    
+    <write_lss_vtk type="empty" help="writes the distance map of the geometry as VTK">
+      <attrib name="filename" type="str" help="filename for writing the VTK file"></attrib>
+    </write_lss_vtk>
+    
+    <write_vtk type="empty" help="writes geometry as VTK">
+      <attrib name="nx" type="int" help="number of voxels in x direction">n</attrib>
+      <attrib name="ny" type="int" help="number of voxels in y direction">n</attrib>
+      <attrib name="nz" type="int" help="number of voxels in z direction">n</attrib>
+      <attrib name="fast" type="bool" help="fast sampling mode">0</attrib>
+      <attrib name="distance" type="bool" help="write distance map">1</attrib>
+      <attrib name="normals" type="bool" help="write normal field">1</attrib>
+      <attrib name="orientation" type="bool" help="write fiber orientation field">1</attrib>
+      <attrib name="fiber_id" type="bool" help="write fiber id field">1</attrib>
+      <attrib name="material_id" type="bool" help="write material id field">1</attrib>
+      <attrib name="filename" type="str" help="filename for writing the VTK file"></attrib>
+    </write_vtk>
+
+    <write_fiber_data type="empty" help="writes a plain text file with fiber data (type, position, orientation, lenght, etc.)">
+      <attrib name="filename" type="str" help="filename for writing the text file"></attrib>
+    </write_fiber_data>
+    
+    <write_voxel_data type="empty" help="writes a plain text file with voxel data (normals, orientation, phases), suggested only for small geometries">
+      <attrib name="filename" type="str" help="filename for writing the text file"></attrib>
+    </write_voxel_data>
+    
+    <write_vtk_phase type="empty" help="writes a single phase to a VTK file">
+      <attrib name="name" type="str" help="name of the phase"></attrib>
+      <attrib name="outfile" type="str" help="filename for writing the VTK file"></attrib>
+    </write_vtk_phase>
+    
+    <write_vtk2 type="empty" help="writes solver data to a VTK file">
+      <attrib name="outfile" type="str" help="filename for writing the VTK file"></attrib>
+    </write_vtk2>
+    
+    <write_pvpy type="empty" help="writes geometry to a Python script for further processing with ParaView">
+      <attrib name="clusters" type="bool" help="write clusters">1</attrib>
+      <attrib name="fibers" type="bool" help="write fibers">1</attrib>
+      <attrib name="bbox" type="bool" help="write bounding boxes">1</attrib>
+      <attrib name="filename" type="str" help="filename for writing the Python file"></attrib>
+    </write_pvpy>
+    
+    <write_raw_data type="empty" help="writes raw phase data to a file">
+      <attrib name="order" type="str" help="write ordering" values="col,row">col</attrib>
+      <attrib name="material" type="str" help="phase name"></attrib>
+      <attrib name="scale" type="float" help="scaling factor for the phase data, by default scales integers to its maximum value, floats to 1"></attrib>
+      <attrib name="dtype" type="str" help="data type" values="uint8,uint16,uint32,float,double">uint8</attrib>
+      <attrib name="filename" type="str" help="filename for writing the Python file"></attrib>
+    </write_raw_data>
+    
+    <read_raw_data type="empty" help="reads raw phase data from a file">
+      <attrib name="order" type="str" help="write ordering" values="col,row">col</attrib>
+      <attrib name="material" type="str" help="phase name for which the data is loaded"></attrib>
+      <attrib name="material_[int]" type="str" help="only for integer data, phase name to which the data with integer value [int] is mapped to (set to 1)"></attrib>
+      <attrib name="scale" type="float" help="scaling factor for the phase data, by default scales integers by its maximum value, floats by 1"></attrib>
+      <attrib name="treshold" type="float" help="if positive, threshold for the data after scaling, values larger threshold are mapped to 1, otherwise to 0">-1</attrib>
+      <attrib name="header_bytes" type="int" help="number of bytes to skip at the beginning of the file">0</attrib>
+      <attrib name="dtype" type="str" help="data type" values="uint8,uint16,uint32,float,double">uint8</attrib>
+      <attrib name="filename" type="str" help="filename for writing the Python file"></attrib>
+    </read_raw_data>
+
+    <init_phase type="empty" help="initializes the phase voxel data">
+      <attrib name="normals" type="bool" help="initialize also normals">0</attrib>
+      <attrib name="orientations" type="bool" help="initialize also orientations">0</attrib>
+    </init_phase>
+
+    <init_fibers type="empty" help="initializes/generates the fiber distribution">
+    </init_fibers>
+
+    <detect_fibers type="empty" help="an experimental fiber detection algorithm">
+      <attrib name="threshold" type="float" help="">0.5</attrib>
+      <attrib name="convexity_threshold_high" type="float" help="">1.0</attrib>
+      <attrib name="convexity_threshold_low" type="float" help="">0.0</attrib>
+      <attrib name="min_segment_volume" type="float" help="">1.0</attrib>
+      <attrib name="w_exponent" type="float" help="">2.0</attrib>
+      <attrib name="d_exponent" type="float" help="">1.0</attrib>
+      <attrib name="p_threshold" type="float" help="">0.5</attrib>
+      <attrib name="filter_loops" type="int" help=""></attrib>
+      <attrib name="convexity_level" type="int" help="">0</attrib>
+      <attrib name="dir" type="int" help="">0</attrib>
+      <attrib name="radius" type="int" help="">0</attrib>
+      <attrib name="max_path_length" type="int" help="">5</attrib>
+      <attrib name="old" type="bool" help="">0</attrib>
+      <attrib name="overwrite_phase" type="bool" help="">0</attrib>
+      <attrib name="fiber_template" type="str" help="">1 1 1 0.5 0</attrib>
+      <attrib name="filename" type="str" help="filename for writing the Python file"></attrib>
+    </detect_fibers>
+    
+    <inv_ellint_rd type="empty" help="RD inversion along a line written as text file">
+      <attrib name="tol" type="float" help=""></attrib>
+      <attrib name="r0" type="int" help="">1</attrib>
+      <attrib name="nr" type="int" help="">2</attrib>
+      <attrib name="nt" type="int" help="">100</attrib>
+      <attrib name="ne" type="int" help="">1</attrib>
+      <attrib name="filename" type="str" help="filename for writing the text file"></attrib>
+    </inv_ellint_rd>
+
+    <calc_HS_bounds type="empty" help="calculate Hashin-Shtrikman bounds for two materials">
+      <attrib name="mu1" type="float" help=""></attrib>
+      <attrib name="mu2" type="float" help=""></attrib>
+      <attrib name="lambda1" type="float" help=""></attrib>
+      <attrib name="lambda2" type="float" help=""></attrib>
+    </calc_HS_bounds>
+
+    <set_fiber_distribution type="list" help="set the fiber distribution">
+
+      <dirac type="empty" help="dirac distribution">
+        <attrib name="weight" type="float" help="the weight of the distribution">1.0</attrib>
+        <attrib name="x" type="float" help="x direction">0.0</attrib>
+        <attrib name="y" type="float" help="y direction">0.0</attrib>
+        <attrib name="z" type="float" help="z direction">0.0</attrib>
+      </dirac>
+
+      <acg type="empty" help="angular central gaussian distribution">
+        <attrib name="weight" type="float" help="the weight of the distribution">1.0</attrib>
+        <attrib name="axx" type="float" help="xx component of 2nd order moment">0.0</attrib>
+        <attrib name="ayy" type="float" help="yy component of 2nd order moment">0.0</attrib>
+        <attrib name="azz" type="float" help="zz component of 2nd order moment">0.0</attrib>
+        <attrib name="axy" type="float" help="xy component of 2nd order moment">0.0</attrib>
+        <attrib name="axz" type="float" help="xz component of 2nd order moment">0.0</attrib>
+        <attrib name="ayz" type="float" help="yz component of 2nd order moment">0.0</attrib>
+      </acg>
+
+      <normal type="empty" help="wrapped normal distribution">
+        <attrib name="weight" type="float" help="the weight of the distribution">1.0</attrib>
+        <attrib name="sigma" type="float" help="scalar standard deviation">1.0</attrib>
+        <attrib name="x" type="float" help="x direction">0.0</attrib>
+        <attrib name="y" type="float" help="y direction">0.0</attrib>
+        <attrib name="z" type="float" help="z direction">0.0</attrib>
+      </normal>
+
+      <uniform type="empty" help="uniform distribution">
+        <attrib name="weight" type="float" help="the weight of the distribution">1.0</attrib>
+      </uniform>
+      
+      <composite type="list" help="random distribution from list with probabilities equal to their weight">
+        <attrib name="weight" type="float" help="the weight of the distribution">1.0</attrib>
+      </composite>
+      
+      <list type="list" help="discrete directions from list of orientations, list is repeated at the end">
+        <attrib name="weight" type="float" help="the weight of the distribution">1.0</attrib>
+        <vec type="empty" help="direction vector">
+          <attrib name="x" type="float" help="x direction">0.0</attrib>
+          <attrib name="y" type="float" help="y direction">0.0</attrib>
+          <attrib name="z" type="float" help="z direction">0.0</attrib>
+        </vec>
+      </list>
+
+    </set_fiber_distribution>
+
+    <tune_num_threads type="empty" help="try to set the number of threads to optimize performance">
+      <attrib name="tmeas" type="float" help="minimal measurement time for each test">0.05</attrib>
+      <attrib name="treshfac" type="float" help="tests are aborted if the current time rises above the current minimum time times treshfac">1.5</attrib>
+    </tune_num_threads>
+    
+    <select_material type="empty" help="select the current material, which is used as default when adding geometry entities">
+      <attrib name="name" type="str" help="the material name"></attrib>
+    </select_material>
+    
+    <place_fiber type="empty" help="add fiber to the geometry">
+      <attrib name="L" type="float" help="fiber length">0.0</attrib>
+      <attrib name="R" type="float" help="fiber radius">0.25*dx</attrib>
+      <attrib name="V" type="float" help="fiber volume, if positive the radius is calculated from V">-1.0</attrib>
+      <attrib name="type" type="str" help="fiber type to generate" values="capsule,cylinder,halfspace"></attrib>
+      <attrib name="cx" type="float" help="fiber center x">0.5*dx</attrib>
+      <attrib name="cy" type="float" help="fiber center y">0.5*dy</attrib>
+      <attrib name="cz" type="float" help="fiber center z">0.5*dz</attrib>
+      <attrib name="ax" type="float" help="fiber orientation x">1.0</attrib>
+      <attrib name="ay" type="float" help="fiber orientation y">0.0</attrib>
+      <attrib name="az" type="float" help="fiber orientation z">0.0</attrib>
+    </place_fiber>
+    
+    <place_tetrahedron type="empty" help="add tetrahedron to the geometry">
+      <attrib name="p1x,p1y,p1z" type="float" help="vertex 1">0.0,0.0,0.0</attrib>
+      <attrib name="p2x,p2y,p2z" type="float" help="vertex 2">0.0,0.0,0.0</attrib>
+      <attrib name="p3x,p3y,p3z" type="float" help="vertex 3">0.0,0.0,0.0</attrib>
+      <attrib name="p4x,p4y,p4z" type="float" help="vertex 4">0.0,0.0,0.0</attrib>
+    </place_tetrahedron>
+    
+    <place_tetdolfin type="empty" help="add a triangle to the geometry">
+      <attrib name="p1x,p1y,p1z" type="float" help="vertex 1">0.0,0.0,0.0</attrib>
+      <attrib name="p2x,p2y,p2z" type="float" help="vertex 2">0.0,0.0,0.0</attrib>
+      <attrib name="p3x,p3y,p3z" type="float" help="vertex 3">0.0,0.0,0.0</attrib>
+    </place_tetdolfin>
+    
+    <place_tetvtk type="empty" help="place geometry of a vtk file containing a tetrahedrical mesh">
+      <attrib name="filename" type="str" help="filename of the VTK file"></attrib>
+      <attrib name="start" type="int" help="first vertex index">0</attrib>
+      <attrib name="end" type="int" help="last vertex index, if negative end is equal to the number of vertices">-1</attrib>
+      <attrib name="fill" type="bool" help="fill the interior of the tetrahedrons">1</attrib>
+    </place_tetvtk>
+    
+    <place_tetdolfin type="empty" help="place geometry of a Dolfin XML file containing a tetrahedrical mesh">
+      <attrib name="filename" type="str" help="filename of the VTK file"></attrib>
+      <attrib name="start" type="int" help="first vertex index">0</attrib>
+      <attrib name="end" type="int" help="last vertex index, if negative end is equal to the number of vertices">-1</attrib>
+      <attrib name="fill" type="bool" help="fill the interior of the tetrahedrons">1</attrib>
+    </place_tetdolfin>
+    
+    <place_stl type="empty" help="place geometry of a STL file containing a tetrahedrical mesh">
+      <attrib name="filename" type="str" help="filename of the VTK file"></attrib>
+      <attrib name="start" type="int" help="first vertex index">0</attrib>
+      <attrib name="end" type="int" help="last vertex index, if negative end is equal to the number of vertices">-1</attrib>
+      <attrib name="fill" type="bool" help="fill the interior of the tetrahedrons">1</attrib>
+    </place_stl>
+
+    <run_load_case type="empty" help="run the solver with prescribed quantities">
+      <attrib name="eij" type="float" help="prescribed primary quantity (strains)">0.0</attrib>
+      <attrib name="sij" type="float" help="prescribed secondary quantity (stresses)">0.0</attrib>
+      <attrib name="pij" type="float" help="boundary condition projection 6x6 matrix in Voigt notation for strains, for hyperelasticity a 9x9 matrix, for heat a 3x3 matrix, default is the identity, which means all prescribed primary quantities are fixed and the secondary quantities are unconstrained"></attrib>
+    </run_load_case>
+
+    <calc_effective_properties type="empty" help="for elasticity compute and print effective stiffness, for heat compute and print effective conductivity, for viscosity compute and print effective viscosity">
+      <attrib name="outdir" type="str" help="write results of each load case as VTK file results_%d.vtk in this directory"></attrib>
+    </calc_effective_properties>
+
+    <calc_isotropic_laminate type="list" help="compute effective stiffness of an laminate of isotropic materials, for each material in the list the attribute phi for the volume fraction has to be specified">
+    </calc_isotropic_laminate>
+
+    <print_A2 type="empty" help="print fiber orientation 2nd order moment matrix">
+    </print_A2>
+    
+    <print_timings type="empty" help="print recorded timings for various function calls">
+    </print_timings>
+    
+    <exit type="empty" help="exit the application with specified code">
+      <attrib name="code" type="int" help="exit code">0</attrib>
+    </exit>
+    
+  </actions>
+  
+</settings>
