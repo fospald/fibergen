@@ -1,0 +1,7 @@
+#!/bin/bash
+
+HOST=$(uname -n | tr " -" "__")
+FIBERGEN_DIR=$(cd $(dirname "$0") && pwd)
+
+"${FIBERGEN_DIR}/fibergen_${HOST}" "$@"
+

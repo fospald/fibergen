@@ -1,0 +1,10 @@
+#!/bin/bash
+
+HOST=$(uname -n | tr " -" "__")
+FIBERGEN_DIR=$(cd $(dirname "$0") && pwd)
+EXEC="${FIBERGEN_DIR}/fibergen_${HOST}"
+
+if [ ! -x "$EXEC" -o "${FIBERGEN_DIR}/../src/fibergen.cpp" -nt "$EXEC" -o "${FIBERGEN_DIR}/../CMakeLists.txt" -nt "$EXEC" -o "$1" ]; then
+	bash "${FIBERGEN_DIR}/../build.sh"
+fi
+

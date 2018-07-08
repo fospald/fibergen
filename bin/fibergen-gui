@@ -1,0 +1,13 @@
+#!/bin/bash
+
+HOST=$(uname -n | tr " -" "__")
+FIBERGEN_DIR=$(cd $(dirname "$0") && pwd)
+PYTHON=python
+
+if [ -n "$(ldd "${FIBERGEN_DIR}/fibergen_${HOST}" | grep libpython3)" ]
+then
+	PYTHON=python3
+fi
+
+$PYTHON "${FIBERGEN_DIR}/../gui/main.py" "$@"
+
