@@ -12,6 +12,7 @@ import fibergen
 import fibergen_common as fgc
 #import xml.dom.minidom
 import re
+import base64
 import os
 import copy
 import time
@@ -75,14 +76,31 @@ class MyWebPage(QtWebKitWidgets.QWebPage):
 
 		try:
 			self.setLinkDelegationPolicy(QtWebKitWidgets.QWebPage.DelegateAllLinks)
+			self.setHtml = self.setHtmlFrame
+			self.acceptNavigationRequest = self.acceptNavigationRequestWebkit
+			self.setUrl = self.setUrlFrame
 		except:
 			pass
 
 	def acceptNavigationRequest(self, url, navigationType, isMainFrame):
+		print(url, navigationType, isMainFrame)
 		if navigationType == QtWebKitWidgets.QWebPage.NavigationTypeLinkClicked:
 			self.linkClicked.emit(url)
 			return False
-		return QtWebKitWidgets.QWebPage.acceptNavigationRequest(self, webFrame, networkRequest, navigationType)
+		return QtWebKitWidgets.QWebPage.acceptNavigationRequest(self, url, navigationType, isMainFrame)
+
+	def acceptNavigationRequestWebkit(self, frame, request, navigationType):
+		if navigationType == QtWebKitWidgets.QWebPage.NavigationTypeLinkClicked:
+			url = request.url()
+			self.linkClicked.emit(url)
+			return False
+		return QtWebKitWidgets.QWebPage.acceptNavigationRequest(self, frame, request, navigationType)
+
+	def setHtmlFrame(self, html):
+		self.currentFrame().setHtml(html)
+
+	def setUrlFrame(self, url):
+		self.currentFrame().setUrl(url)
 
 
 class PlotField(object):
@@ -311,7 +329,6 @@ class PlotWidget(QtWidgets.QWidget):
 		if 1:
 			self.resultTextEdit = QtWebKitWidgets.QWebView()
 			self.resultPage = MyWebPage()
-			print(resultText)
 			self.resultPage.setHtml(resultText)
 			self.resultTextEdit.setPage(self.resultPage)
 		else:
@@ -406,11 +423,12 @@ class PlotWidget(QtWidgets.QWidget):
 		with codecs.open(template_dest, mode="w", encoding="utf-8") as f:
 			f.write(template)
 
-		subprocess.call(["pdflatex", template_dest], cwd=os.path.dirname(filename))
+		if False:
+			subprocess.call(["pdflatex", template_dest], cwd=os.path.dirname(filename))
 
-		pdf, ext = os.path.splitext(filename)
-		pdf += ".pdf"
-		subprocess.Popen(["okular", pdf])
+			pdf, ext = os.path.splitext(filename)
+			pdf += ".pdf"
+			subprocess.Popen(["okular", pdf])
 
 		#scipy.misc.imsave(filename, image) #, 'PNG')
 
@@ -949,7 +967,7 @@ class DocWidget(QtWebKitWidgets.QWebView):
 class DemoWidget(QtWebKitWidgets.QWebView):
 
 	openProjectRequest = QtCore.pyqtSignal('QString')
-	newProjectRequest = QtCore.pyqtSignal()
+	newProjectRequest = QtCore.pyqtSignal('QString')
 
 	def __init__(self, parent = None):
 
@@ -975,7 +993,7 @@ class DemoWidget(QtWebKitWidgets.QWebView):
 		elif action == "open":
 			self.openProjectRequest.emit(path)
 		elif action == "new":
-			self.newProjectRequest.emit()
+			self.newProjectRequest.emit(path)
 
 
 	def loadDir(self, path=None):
@@ -1005,15 +1023,12 @@ body {
 	width: 256;
 }
 img {
-	max-height: 256;
-	max-width: 256;
-}
-.empty {
-	border: 1px solid #000;
-	width: 256;
 	height: 256;
-	overflow: hidden;
-	background-color: Control;
+}
+.header img {
+	height: auto;
+	width: 100%;
+	margin-bottom: 20pt;
 }
 .header {
 	padding: 5px;
@@ -1055,11 +1070,17 @@ a {
 		if os.path.isfile(category_file):
 			try:
 				xml = ET.parse(category_file).getroot()
-				img = os.path.join(path, xml.find("image").text)
-				title = xml.find("title").text
 				html += '<div class="header">'
-				html += '<h1>' + "title" + '</h1>'
-				#html += '<img src="file://' + img + '" />'
+				if path == self.demodir:
+					img = xml.find("image")
+					if not img is None and not img.text is None and len(img.text):
+						img = os.path.join(path, img.text)
+						html += '<img src="file://' + img + '" />'
+				title = xml.find("title")
+				if not title is None and len(title.text):
+					html += '<h1>' + title.text + '</h1>'
+				else:
+					html += '<h1>' + d + '</h1>'
 				html += '</div>'
 			except:
 				print("error in file", category_file)
@@ -1069,13 +1090,6 @@ a {
 			html += '<a class="back" href="http://x#cd#' + path + '/..">&#x21a9; Back</a>'
 			
 		html += '<center class="body">'
-
-		html += '<a href="http://x#new#">'
-		html += '<div class="demo">'
-		html += '<h2>Empty file</h2>'
-		html += '<div class="empty"></div>'
-		html += '</div>'
-		html += '</a>'
 
 		items = []
 		indices = []
@@ -1096,19 +1110,29 @@ a {
 					print("error in file", project_file)
 					print(traceback.format_exc())
 					continue
-				item += '<a href="http://x#open#' + project_file + '">'
+				try:
+					action = xml.find("action").text
+				except:
+					action = "new" if d == "empty" else "open"
+				item += '<a href="http://x#' + action + '#' + project_file + '">'
 				item += '<div class="demo">'
 				title = xml.find("title")
-				if not title is None and len(title.text):
+				if not title is None and not title.text is None and len(title.text):
 					item += '<h2>' + title.text + '</h2>'
 				else:
 					item += '<h2>' + d + '</h2>'
 				img = xml.find("image")
-				if not img is None and len(img.text):
+				if not img is None and not img.text is None and len(img.text):
 					img = os.path.join(subdir, img.text)
 					item += '<img src="file://' + img + '" />'
+				else:
+					for ext in ["svg", "png"]:
+						img = os.path.join(subdir, "thumbnail." + ext)
+						if os.path.isfile(img):
+							item += '<img src="file://' + img + '" />'
+							break
 				desc = xml.find("description")
-				if not desc is None and len(desc.text):
+				if not desc is None and not desc.text is None and len(desc.text):
 					item += '<p>' + desc.text + '</p>'
 				item += '</div>'
 				item += '</a>'
@@ -1123,12 +1147,12 @@ a {
 				item += '<a href="http://x#cd#' + subdir + '">'
 				item += '<div class="category">'
 				title = xml.find("title")
-				if not title is None and len(title.text):
+				if not title is None and not title.text is None and len(title.text):
 					item += '<h2>' + title.text + '</h2>'
 				else:
 					item += '<h2>' + d + '</h2>'
 				img = xml.find("image")
-				if not img is None and len(img.text):
+				if not img is None and not img.text is None and len(img.text):
 					img = os.path.join(subdir, img.text)
 					item += '<img src="file://' + img + '" />'
 				item += '</div>'
@@ -1151,6 +1175,8 @@ a {
 			items.insert(k+1, item)
 
 		html += "\n".join(items)
+
+
 		html += '</center>'
 
 		self.mypage.setHtml(html)
@@ -1320,15 +1346,6 @@ class MainWindow(QtWidgets.QMainWindow):
 			self.docTabIndex = self.addTab(self.docTab, "Help")
 		self.tabWidget.setCurrentIndex(self.docTabIndex)
 
-	def newProjectGui(self):
-		if self.demoTabIndex is None:
-			if self.demoTab is None:
-				self.demoTab = DemoWidget()
-				self.demoTab.openProjectRequest.connect(self.openDemo)
-				self.demoTab.newProjectRequest.connect(self.newProject)
-			self.demoTabIndex = self.addTab(self.demoTab, "Demos")
-		self.tabWidget.setCurrentIndex(self.demoTabIndex)
-
 	def updateStatus(self):
 		c = self.textEdit.textCursor()
 		pos = c.position()
@@ -1398,19 +1415,13 @@ class MainWindow(QtWidgets.QMainWindow):
 			with open(filename, "wb+") as f:
 				f.write(txt)
 			self.lastSaveText = txt
+			self.filename = filename
+			self.updateStatus()
 			return True
 		except:
 			QtWidgets.QMessageBox.critical(self, "Error", sys.exc_info()[0])
 			return False
 	
-	def newProject(self):
-		if not self.newProjectSave(filename):
-			return False
-		if not self.demoTabIndex is None:
-			self.tabCloseRequested(self.demoTabIndex)
-			self.demoTabIndex = None
-		return True
-
 	def openDemo(self, filename):
 		if not self.openProjectSave(filename):
 			return False
@@ -1442,9 +1453,22 @@ class MainWindow(QtWidgets.QMainWindow):
 			return False
 		return True
 
-	def newProject(self):
+	def newProjectGui(self):
+		if self.demoTabIndex is None:
+			if self.demoTab is None:
+				self.demoTab = DemoWidget()
+				self.demoTab.openProjectRequest.connect(self.openDemo)
+				self.demoTab.newProjectRequest.connect(self.newProject)
+			self.demoTabIndex = self.addTab(self.demoTab, "Demos")
+		self.tabWidget.setCurrentIndex(self.demoTabIndex)
+
+	def newProject(self, filename=""):
+		if not self.checkTextSaved():
+			return False
+		if not self.demoTabIndex is None:
+			self.tabCloseRequested(self.demoTabIndex)
+			self.demoTabIndex = None
 		txt = ""
-		filename = os.path.join(self.demoTab.demodir, "empty.xml")
 		try:
 			with open(filename, "rt") as f:
 				txt = f.read()
