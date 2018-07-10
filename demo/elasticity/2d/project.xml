@@ -1,0 +1,73 @@
+<settings>
+
+	<title>2d fiber distribution</title>
+	<description>This demo shows how to create a planar fiber distribution.</description>
+	
+	<dz>1.0/512.0</dz>
+
+	<!-- Fiber length -->
+	<length>0.3</length>
+
+	<!-- Fiber radius -->
+	<radius>0.025</radius>
+
+	<type>capsule</type>
+
+	<!-- Fiber volume fraction
+	<v>0.5</v> -->
+
+	<!-- Number of fibers -->
+	<n>30</n>
+
+	<!-- Maximum number of tries to generate n non intersecing fibers -->
+	<m>100000</m>
+
+	<!-- Minimum fiber distance -->
+	<dmin>0.01</dmin>
+
+	<!-- Random seed -->
+	<seed>0</seed>
+
+	<!-- Create periodic structure -->
+	<!-- If fast=1, distance maps may be not correctly in the far field -->
+	<periodic fast="0">1</periodic>
+	<planar z="1"></planar>
+
+	<!-- Allow intersecting structure -->
+	<intersecting>0</intersecting>
+
+	<!-- Number of threads to use -->
+	<num_threads>8</num_threads>
+
+	<solver n="512" nz="1">
+
+		<!-- Solver tolerance -->
+		<tol>1e-4</tol>
+
+		<materials>
+			<matrix E="1" nu="0.1" />
+			<fiber E="10" nu="0.4" />
+		</materials>
+
+		<method>cg</method>
+		<mixing_rule>voigt</mixing_rule>
+
+	</solver>
+
+	<!-- List of actions to perform -->
+	<actions>
+
+		<select_material name="fiber" />
+		
+		<!-- Set the fiber distribution -->
+		<set_fiber_distribution>
+			<acg weight="1" axx="0.7" ayy="0.3" azz="0.0" axy="0.0" axz="0.0" ayz="0.0" />
+		</set_fiber_distribution>
+		
+		<!-- Print the second order fiber orientation tensor -->
+		<print_A2 />
+
+		<run_load_case e11="1" e22="1" e33="1" outfile="" />
+	</actions>
+
+</settings>

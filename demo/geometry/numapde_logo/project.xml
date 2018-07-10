@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<settings>
+	<title>NumaPDE Logo</title>
+	<description>This demo shows how to load a FEniCS/Dolfin mesh to use as geometry.</description>
+	<image>thumbnail.png</image>
+	<dz>0.001</dz>
+	<z0>0.5</z0>
+	<y0>0.185</y0>
+	<dy>0.63</dy>
+	<num_threads>4</num_threads>
+	<solver nx="512" ny="322" mult="1" >
+		<materials>
+			<matrix law="iso" E="1" nu="0.2"/>
+			<core law="iso" E="10" nu="0.3"/>
+		</materials>
+		<method>cg</method>
+		<gamma_scheme>collocated</gamma_scheme>
+		<mixing_rule>voigt</mixing_rule>
+		<mode>elasticity</mode>
+		<smooth_levels>1</smooth_levels>
+	</solver>
+	<actions>
+		<select_material name="core"/>
+		<place_tetdolfin fill="1" filename="NumaPDE_Logo_3D.xml" />
+		<run_load_case e33="0" e11="0.1" e22="0.2" e12="0.3" outfile="" />
+	</actions>
+</settings>

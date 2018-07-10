@@ -1,0 +1,38 @@
+<settings>
+
+	<title>Hashin coated sphere</title>
+	<description>This demo shows how to construct a coated sphere.</description>
+	<image>thumbnail.svg</image>
+
+	<solver n="64">
+
+		<!-- Solver tolerance -->
+		<tol>1e-10</tol>
+
+		<materials>
+			<matrix mu="1" lambda="3.63867684478" />
+			<mat2 mu="3" lambda="2" />
+			<mat1 mu="5" lambda="4" />
+		</materials>
+
+	</solver>
+
+	<!-- List of actions to perform -->
+	<actions>
+
+		<select_material name="mat1" />
+		<place_fiber R="0.2" />
+
+		<select_material name="mat2" />
+		<place_fiber R="0.4" />
+
+		<run_load_case e11="1" e22="1" e33="1" outfile="" />
+
+		<!-- <sigma>   = 12.9152 * I = 3 * k_eff * I -->
+		<!-- => k_eff  = 4.305066666666667 (experimental) -->
+		<!-- => k_star = lambda_matrix + 2/3*mu_matrix = 3.63867684478 + 2/3.0*1 = 4.305343511446667 (theoretical) -->
+
+	</actions>
+
+</settings>
+

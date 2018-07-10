@@ -1023,7 +1023,7 @@ body {
 	width: 256;
 }
 img {
-	height: 256;
+	width: 256;
 }
 .header img {
 	height: auto;

@@ -1,0 +1,72 @@
+<settings>
+  
+	<title>Effective conductivity</title>
+	<description>Example for computing the effective conductivity of a fiber reinforced material.</description>
+	<image>thumbnail.png</image>
+  
+	<!-- Fiber length -->
+	<length>0.2</length>
+
+	<!-- Fiber radius -->
+	<radius>0.025</radius>
+
+	<!-- Fiber volume fraction
+	<v>0.5</v> -->
+
+	<!-- Number of fibers -->
+	<n>400</n>
+
+	<!-- Maximum number of tries to generate n non intersecing fibers -->
+	<m>1000000</m>
+
+	<!-- Minimum fiber distance -->
+	<dmin>0.0</dmin>
+
+	<!-- Random seed -->
+	<seed>0</seed>
+
+	<!-- Create periodic structure -->
+	<!-- If fast=1, distance maps may be not correctly in the far field -->
+	<periodic fast="0">1</periodic>
+
+	<!-- Allow intersecting structure -->
+	<intersecting>0</intersecting>
+
+	<!-- Number of threads to use -->
+	<num_threads>4</num_threads>
+
+	<solver n="128" nz="1" >
+
+		<!-- Solver tolerance -->
+		<tol>1e-6</tol>
+
+		<materials>
+			<matrix mu="10" lambda="0" />
+			<fiber  mu="1" lambda="0" />
+		</materials>
+
+		<method>cg</method>
+		<method>basic</method>
+		<gamma_scheme>collocated</gamma_scheme>
+		<gamma_scheme>staggered</gamma_scheme>
+		<mixing_rule>voigt</mixing_rule>
+		<mixing_rule>laminate</mixing_rule>
+		<mode>heat</mode>
+		<debug>0</debug>
+
+	</solver>
+
+	<!-- List of actions to perform -->
+	<actions>
+		<select_material name="fiber" />
+
+		<!-- Set the fiber distribution -->
+		<set_fiber_distribution>
+			<acg weight="1" axx="3.0" ayy="2.0" azz="1.0" axy="0.0" axz="0.0" ayz="0.0" />
+		</set_fiber_distribution>
+	
+		<calc_effective_properties />
+	</actions>
+
+</settings>
+

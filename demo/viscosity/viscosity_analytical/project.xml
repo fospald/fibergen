@@ -1,0 +1,53 @@
+<settings>
+
+	<title>Fiber suspension</title>
+	<description>This demo features a periodic suspension of fibers.</description>
+	<image>thumbnail.png</image>
+
+	<dx>1.0/256.0</dx>
+
+	<length>0.3</length>
+	<radius>0.01</radius>
+	<n>100</n>
+	<type>capsule</type>
+	<seed>0</seed>
+	<intersecting>0</intersecting>
+	<periodic x="0">1</periodic>
+	<planar x="1" />
+
+	<num_threads>1</num_threads>
+
+	<solver nx="1" n="256" >
+		
+		<materials>
+			<matrix law="iso" mu="1"  />
+			<fiber  law="iso" mu="0.001" />
+		</materials>
+		
+		<method>cg</method>
+		<gamma_scheme>staggered</gamma_scheme>
+		<gamma_scheme>collocated</gamma_scheme>
+
+		<mode>viscosity</mode>
+		<mixing_rule>voigt</mixing_rule>
+		<mixing_rule>maximum</mixing_rule>
+		<tol>1.5e-3</tol>
+		<maxiter>1000</maxiter>
+		<print_mean>0</print_mean>
+		<smooth_levels>4</smooth_levels>
+
+	</solver>
+
+	<actions>
+
+		<select_material name="fiber" />
+
+		<set_fiber_distribution>
+			<acg weight="1" axx="0.0" ayy="0.5" azz="0.5" axy="0.0" axz="0.0" ayz="0.0" />
+		</set_fiber_distribution>
+
+		<run_load_case e11="1" e22="-1" e33="0" />
+
+	</actions>
+
+</settings>

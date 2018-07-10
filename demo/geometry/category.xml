@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<category>
+	<title>Geometry</title>
+	<description>These demos show how to generate geometry (fiber distributions) and how to import and export geometry data.</description>
+	<image>category.png</image>
+	<index>10</index>
+</category>

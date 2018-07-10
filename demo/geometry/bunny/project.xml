@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<settings>
+	<title>Bunny</title>
+	<description>This demo shows how to load several FEniCS/Dolfin meshes to use as geometry.</description>
+	<image>thumbnail.png</image>
+	<dx>100</dx>
+	<dy>100</dy>
+	<dz>1</dz>
+	<x0>70</x0>
+	<y0>40</y0>
+	<z0>12</z0>
+	<solver nx="256" ny="256" nz="0" mult="1" >
+		<materials>
+			<matrix law="iso" lambda="10" mu="10"/>
+			<core law="iso" lambda="1" mu="1"/>
+		</materials>
+		<method>cg</method>
+		<gamma_scheme>staggered</gamma_scheme>
+		<mixing_rule>laminate</mixing_rule>
+		<mode>elasticity</mode>
+		<maxiter>10</maxiter>
+		<smooth_levels>0</smooth_levels>
+	</solver>
+	<actions>
+		<select_material name="core"/>
+		<place_tetdolfin fill="1" filename="bunny.xml" />
+		<place_tetdolfin fill="1" filename="numapde_scaled.xml" />
+		<run_load_case e11="0" e22="0" e33="0" e12="1" outfile="" />
+	</actions>
+</settings>
