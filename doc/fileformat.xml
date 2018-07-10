@@ -348,11 +348,11 @@
       <attrib name="p4x,p4y,p4z" type="float" help="vertex 4">0.0,0.0,0.0</attrib>
     </place_tetrahedron>
     
-    <place_tetdolfin type="empty" help="add a triangle to the geometry">
+    <place_triangle type="empty" help="add a triangle to the geometry">
       <attrib name="p1x,p1y,p1z" type="float" help="vertex 1">0.0,0.0,0.0</attrib>
       <attrib name="p2x,p2y,p2z" type="float" help="vertex 2">0.0,0.0,0.0</attrib>
       <attrib name="p3x,p3y,p3z" type="float" help="vertex 3">0.0,0.0,0.0</attrib>
-    </place_tetdolfin>
+    </place_triangle>
     
     <place_tetvtk type="empty" help="place geometry of a vtk file containing a tetrahedrical mesh">
       <attrib name="filename" type="str" help="filename of the VTK file"></attrib>

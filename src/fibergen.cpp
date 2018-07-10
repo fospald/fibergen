@@ -137,6 +137,9 @@ multigrid improvements:
 
 #include <boost/python.hpp>
 #include <boost/python/raw_function.hpp>
+#if BOOST_VERSION >= 106500
+#include <boost/python/numpy.hpp>
+#endif
 
 #undef ITK_ENABLED
 
@@ -24408,7 +24411,10 @@ void init_numpy() { import_array(); }
 {
 	// this is required to return py::numeric::array as numpy array
 	init_numpy();
+
+	#if BOOST_VERSION < 106500
 	py::numeric::array::set_module_and_type("numpy", "ndarray");
+	#endif
 
 	py::register_exception_translator<boost::exception>(&translate1);
 	py::register_exception_translator<std::runtime_error>(&translate2);
