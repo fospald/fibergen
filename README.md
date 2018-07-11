@@ -60,6 +60,7 @@ SET(PYTHON_VERSION_MINOR Y)
 
 ### Installing boost-numeric-bindings
 
+Only the header files are required. No configure/build needed.
 ```
 cd install_dir
 git clone http://git.tiker.net/trees/boost-numeric-bindings.git

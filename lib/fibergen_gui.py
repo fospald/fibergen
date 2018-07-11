@@ -226,7 +226,7 @@ class PlotWidget(QtWidgets.QWidget):
 		self.loadstepSlider = QtWidgets.QSlider()
 		self.loadstepSlider.setOrientation(QtCore.Qt.Horizontal)
 		self.loadstepSlider.setMinimum(0)
-		self.loadstepSlider.setMaximum(len(self.fields[0].data)-1)
+		self.loadstepSlider.setMaximum((len(self.fields[0].data)-1) if len(self.fields) else 0)
 		self.loadstepSlider.setTickPosition(QtWidgets.QSlider.TicksBothSides)
 		self.loadstepSlider.setTickInterval(1)
 		#self.loadstepSlider.sliderMoved.connect(self.loadstepSliderChanged)
@@ -345,10 +345,10 @@ class PlotWidget(QtWidgets.QWidget):
 
 		self.setLayout(vbox)
 
-		if (self.currentFieldIndex is None):
+		if (self.currentFieldIndex is None and len(self.fields)):
 			self.currentFieldIndex = 0
 
-		if (self.currentFieldIndex != None):
+		if (not self.currentFieldIndex is None):
 			self.fields[self.currentFieldIndex].button.setChecked(True)
 	
 		self.updateFigCanvasVisible()
@@ -961,7 +961,11 @@ class DocWidget(QtWebKitWidgets.QWebView):
 
 		self.mypage = MyWebPage()
 		self.mypage.setUrl(QtCore.QUrl("file://" + self.docfile))
+		self.mypage.linkClicked.connect(self.linkClicked)
 		self.setPage(self.mypage)
+
+	def linkClicked(self, url):
+		self.mypage.setUrl(url)
 
 
 class DemoWidget(QtWebKitWidgets.QWebView):
@@ -1025,10 +1029,16 @@ body {
 img {
 	width: 256;
 }
+.header td:last-child {
+	text-align: right;
+}
+.header td:first-child {
+	white-space: nowrap;
+	width: 1%;
+}
 .header img {
-	height: auto;
-	width: 100%;
-	margin-bottom: 20pt;
+	width: auto;
+	height: 4em;
 }
 .header {
 	padding: 5px;
@@ -1070,18 +1080,27 @@ a {
 		if os.path.isfile(category_file):
 			try:
 				xml = ET.parse(category_file).getroot()
-				html += '<div class="header">'
 				if path == self.demodir:
+					html += '<table class="header">'
+					html += '<tr>'
+					html += '<td>'
+					html += '<h1>fibergen</h1>'
+					html += '<p>FFT-based homogenization</p>'
+					html += '</td>'
 					img = xml.find("image")
 					if not img is None and not img.text is None and len(img.text):
 						img = os.path.join(path, img.text)
-						html += '<img src="file://' + img + '" />'
-				title = xml.find("title")
-				if not title is None and len(title.text):
-					html += '<h1>' + title.text + '</h1>'
+						html += '<td><img src="file://' + img + '" /></td>'
+					html += '</tr>'
+					html += '</table>'
 				else:
-					html += '<h1>' + d + '</h1>'
-				html += '</div>'
+					html += '<div class="header">'
+					title = xml.find("title")
+					if not title is None and len(title.text):
+						html += '<h1>' + title.text + '</h1>'
+					else:
+						html += '<h1>' + d + '</h1>'
+					html += '</div>'
 			except:
 				print("error in file", category_file)
 				print(traceback.format_exc())

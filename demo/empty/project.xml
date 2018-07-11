@@ -1,7 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
 <settings>
 	<title>Empty project</title>
-	<solver n="">
+	<solver n="32">
+		<mode>elasticity</mode>
+		<materials>
+			<matrix E="1.0" nu="0.3" />
+			<fiber E="1.0" nu="0.3" />
+		</materials>
 	</solver>
 	<actions>
+		<select_material name="fiber" />
+		<place_fiber R="0.5" />
 	</actions>
 </settings>

@@ -518,9 +518,20 @@ public:
 	template <class T>
 	T eval(const std::string& expr)
 	{
-		py::object result = py::eval(expr.c_str(), main_namespace, locals);
-		T ret = py::extract<T>(result);
-		return ret;
+		//try {
+			std::string e = expr;
+			boost::trim(e);
+			py::object result = py::eval(e.c_str(), main_namespace, locals);
+			T ret = py::extract<T>(result);
+			return ret;
+		/*
+		}
+		catch(...) {
+			// If an exception was thrown, translate it to Python
+			py::handle_exception();
+		}
+		BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("evaluation of expression failed: '%s'") % expr).str()));
+		*/
 	}
 
 	template <class T>
@@ -23888,9 +23899,9 @@ public:
 		else if (#T == type && #R == rtype && DIM == dim) fgi.reset(new FG<T, R, DIM>(xml_root))
 
 		if (false) {}
-		RUN_TYPE_AND_DIM(double, double, 2);
-		RUN_TYPE_AND_DIM(double, float, 2);
-		RUN_TYPE_AND_DIM(double, double, 3);
+//		RUN_TYPE_AND_DIM(double, double, 2);
+//		RUN_TYPE_AND_DIM(double, float, 2);
+//		RUN_TYPE_AND_DIM(double, double, 3);
 		RUN_TYPE_AND_DIM(double, float, 3);
 #ifdef FFTWF_ENABLED
 		RUN_TYPE_AND_DIM(float, float, 2);
@@ -24387,6 +24398,7 @@ struct VecVecVecVecToList
 
 void translate1(boost::exception const& e)
 {
+	std::cout << "translate1" << "\n";
 	// Use the Python 'C' API to set up an exception object
 	PyErr_SetString(PyExc_RuntimeError, boost::diagnostic_information(e).c_str());
 }
@@ -24394,9 +24406,19 @@ void translate1(boost::exception const& e)
 
 void translate2(std::runtime_error const& e)
 {
+	std::cout << "translate2" << "\n";
 	// Use the Python 'C' API to set up an exception object
 	PyErr_SetString(PyExc_RuntimeError, e.what());
 }
+
+
+void translate3(py::error_already_set const& e)
+{
+	std::cout << "translate3" << "\n";
+	// Use the Python 'C' API to set up an exception object
+	PyErr_SetString(PyExc_RuntimeError, "There was a Python error inside fibergen!");
+}
+
 
 
 #if PY_VERSION_HEX >= 0x03000000
@@ -24418,6 +24440,7 @@ void init_numpy() { import_array(); }
 
 	py::register_exception_translator<boost::exception>(&translate1);
 	py::register_exception_translator<std::runtime_error>(&translate2);
+	py::register_exception_translator<py::error_already_set>(&translate3);
 
 	py::to_python_converter<std::vector<std::string>, VecToList<std::string> >();
 	py::to_python_converter<std::vector<double>, VecToList<double> >();
