@@ -11,6 +11,7 @@ import sys
 import fibergen
 import fibergen_common as fgc
 #import xml.dom.minidom
+import webbrowser
 import re
 import base64
 import os
@@ -1247,41 +1248,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.hSplit.insertWidget(0, self.vSplit)
 		self.hSplit.insertWidget(1, self.tabWidget)
 
-		"""
-		theme_paths = [
-			'/usr/share/icons',
-		]
-
-		themes = [
-			'ubuntu-mono-light',
-		]
-
-		/usr/share/cantata/icons/cantata/index.theme
-		/usr/share/icons/Adwaita/index.theme
-		/usr/share/icons/Breeze_Snow/index.theme
-		/usr/share/icons/Humanity/index.theme
-		/usr/share/icons/Humanity-Dark/index.theme
-		/usr/share/icons/LoginIcons/index.theme
-		/usr/share/icons/Tango/index.theme
-		/usr/share/icons/breeze/index.theme
-		/usr/share/icons/breeze-dark/index.theme
-		/usr/share/icons/breeze_cursors/index.theme
-		/usr/share/icons/contrastlarge/index.theme
-		/usr/share/icons/default/index.theme
-		/usr/share/icons/elementary-xfce/index.theme
-		/usr/share/icons/elementary-xfce-dark/index.theme
-		/usr/share/icons/elementary-xfce-darker/index.theme
-		/usr/share/icons/elementary-xfce-darkest/index.theme
-		/usr/share/icons/hicolor/index.theme
-		/usr/share/icons/oxygen/index.theme
-		/usr/share/icons/ubuntu-mono-dark/index.theme
-		/usr/share/icons/ubuntu-mono-light/index.theme
-		/usr/share/pixmaps/pidgin/tray/hicolor/index.theme
-		/usr/share/sounds/freedesktop/index.theme
-		/usr/share/themes/Greybird/index.theme
-
-		QtGui.QIcon.setThemeSearchPaths(theme_paths + QtGui.QIcon.themeSearchPaths())
-		"""
+		# search for a good icon theme
 
 		def get_size(start_path = '.'):
 			total_size = 0
@@ -1304,18 +1271,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		themes = sorted(themes, key=lambda tup: tup[1], reverse=True)
 
-		print(themes)
-
 		for theme, size in themes:
 			QtGui.QIcon.setThemeName(theme)
 			if QtGui.QIcon.hasThemeIcon("document-new"):
 				break
 
-
-		#print "theme search paths:"
-		#for path in QtGui.QIcon.themeSearchPaths():
-		#	print "%s/%s" % (path, QtGui.QIcon.themeName())
-
+		# add toolbar actions
 
 		def aa(icon, text, func, key):
 			action = self.toolbar.addAction(QtGui.QIcon.fromTheme(icon), text)
@@ -1339,6 +1300,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.toolbar.addWidget(spacer)
 		aa("help-contents", "Help", self.openHelp, QtCore.Qt.Key_F1)
+		aa("help-about", "About", self.openAbout, None)
 		aa("application-exit", "Exit", self.exit, QtCore.Qt.CTRL + QtCore.Qt.Key_Q)
 
 		self.undoAction.setEnabled(False)
@@ -1383,6 +1345,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
 	def redo(self):
 		self.textEdit.redo()
+
+	def openAbout(self):
+		webbrowser.open('https://fospald.github.io/fibergen/')
 
 	def openHelp(self):
 		if self.docTabIndex is None:
