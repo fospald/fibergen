@@ -45,10 +45,14 @@ where $FIBERGEN denotes your download directory.
 
 ## Run
 
+Enter the following command to run the GUI (with an optional project file to load)
 ```
-fibergen-gui
+fibergen-gui [project.xml]
 ```
-
+In order to run a project file from the command line run
+```
+fibergen project.xml
+```
 
 ## Troubleshooting
 
