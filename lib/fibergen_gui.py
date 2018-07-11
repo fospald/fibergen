@@ -83,7 +83,6 @@ class MyWebPage(QtWebKitWidgets.QWebPage):
 			pass
 
 	def acceptNavigationRequest(self, url, navigationType, isMainFrame):
-		print(url, navigationType, isMainFrame)
 		if navigationType == QtWebKitWidgets.QWebPage.NavigationTypeLinkClicked:
 			self.linkClicked.emit(url)
 			return False
@@ -109,9 +108,6 @@ class PlotField(object):
 class PlotWidget(QtWidgets.QWidget):
 
 	def __init__(self, field_groups, xml, resultText, other = None, parent = None):
-
-		if not isinstance(other, PlotWidget):
-			other = None
 
 		self.changeFieldSuspended = False
 		self.replot_reset_limits = False
@@ -213,6 +209,8 @@ class PlotWidget(QtWidgets.QWidget):
 		#self.sliceSlider.sliderMoved.connect(self.sliceSliderChanged)
 		if (other != None):
 			self.sliceSlider.setValue(int(other.sliceSlider.value()*(self.sliceSlider.maximum()+1)/(other.sliceSlider.maximum()+1)))
+		else:
+			self.sliceSlider.setValue((self.sliceSlider.maximum() + self.sliceSlider.minimum())/2)
 		self.sliceSlider.valueChanged.connect(self.sliceSliderChanged)
 		self.sliceLabel = QtWidgets.QLabel()
 		self.sliceLabel.setText("%s=%04d" % (self.sliceCombo.currentText(), self.sliceSlider.value()))
@@ -1085,7 +1083,7 @@ a {
 					html += '<tr>'
 					html += '<td>'
 					html += '<h1>fibergen</h1>'
-					html += '<p>FFT-based homogenization</p>'
+					html += '<p>A FFT-based homogenization tool.</p>'
 					html += '</td>'
 					img = xml.find("image")
 					if not img is None and not img.text is None and len(img.text):
@@ -1224,6 +1222,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.tabWidget.tabCloseRequested.connect(self.tabCloseRequested)
 		
 		self.filename = None
+		self.file_id = 0
 		self.filenameLabel = QtWidgets.QLabel()
 
 		self.statusBar = QtWidgets.QStatusBar()
@@ -1300,6 +1299,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		self.toolbar = QtWidgets.QToolBar()
 		self.toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.toolbar.setObjectName("toolbar")
 
 		# https://specifications.freedesktop.org/icon-naming-spec/icon-naming-spec-latest.html
 		aa("document-new", "New", self.newProjectGui, QtCore.Qt.CTRL + QtCore.Qt.Key_N)
@@ -1463,6 +1463,7 @@ class MainWindow(QtWidgets.QMainWindow):
 				txt = f.read()
 			self.textEdit.setPlainText(txt)
 			self.filename = filename
+			self.file_id += 1
 			self.lastSaveText = self.getSaveText()
 			self.textEdit.document().clearUndoRedoStacks()
 			self.vSplit.setVisible(True)
@@ -1495,6 +1496,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			pass
 		self.textEdit.setPlainText(txt)
 		self.filename = None
+		self.file_id += 1
 		self.lastSaveText = self.getSaveText()
 		self.textEdit.document().clearUndoRedoStacks()
 		self.vSplit.setVisible(True)
@@ -1613,9 +1615,9 @@ class MainWindow(QtWidgets.QMainWindow):
 			QtWidgets.QApplication.processEvents()
 			
 			fg.run()
-			
+			fg.init_phase()
+
 			if len(loadstep_called) == 0:
-				print("not called")
 				loadstep_callback()
 
 			if progress.wasCanceled():
@@ -1773,8 +1775,17 @@ h1 {
 			resultText += plot(range(len(mean_strains)), [s[i] for s in mean_strains], "Epsilon_%s" % ij, "Iteration", "Epsilon_%d" % ij, "linear")
 		"""
 
-		tab = PlotWidget(field_groups, fg.get_xml(), resultText, self.tabWidget.currentWidget())
-		i = self.addTab(tab, "Run_%d" % self.runConut)
+		other = self.tabWidget.currentWidget()
+
+		if not isinstance(other, PlotWidget):
+			other = None
+		elif other.file_id != self.file_id:
+			other = None
+
+		tab = PlotWidget(field_groups, fg.get_xml(), resultText, other)
+		tab.file_id = self.file_id
+		if len(tab.fields) > 0:
+			i = self.addTab(tab, "Run_%d" % self.runConut)
 		self.runConut += 1
 
 
