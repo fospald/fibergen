@@ -28,7 +28,13 @@ A FFT-based homogenization tool.
 ## Installation
 
 1. download source
+```
+git clone https://github.com/fospald/fibergen.git
+```
 2. run build.sh, on error probably a library is missing
+```
+sh build.sh
+```
 3. after successful build update your envirnoment variables:
 ```
 export PATH=$PATH:$FIBERGEN/bin
