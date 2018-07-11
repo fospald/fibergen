@@ -515,6 +515,11 @@ public:
 		py::exec("from math import *", main_namespace);
 	}
 
+	void eval(const std::string& expr)
+	{
+		py::eval(expr.c_str(), main_namespace, locals);
+	}
+
 	template <class T>
 	T eval(const std::string& expr)
 	{
@@ -14866,7 +14871,25 @@ public:
 		P V = 0;
 		P V_max = dx*dy*dz;
 
-		if (levels <= 0)
+		if (levels < 0) {
+			// adaptive error estimator
+			T K = info_list[i_min].fiber->curvature();
+			T Kd = r_voxel*K;
+			T err;
+
+			if (Kd > 1) {
+				err = 1;
+			}
+			else {
+				err = Kd*Kd*std::pow(r_voxel/r_voxel0, 2.0/3.0);
+			}
+
+			if (err < tol) {
+				levels = 0;
+			}
+		}
+
+		if (levels == 0)
 		{
 			// sum up the volumes of each interface intersection
 			// TODO: the volume may be overestimated actually should calculate the union of halfspaces
@@ -14894,27 +14917,7 @@ public:
 				V += dV;
 			}
 
-			V = std::min(V, V_max);
-
-			if (levels == 0) {
-				return V;
-			}
-
-			// adaptive error estimator
-			T K = info_list[i_min].fiber->curvature();
-			T Kd = r_voxel*K;
-			T err;
-
-			if (Kd > 1) {
-				err = 1;
-			}
-			else {
-				err = Kd*Kd*std::pow(r_voxel/r_voxel0, 2.0/3.0);
-			}
-
-			if (err < tol) {
-				return V;
-			}
+			return std::min(V, V_max);
 		}
 
 		levels--;
@@ -14923,6 +14926,7 @@ public:
 		dz *= 0.5;
 		r_voxel *= 0.5;
 
+		// recursive sub division of voxel
 		for (std::size_t i = 0; i < 2; i++) {
 			xs[0] = x0[0] + (i+0.5)*dx;
 			for (std::size_t j = 0; j < 2; j++) {
@@ -22533,26 +22537,31 @@ public:
 
 	std::vector<std::string> get_phase_names() 
 	{
+		init_lss();
 		return lss->getPhaseNames();
 	}
 
 	double get_volume_fraction(const std::string& field) 
 	{
+		init_lss();
 		return lss->getVolumeFraction(field);
 	}
 
 	std::vector<double> get_residuals() 
 	{
+		init_lss();
 		return lss->getResiduals();
 	}
 
 	double get_solve_time() 
 	{
+		init_lss();
 		return lss->getSolveTime();
 	}
 
 	double get_fft_time() 
 	{
+		init_lss();
 		return lss->getFFTTime();
 	}
 
@@ -22567,6 +22576,7 @@ public:
 	
 	virtual std::vector<double> get_mean_stress()
 	{
+		init_lss();
 		ublas::vector<T> Smean = lss->calcMeanStress();
 
 		std::vector<double> v;
@@ -22579,6 +22589,7 @@ public:
 	
 	virtual std::vector<double> get_mean_strain()
 	{
+		init_lss();
 		ublas::vector<T> Smean = lss->calcMeanStrain();
 
 		std::vector<double> v;
@@ -22591,6 +22602,7 @@ public:
 	
 	virtual std::vector<double> get_mean_cauchy_stress()
 	{
+		init_lss();
 		ublas::vector<T> Smean = lss->calcMeanCauchyStress();
 
 		std::vector<double> v;
@@ -22603,6 +22615,7 @@ public:
 	
 	virtual double get_mean_energy()
 	{
+		init_lss();
 		return lss->calcMeanEnergy();
 	}
 
@@ -23143,6 +23156,10 @@ public:
 
 				LOG_COUT << "HS lower bounds: K=" << kl << " mu=" << mul << " lambda=" << (kl - 2.0/3.0*mul) << std::endl;
 				LOG_COUT << "HS upper bounds: K=" << ku << " mu=" << muu << " lambda=" << (ku - 2.0/3.0*muu) << std::endl;
+			}
+			else if (v.first == "python")
+			{
+				PY::instance().eval(v.second.data());
 			}
 			else if (v.first == "print_A2")
 			{
@@ -23899,9 +23916,9 @@ public:
 		else if (#T == type && #R == rtype && DIM == dim) fgi.reset(new FG<T, R, DIM>(xml_root))
 
 		if (false) {}
-//		RUN_TYPE_AND_DIM(double, double, 2);
-//		RUN_TYPE_AND_DIM(double, float, 2);
-//		RUN_TYPE_AND_DIM(double, double, 3);
+		RUN_TYPE_AND_DIM(double, double, 2);
+		RUN_TYPE_AND_DIM(double, float, 2);
+		RUN_TYPE_AND_DIM(double, double, 3);
 		RUN_TYPE_AND_DIM(double, float, 3);
 #ifdef FFTWF_ENABLED
 		RUN_TYPE_AND_DIM(float, float, 2);
@@ -24398,7 +24415,6 @@ struct VecVecVecVecToList
 
 void translate1(boost::exception const& e)
 {
-	std::cout << "translate1" << "\n";
 	// Use the Python 'C' API to set up an exception object
 	PyErr_SetString(PyExc_RuntimeError, boost::diagnostic_information(e).c_str());
 }
@@ -24406,7 +24422,6 @@ void translate1(boost::exception const& e)
 
 void translate2(std::runtime_error const& e)
 {
-	std::cout << "translate2" << "\n";
 	// Use the Python 'C' API to set up an exception object
 	PyErr_SetString(PyExc_RuntimeError, e.what());
 }
@@ -24414,7 +24429,6 @@ void translate2(std::runtime_error const& e)
 
 void translate3(py::error_already_set const& e)
 {
-	std::cout << "translate3" << "\n";
 	// Use the Python 'C' API to set up an exception object
 	PyErr_SetString(PyExc_RuntimeError, "There was a Python error inside fibergen!");
 }

@@ -1300,7 +1300,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.toolbar.addWidget(spacer)
 		aa("help-contents", "Help", self.openHelp, QtCore.Qt.Key_F1)
-		aa("help-about", "About", self.openAbout, None)
+		aa("help-about", "About", self.openAbout, 0)
 		aa("application-exit", "Exit", self.exit, QtCore.Qt.CTRL + QtCore.Qt.Key_Q)
 
 		self.undoAction.setEnabled(False)

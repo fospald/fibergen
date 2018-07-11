@@ -10,6 +10,6 @@
 	</solver>
 	<actions>
 		<select_material name="fiber" />
-		<place_fiber R="0.5" />
+		<place_fiber R="0.4" />
 	</actions>
 </settings>
