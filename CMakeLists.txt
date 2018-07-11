@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 
 # Set verbose output while testing CMake
-#set(CMAKE_VERBOSE_MAKEFILE 1)
+set(CMAKE_VERBOSE_MAKEFILE 1)
 
 # Note for the use of -ffast-math:
 # http://stackoverflow.com/questions/22931147/stdisinf-does-not-work-with-ffast-math-how-to-check-for-infinity
@@ -62,7 +62,9 @@ ENDIF()
 
 # Find Boost library
 SET(Boost_USE_MULTITHREAD ON)
-FIND_PACKAGE(Boost REQUIRED COMPONENTS system program_options thread python-py${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} iostreams filesystem)
+SET(Boost_Python python)
+SET(Boost_Python python-py${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
+FIND_PACKAGE(Boost REQUIRED COMPONENTS system program_options thread ${Boost_Python} iostreams filesystem)
 INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${Boost_INCLUDE_DIRS})
 LINK_DIRECTORIES(${LINK_DIRECTORIES} ${Boost_LIBRARY_DIRS})
 

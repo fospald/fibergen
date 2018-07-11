@@ -102,6 +102,69 @@ class MyWebPage(QtWebKitWidgets.QWebPage):
 	def setUrlFrame(self, url):
 		self.currentFrame().setUrl(url)
 
+	def defaultCSS(self, tags=True):
+
+		app = QtWidgets.QApplication.instance()
+		pal = app.palette()
+		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
+
+		html = """
+a, html, body, div, span, p, h1, h2, h3, tr, td, th {
+	font-family: """ + font.family() + """pt;
+	font-size: """ + str(font.pointSize()) + """pt;
+}
+body {
+	background-color: """ + pal.window().color().name() + """;
+	color: """ + pal.text().color().name() + """;
+}
+a {
+	color: """ + pal.link().color().name() + """;
+	text-decoration: none;
+}
+a:hover {
+	color: """ + pal.link().color().lighter().name() + """;
+}
+table {
+	border-collapse: collapse;
+}
+th, td, .help {
+	border: 1px solid """ + pal.shadow().color().name() + """;
+	padding: 0.5em;
+}
+.help {
+	background-color: """ + pal.toolTipBase().color().name() + """;
+	color: """ + pal.toolTipText().color().name() + """;
+}
+.help:first-letter {
+	text-transform: uppercase;
+}
+p {
+	margin-bottom: 0.5em;
+	margin-top: 0.5em;
+}
+h1, h2, h3 {
+	margin: 0;
+	margin-bottom: 0.5em;
+	padding: 0;
+	white-space: nowrap;
+}
+h1 {
+	font-size: """ + str(int(2.0*font.pointSize())) + """pt;
+}
+h2 {
+	font-size: """ + str(int(1.5*font.pointSize())) + """pt;
+	margin-top: 1.0em;
+}
+h3 {
+	font-size: """ + str(int(font.pointSize())) + """pt;
+	margin-top: 1.0em;
+}
+"""
+		if tags:
+			html = "<style>" + html + "</style>"
+
+		return html
+
 
 class PlotField(object):
 	pass
@@ -328,7 +391,7 @@ class PlotWidget(QtWidgets.QWidget):
 		if 1:
 			self.resultTextEdit = QtWebKitWidgets.QWebView()
 			self.resultPage = MyWebPage()
-			self.resultPage.setHtml(resultText)
+			self.resultPage.setHtml(self.resultPage.defaultCSS() + resultText)
 			self.resultTextEdit.setPage(self.resultPage)
 		else:
 			self.resultTextEdit = QtWidgets.QTextEdit()
@@ -609,27 +672,34 @@ class XMLHighlighter(QtGui.QSyntaxHighlighter):
 	def __init__(self, parent=None):
 		super(XMLHighlighter, self).__init__(parent)
  
-		keywordFormat = QtGui.QTextCharFormat()
-		keywordFormat.setForeground(QtCore.Qt.darkMagenta)
-		keywordFormat.setFontWeight(QtGui.QFont.Bold)
- 
-		keywordPatterns = ["\\b?xml\\b", "/>", ">", "<"]
- 
-		self.highlightingRules = [(QtCore.QRegExp(pattern), keywordFormat)
-				for pattern in keywordPatterns]
- 
+		self.highlightingRules = []
+
+		app = QtWidgets.QApplication.instance()
+		pal = app.palette()
+
 		xmlElementFormat = QtGui.QTextCharFormat()
 		xmlElementFormat.setFontWeight(QtGui.QFont.Bold)
+		#xmlElementFormat.setForeground(pal.link().color())
 		xmlElementFormat.setForeground(QtCore.Qt.darkGreen)
-		self.highlightingRules.append((QtCore.QRegExp("\\b[A-Za-z0-9_]+(?=[\s/>])"), xmlElementFormat))
+		self.highlightingRules.append((QtCore.QRegExp("<[/\s]*[A-Za-z0-9_]+[\s/>]+"), xmlElementFormat))
+ 
+		keywordFormat = QtGui.QTextCharFormat()
+		keywordFormat.setFontWeight(QtGui.QFont.Bold)
+		keywordFormat.setForeground(QtCore.Qt.gray)
+		keywordPatterns = ["[/?]*>", "<([?]xml)?", "=", '"']
+		self.highlightingRules += [(QtCore.QRegExp(pattern), keywordFormat)
+				for pattern in keywordPatterns]
  
 		xmlAttributeFormat = QtGui.QTextCharFormat()
+		xmlAttributeFormat.setFontWeight(QtGui.QFont.Bold)
 		#xmlAttributeFormat.setFontItalic(True)
-		xmlAttributeFormat.setForeground(QtCore.Qt.blue)
+		#xmlAttributeFormat.setForeground(pal.highlightedText().color().darker(150))
+		#xmlAttributeFormat.setForeground(QtCore.Qt.red)
+		xmlAttributeFormat.setForeground(pal.link().color())
 		self.highlightingRules.append((QtCore.QRegExp("\\b[A-Za-z0-9_]+(?=\\=)"), xmlAttributeFormat))
  
 		self.valueFormat = QtGui.QTextCharFormat()
-		self.valueFormat.setForeground(QtCore.Qt.red)
+		self.valueFormat.setForeground(pal.windowText().color())
  
 		self.valueStartExpression = QtCore.QRegExp("\"")
 		self.valueEndExpression = QtCore.QRegExp("\"(?=[\s></?])")
@@ -685,11 +755,13 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 
 	def __init__(self, parent = None):
 		QtWidgets.QTextEdit.__init__(self, parent)
-		font = QtGui.QFont()
-		font.setFamily("Monospace")
-		font.setStyleHint(QtGui.QFont.Monospace)
+		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
+		#font = QtGui.QFont()
+		#font.setFamily("Monospace")
+		#font.setStyleHint(QtGui.QFont.Monospace)
 		font.setFixedPitch(True)
-		font.setPointSize(11)
+		font.setPointSize(font.pointSize())
+		print(font.pointSize())
 		fontmetrics = QtGui.QFontMetrics(font)
 		self.setFont(font)
 		self.setTabStopWidth(2 * fontmetrics.width(' '))
@@ -756,14 +828,24 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 			if p < 0:
 				break
 
-		indent = "\n" + indent
+		p = txt.rfind("\n", 0, pos)+1
+
+		if p == pos:
+			# at the beginning of a line
+			pass
+		elif len(txt[p:pos].lstrip()) == 0:
+			# already indented
+			indent = ""
+		else:
+			# start new line
+			indent = "\n" + indent
 
 		if url[1] == "add":
 			if url[3] == "empty":
-				c.insertText(indent + "<" + url[2] + " />\n")
+				c.insertText(indent + "<" + url[2] + " />")
 				c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, 4)
 			else:
-				c.insertText(indent + "<" + url[2] + ">" + url[4] + "</" + url[2] + ">\n")
+				c.insertText(indent + "<" + url[2] + ">" + url[4] + "</" + url[2] + ">")
 				c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, len(url[2]) + 4)
 				c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(url[4]))
 				
@@ -855,23 +937,33 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 		typ = e.get("type")
 		values = e.get("values")
 
-		html = """
+		html = self.mypage.defaultCSS() + """
 <style>
-body {
-	background-color: Window;
+h2 {
+	margin-top: 0;
 }
-table { border-collapse: collapse; }
-th, td { padding: 3px; border: 1px solid #000; }
-.help { font-weight: normal; background-color: #efe; border: 1px solid #000; padding: 3px; }
-.help:first-letter { text-transform: uppercase; }
+p {
+	margin-top: 1em;
+}
+p ~ p {
+	margin-top: 0;
+}
 </style>
 """
 
 		path = ".".join(i[0] for i in items)
-		html += "<h3>" + path + "</h3>"
+		html += "<h2>" + path + "</h2>"
+
+		
+		if en is None:
+			help = "Unknown element"
+		else:
+			help = e.get("help")
+
+		html += '<div class="help">' + help + "</div>"
 
 		if en is None:
-			html += "<p><b>Unknown element</b></p>"
+			pass
 		elif inside or typ != "list":
 
 			if typ != "none":
@@ -893,8 +985,6 @@ th, td { padding: 3px; border: 1px solid #000; }
 			if not e.text is None and len(e.text.strip()) > 0:
 				html += '<p><b>Default:</b> ' + e.text.strip() + "</p>"
 			
-			html += '<p class="help">' + e.get("help") + "</p>"
-
 			if (not en is None):
 				attr = ""
 				attribs = list(e.findall("attrib"))
@@ -908,7 +998,7 @@ th, td { padding: 3px; border: 1px solid #000; }
 					attr += "<td>" + a.get("help") + "</td>"
 					attr += "</tr>"
 				if attr != "":
-					html += "<p><b>Available attributes:</b></p>"
+					html += "<h3>Available attributes:</h3>"
 					html += '<table>'
 					html += "<tr>"
 					html += "<th>Name</th>"
@@ -922,7 +1012,7 @@ th, td { padding: 3px; border: 1px solid #000; }
 			tags = ""
 			items = list(e.findall("./*"))
 			items = sorted(items, key=lambda e: e.tag)
-			for a in e.findall("./*"):
+			for a in items:
 				if a.tag == "attrib":
 					continue
 				typ = a.get("type")
@@ -934,7 +1024,7 @@ th, td { padding: 3px; border: 1px solid #000; }
 				tags += "<td>" + a.get("help") + "</td>"
 				tags += "</tr>"
 			if tags != "":
-				html += "<p><b>Available elements:</b></p>"
+				html += "<h3>Available elements:</h3>"
 				html += '<table>'
 				html += "<tr>"
 				html += "<th>Name</th>"
@@ -958,10 +1048,26 @@ class DocWidget(QtWebKitWidgets.QWebView):
 		cdir = os.path.dirname(os.path.abspath(__file__))
 		self.docfile = os.path.abspath(os.path.join(cdir, "../doc/manual.html"))
 
+		"""
+		with open(self.docfile, "rt") as f:
+			html = f.read()
+		html = html.replace("<body>", "<body>" + self.mypage.defaultCSS())
+		self.mypage.setHtml(html)
+		"""
+
 		self.mypage = MyWebPage()
 		self.mypage.setUrl(QtCore.QUrl("file://" + self.docfile))
 		self.mypage.linkClicked.connect(self.linkClicked)
 		self.setPage(self.mypage)
+
+		css = self.mypage.defaultCSS(False)
+		css = """
+body {
+	background-color: white;
+}
+"""
+		data = base64.b64encode(css.encode('utf8')).decode('ascii')
+		self.settings().setUserStyleSheetUrl(QtCore.QUrl("data:text/css;charset=utf-8;base64," + data))
 
 	def linkClicked(self, url):
 		self.mypage.setUrl(url)
@@ -1004,29 +1110,42 @@ class DemoWidget(QtWebKitWidgets.QWebView):
 		if path is None:
 			path = self.demodir
 
-		background = self.palette().color(QtGui.QPalette.Window);
+		app = QtWidgets.QApplication.instance()
+		pal = app.palette()
 
-		html = """
+		html = self.mypage.defaultCSS() + """
 <style>
-body {
-	background-color: Window;
-}
-.demo, .category {
-	border-style: outset;
+.demo, .category, .back {
+	border: 2px solid """ + pal.link().color().name() + """;
+	border-radius: 1em;
+	background-color: """ + pal.button().color().lighter().name() + """;
+	color: """ + pal.buttonText().color().name() + """;
 	display: inline-block;
+	vertical-align: text-top;
 	text-align: center;
-	background-color: ButtonHighlight;
-	padding: 10px;
-	margin-right: 15px;
-	margin-bottom: 15px;
+	padding: 1em;
+	margin: 0.5em;
+}
+.back {
+	padding: 0.5em;
+	border-radius: 0.5em;
+}
+h2 {
+	margin-top: 0;
+}
+.demo:hover, .category:hover, .back:hover {
+	border-color: """ + pal.link().color().lighter().name() + """;
 }
 .demo p {
 	margin: 0;
-	margin-top: 10px;
-	width: 256;
+	margin-top: 1em;
+	width: 20em;
 }
 img {
-	width: 256;
+	width: 20em;
+}
+.header td {
+	border: none;
 }
 .header td:last-child {
 	text-align: right;
@@ -1037,39 +1156,14 @@ img {
 }
 .header img {
 	width: auto;
-	height: 4em;
+	height: 4.5em;
+	margin-top: -0.25em;
+	margin-right: -0.5em;
 }
 .header {
-	padding: 5px;
-	border-bottom: 1px solid #000;
-	margin-bottom: 15px;
-}
-h1 {
-	margin: 0;
-	padding: 0;
-	font-size: 150%;
-	white-space: nowrap;
-}
-h2 {
-	margin: 0;
-	margin-bottom: 5px;
-	padding: 0;
-	font-size: 125%;
-	white-space: nowrap;
-}
-.body {
-}
-.back {
-	background-color: ButtonHighlight;
-	border-style: outset;
-	padding: 3px;
-	position: absolute;
-	right: 8px;
-	top: 8px;
-}
-a {
-	text-decoration: none;
-	color: inherit;
+	padding: 1em;
+	border-bottom: 1px solid """ + pal.shadow().color().name() + """;
+	margin-bottom: 1em;
 }
 </style>
 """
@@ -1079,9 +1173,9 @@ a {
 		if os.path.isfile(category_file):
 			try:
 				xml = ET.parse(category_file).getroot()
+				html += '<table class="header">'
+				html += '<tr>'
 				if path == self.demodir:
-					html += '<table class="header">'
-					html += '<tr>'
 					html += '<td>'
 					html += '<h1>fibergen</h1>'
 					html += '<p>A FFT-based homogenization tool.</p>'
@@ -1090,23 +1184,21 @@ a {
 					if not img is None and not img.text is None and len(img.text):
 						img = os.path.join(path, img.text)
 						html += '<td><img src="file://' + img + '" /></td>'
-					html += '</tr>'
-					html += '</table>'
 				else:
-					html += '<div class="header">'
+					html += '<td>'
 					title = xml.find("title")
 					if not title is None and len(title.text):
 						html += '<h1>' + title.text + '</h1>'
 					else:
 						html += '<h1>' + d + '</h1>'
-					html += '</div>'
+					html += '</td>'
+					html += '<td><a class="back" href="http://x#cd#' + path + '/..">&#x21a9; Back</a></td>'
+				html += '</tr>'
+				html += '</table>'
 			except:
 				print("error in file", category_file)
 				print(traceback.format_exc())
 
-		if path != self.demodir:
-			html += '<a class="back" href="http://x#cd#' + path + '/..">&#x21a9; Back</a>'
-			
 		html += '<center class="body">'
 
 		items = []
@@ -1132,8 +1224,7 @@ a {
 					action = xml.find("action").text
 				except:
 					action = "new" if d == "empty" else "open"
-				item += '<a href="http://x#' + action + '#' + project_file + '">'
-				item += '<div class="demo">'
+				item += '<a class="demo" href="http://x#' + action + '#' + project_file + '">'
 				title = xml.find("title")
 				if not title is None and not title.text is None and len(title.text):
 					item += '<h2>' + title.text + '</h2>'
@@ -1152,7 +1243,6 @@ a {
 				desc = xml.find("description")
 				if not desc is None and not desc.text is None and len(desc.text):
 					item += '<p>' + desc.text + '</p>'
-				item += '</div>'
 				item += '</a>'
 				index = xml.find("index")
 			elif os.path.isfile(category_file):
@@ -1162,8 +1252,7 @@ a {
 					print("error in file", category_file)
 					print(traceback.format_exc())
 					continue
-				item += '<a href="http://x#cd#' + subdir + '">'
-				item += '<div class="category">'
+				item += '<a class="category" href="http://x#cd#' + subdir + '">'
 				title = xml.find("title")
 				if not title is None and not title.text is None and len(title.text):
 					item += '<h2>' + title.text + '</h2>'
@@ -1173,7 +1262,6 @@ a {
 				if not img is None and not img.text is None and len(img.text):
 					img = os.path.join(subdir, img.text)
 					item += '<img src="file://' + img + '" />'
-				item += '</div>'
 				item += '</a>'
 				index = xml.find("index")
 			else:
@@ -1632,7 +1720,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		"""
 
 		def section(text):
-			return "<h1>%s</h1>\n" % text
+			return "<h2>%s</h2>\n" % text
 
 		def matrix(a):
 			if isinstance(a, np.ndarray):
@@ -1709,20 +1797,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			img += "<br/>%s</p>" % tf.name
 			return img
 
-		resultText = """
-<style>
-body {
-	background-color: Window;
-}
-table { border-collapse: collapse; }
-th, td { padding: 3px; border: 1px solid #000; }
-h1 {
-	margin-top: 20px;
-	margin-bottom: 10px;
-	font-size: 150%;
-}
-</style>
-"""
+		resultText = ""
 
 		resultText += section('Volume fractions')
 		resultText += table(volume_fractions)
