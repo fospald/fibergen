@@ -1283,8 +1283,34 @@ class MainWindow(QtWidgets.QMainWindow):
 		QtGui.QIcon.setThemeSearchPaths(theme_paths + QtGui.QIcon.themeSearchPaths())
 		"""
 
-		theme = 'ubuntu-mono-light'
-		QtGui.QIcon.setThemeName(theme)
+		def get_size(start_path = '.'):
+			total_size = 0
+			for dirpath, dirnames, filenames in os.walk(start_path):
+				for f in filenames:
+					fp = os.path.join(dirpath, f)
+					try:
+						total_size += os.path.getsize(fp)
+					except:
+						pass
+			return total_size
+
+		themes = []
+		for path in QtGui.QIcon.themeSearchPaths():
+			if os.path.isdir(path):
+				for name in os.listdir(path):
+					dirname = os.path.join(path, name)
+					if os.path.isdir(dirname):
+						themes.append((name, get_size(dirname)))
+
+		themes = sorted(themes, key=lambda tup: tup[1], reverse=True)
+
+		print(themes)
+
+		for theme, size in themes:
+			QtGui.QIcon.setThemeName(theme)
+			if QtGui.QIcon.hasThemeIcon("document-new"):
+				break
+
 
 		#print "theme search paths:"
 		#for path in QtGui.QIcon.themeSearchPaths():
