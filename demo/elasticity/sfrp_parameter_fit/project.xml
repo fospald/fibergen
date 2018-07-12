@@ -37,7 +37,6 @@
 		<tol>1e-16</tol>
 		<debug>0</debug>
 		<maxiter>50</maxiter>
-		<error_estimator>none</error_estimator>
 		<first_loadstep>1</first_loadstep>
 
 	</solver>

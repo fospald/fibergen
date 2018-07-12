@@ -48,6 +48,8 @@
   <print_precision help="number of digits in terminal output" type="int">4</print_precision>
   <res_format help="file format for results" type="str" values="binary,ascii">binary</res_format>
   
+  <python type="str" help="executes Python code after the variables are loaded, assigned variables can be used in subsequent expressions, the execution of the code is independent of its placement inside the settings, multiple blocks are executed in sequence" />
+
   <variables help="list of Python variables available in expressions" type="list">
     <variable type="empty" help="a variable">
       <attrib name="type" type="str" help="type of variable" values="str,int,float">str</attrib>
@@ -153,6 +155,8 @@
   
   <actions type="list" help="specifies a list of actions to be exectued, actions with an non-zero skip attribute are skipped, actions can be combined into gropus by including into a &lt;group-group_name&gt; tag">
   
+    <python type="str" help="executes Python code, assigned variables can be used in subsequent expressions" />
+
     <write_png type="empty" help="writes a slice of the distance map of the geometry as image">
       <attrib name="a0x" type="float" help="origin x point for sampling">0.0</attrib>
       <attrib name="a0y" type="float" help="origin y point for sampling">0.0</attrib>

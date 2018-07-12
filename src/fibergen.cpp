@@ -353,11 +353,8 @@ void set_exception(const std::string& msg)
 
 
 
-void print_stacktrace()
+inline void print_stacktrace(std::ostream& stream)
 {
-	#pragma omp critical
-	{
-
 	// print stack trace
 	void *trace_elems[32];
 	int trace_elem_count = backtrace(trace_elems, sizeof(trace_elems)/sizeof(void*));
@@ -365,7 +362,7 @@ void print_stacktrace()
 	std::size_t funcnamesize = 265;
 	char* funcname = (char*) malloc(funcnamesize);
 
-	LOG_CERR << "Stack trace:" << std::endl;
+	stream << "Stack trace:" << std::endl;
 
 	// iterate over the returned symbol lines. skip the first, it is the
 	// address of this function.
@@ -402,18 +399,18 @@ void print_stacktrace()
 			char* ret = abi::__cxa_demangle(begin_name, funcname, &funcnamesize, &status);
 			if (status == 0) {
 				funcname = ret; // use possibly realloc()-ed string
-				LOG_CERR << (boost::format("%02d. %s: " _WHITE_TEXT "%s+%s") % c % symbol_list[i] % funcname % begin_offset).str() << std::endl;
+				stream << (boost::format("%02d. %s: " _WHITE_TEXT "%s+%s") % c % symbol_list[i] % funcname % begin_offset).str() << std::endl;
 			}
 			else {
 				// demangling failed. Output function name as a C function with
 				// no arguments.
-				LOG_CERR << (boost::format("%02d. %s: %s()+%s") % c % symbol_list[i] % begin_name % begin_offset).str() << std::endl;
+				stream << (boost::format("%02d. %s: %s()+%s") % c % symbol_list[i] % begin_name % begin_offset).str() << std::endl;
 			}
 		}
 		else
 		{
 			// couldn't parse the line? print the whole line.
-			LOG_CERR << (boost::format("%02d. " _WHITE_TEXT "%s") % c % symbol_list[i]).str() << std::endl;
+			stream << (boost::format("%02d. " _WHITE_TEXT "%s") % c % symbol_list[i]).str() << std::endl;
 		}
 
 		c++;
@@ -421,8 +418,6 @@ void print_stacktrace()
 
 	free(symbol_list);
 	free(funcname);
-
-	} // critical
 }
 
 
@@ -579,38 +574,40 @@ protected:
 
 	py::object main_module, main_namespace;
 	py::dict locals;
+	bool enabled;
 
 public:
 	PY()
 	{
-		Py_Initialize();
 		main_module = py::import("__main__");
 		main_namespace = main_module.attr("__dict__");
 		py::exec("from math import *", main_namespace);
+		enabled = true;
 	}
 
-	void exec(const std::string& code)
+	py::object exec(const std::string& code)
 	{
-		py::exec(code.c_str(), main_namespace, locals);
+		if (enabled) {
+			std::string c = code;
+			boost::trim(c);
+			return py::exec(c.c_str(), main_namespace, locals);
+		}
+
+		return py::object();
 	}
 
 	template <class T>
 	T eval(const std::string& expr)
 	{
-		//try {
+		if (enabled) {
 			std::string e = expr;
 			boost::trim(e);
 			py::object result = py::eval(e.c_str(), main_namespace, locals);
 			T ret = py::extract<T>(result);
 			return ret;
-		/*
 		}
-		catch(...) {
-			// If an exception was thrown, translate it to Python
-			py::handle_exception();
-		}
-		BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("evaluation of expression failed: '%s'") % expr).str()));
-		*/
+
+		return boost::lexical_cast<T>(expr);
 	}
 
 	template <class T>
@@ -635,6 +632,11 @@ public:
 		}
 
 		return eval<T>(*value);
+	}
+
+	void set_enabled(bool enabled)
+	{
+		this->enabled = enabled;
 	}
 
 	void clear_locals()
@@ -13973,7 +13975,6 @@ public:
 
 			return pfield;
 		}
-
 		else if (field == "phi")
 		{
 			for (std::size_t i = 0; i < _mat->phases.size(); i++) {
@@ -22434,6 +22435,8 @@ public:
 	virtual void set_loadstep_callback(LoadstepCallback cb) = 0;
 	virtual void* get_raw_field(const std::string& field, std::vector<void*>& components, size_t& nx, size_t& ny, size_t& nz, size_t& nzp, size_t& elsize) = 0;
 	virtual void free_raw_field(void* handle) = 0;
+	virtual void set_pyfg_instance(PyObject* instance) = 0;
+	virtual void set_variable(std::string key, py::object value) = 0;
 };
 
 
@@ -22451,11 +22454,22 @@ protected:
 	ublas::matrix<T> Ceff_voigt;
 	ConvergenceCallback convergence_callback;
 	LoadstepCallback loadstep_callback;
+	PyObject* pyfg_instance;
 
 public:
 	FG(boost::shared_ptr< ptree::ptree > xml) : xml_root(xml)
 	{
 		reset();
+	}
+
+	void set_pyfg_instance(PyObject* instance)
+	{
+		pyfg_instance = instance;
+	}
+
+	void set_variable(std::string key, py::object value)
+	{
+		PY::instance().add_local(key, value);
 	}
 
 	void init_python()
@@ -22464,7 +22478,12 @@ public:
 		const ptree::ptree& variables = pt.get_child("variables", empty_ptree);
 
 		PY::instance().clear_locals();
+		if (pyfg_instance != NULL) {
+			py::object fg(py::handle<>(py::borrowed(pyfg_instance)));
+			PY::instance().add_local("fg", fg);
+		}
 
+		// set variables
 		BOOST_FOREACH(const ptree::ptree::value_type &v, variables)
 		{
 			// skip comments
@@ -22495,6 +22514,15 @@ public:
 
 			LOG_COUT << "Variable " << v.first << " = " << value << std::endl;
 		}
+
+		// execute all python blocks
+		BOOST_FOREACH(const ptree::ptree::value_type &v, pt)
+		{
+			if (v.first == "python") {
+				Timer __t(v.first);
+				PY::instance().exec(v.second.data());
+			}
+		}
 	}
 
 	void reset()
@@ -22507,8 +22535,6 @@ public:
 		phase_valid = solver_valid = false;
 		fibers_valid = true;
 		raw_phase = false;
-
-		init_python();
 	}
 
 	std::string get_hash()
@@ -22759,6 +22785,10 @@ public:
 	int run()
 	{
 		reset();
+
+		// init python variables
+		init_python();
+		struct AfterReturn { ~AfterReturn() { PY::instance().clear_locals(); } } ar;
 
 		const ptree::ptree& settings = xml_root->get_child("settings", empty_ptree);
 
@@ -23972,6 +24002,7 @@ protected:
 	boost::shared_ptr< ptree::ptree > xml_root;
 	boost::shared_ptr< FGI > fgi;
 	int xml_precision;
+	PyObject* pyfg_instance;
 
 public:
 	FGProject()
@@ -23990,6 +24021,7 @@ public:
 	{
 		xml_root.reset(new ptree::ptree());
 		fgi.reset();
+		pyfg_instance = NULL;
 	}
 
 	void init_fgi()
@@ -24016,6 +24048,8 @@ public:
 		else {
 			BOOST_THROW_EXCEPTION(std::runtime_error("dimension/datatype not supported"));
 		}
+
+		fgi->set_pyfg_instance(pyfg_instance);
 	}
 
 	boost::shared_ptr< FGI > fg()
@@ -24043,17 +24077,21 @@ public:
 	std::vector<std::vector<double> > get_effective_property() { return fg()->get_effective_property(); }
 	std::vector<std::vector<double> > get_A2() { return fg()->get_A2(); }
 	std::vector<std::vector<std::vector<std::vector<double> > > > get_A4() { return fg()->get_A4(); }
+	void set_pyfg_instance(py::object instance) { pyfg_instance = instance.ptr(); }
+	void set_variable(std::string key, py::object value) { fg()->set_variable(key, value); }
 
 	std::string get_xml()
 	{
 		std::stringstream ss;
+		std::size_t indent = 1;
+		char indent_char = '\t';
 #if BOOST_VERSION < 105800
-		ptree::xml_writer_settings<char> settings('\t', 1);
+		ptree::xml_writer_settings<char> settings(indent_char, indent);
 #else
-		ptree::xml_writer_settings<std::string> settings = boost::property_tree::xml_writer_make_settings<std::string>('\t', 1);
+		ptree::xml_writer_settings<std::string> settings = boost::property_tree::xml_writer_make_settings<std::string>(indent_char, indent);
 #endif
 
-		#if 0
+		#if 1
 			write_xml(ss, *xml_root, settings);	// adds <?xml declaration
 		#else
 			write_xml_element(ss, std::string(), *xml_root, -1, settings);	// omits <?xml declaration
@@ -24281,9 +24319,9 @@ public:
 		fg()->set_loadstep_callback(boost::bind(&PyFG::loadstep_callback, this));
 	}
 
-	void set_variable(std::string key, py::object value)
+	void set_py_enabled(bool enabled)
 	{
-		PY::instance().add_local(key, value);
+		PY::instance().set_enabled(enabled);
 	}
 
 	std::vector<double> get_B_from_A(double a0, double a1, double a2)
@@ -24375,6 +24413,7 @@ void ExtractRangeArg(const std::string& name, size_t n, std::vector<size_t>& ran
 		}
 	}
 }
+
 
 py::object GetField(py::tuple args, py::dict kwargs)
 {
@@ -24528,7 +24567,6 @@ void translate3(py::error_already_set const& e)
 }
 
 
-
 #if PY_VERSION_HEX >= 0x03000000
 void* init_numpy() { import_array(); return NULL; }
 #else
@@ -24536,74 +24574,94 @@ void init_numpy() { import_array(); }
 #endif
 
 
-#include FG_PYTHON_HEADER_NAME
-// BOOST_PYTHON_MODULE(fibergen)
+py::object PyFGInit(py::tuple args, py::dict kwargs)
 {
-	// this is required to return py::numeric::array as numpy array
-	init_numpy();
-
-	#if BOOST_VERSION < 106500
-	py::numeric::array::set_module_and_type("numpy", "ndarray");
-	#endif
-
-	py::register_exception_translator<boost::exception>(&translate1);
-	py::register_exception_translator<std::runtime_error>(&translate2);
-	py::register_exception_translator<py::error_already_set>(&translate3);
-
-	py::to_python_converter<std::vector<std::string>, VecToList<std::string> >();
-	py::to_python_converter<std::vector<double>, VecToList<double> >();
-	py::to_python_converter<std::vector<std::vector<double> >, VecVecToList<double> >();
-	py::to_python_converter<std::vector<std::vector<std::vector<std::vector<double> > > >, VecVecVecVecToList<double> >();
-
-	void (PyFG::*PyFG_set_string)(const std::string& key, const std::string& value) = &PyFG::set;
-	void (PyFG::*PyFG_set_double)(const std::string& key, double value) = &PyFG::set;
-	void (PyFG::*PyFG_set_int)(const std::string& key, long value) = &PyFG::set;
-	void (PyFG::*PyFG_set)(const std::string& key) = &PyFG::set;
-
-	py::class_<PyFG>("FG")
-		.def("get_xml", &PyFG::get_xml)
-		.def("set_xml", &PyFG::set_xml)
-		.def("set_xml_precision", &PyFG::set_xml_precision)
-		.def("set_log_file", &PyFG::set_log_file)
-		.def("get_xml_precision", &PyFG::get_xml_precision)
-		.def("load_xml", &PyFG::load_xml)
-		.def("set", PyFG_set_string)
-		.def("set", PyFG_set_double)
-		.def("set", PyFG_set_int)
-		.def("set", PyFG_set)
-		.def("set", py::raw_function(&SetParameters, 1))
-		.def("get", &PyFG::get)
-		.def("erase", &PyFG::erase)
-		.def("run", &PyFG::run)
-		.def("cancel", &PyFG::cancel)
-		.def("reset", &PyFG::reset)
-		.def("init_lss", &PyFG::init_lss)
-		.def("init_fibers", &PyFG::init_fibers)
-		.def("init_phase", &PyFG::init_phase)
-		.def("get_phase_names", &PyFG::get_phase_names)
-		.def("get_volume_fraction", &PyFG::get_volume_fraction)
-		.def("get_real_volume_fraction", &PyFG::get_real_volume_fraction)
-		.def("get_solve_time", &PyFG::get_solve_time)
-		.def("get_distance_evals", &PyFG::get_distance_evals)
-		.def("get_residuals", &PyFG::get_residuals)
-		.def("get_effective_property", &PyFG::get_effective_property)
-		.def("get_A2", &PyFG::get_A2)
-		.def("get_A4", &PyFG::get_A4)
-		.def("get_error", &PyFG::get_error)
-		.def("get_mean_stress", &PyFG::get_mean_stress)
-		.def("get_mean_strain", &PyFG::get_mean_strain)
-		.def("get_mean_cauchy_stress", &PyFG::get_mean_cauchy_stress)
-		.def("get_mean_energy", &PyFG::get_mean_energy)
-		.def("set_convergence_callback", &PyFG::set_convergence_callback)
-		.def("set_loadstep_callback", &PyFG::set_loadstep_callback)
-		.def("get_field", py::raw_function(&GetField, 1))
-		.def("get_B_from_A", &PyFG::get_B_from_A)
-		.def("set_variable", &PyFG::set_variable)
-	;
+	py::object pyfg = args[0];
+	PyFG& fg = py::extract<PyFG&>(pyfg);
+	fg.set_pyfg_instance(pyfg);
+	return pyfg;
 }
 
 
-#include "checkcpu.h"
+class PyFGModule
+{
+public:
+	py::object FG;
+
+	PyFGModule()
+	{
+		// this is required to return py::numeric::array as numpy array
+		init_numpy();
+
+		#if BOOST_VERSION < 106500
+		py::numeric::array::set_module_and_type("numpy", "ndarray");
+		#endif
+
+		py::register_exception_translator<boost::exception>(&translate1);
+		py::register_exception_translator<std::runtime_error>(&translate2);
+		py::register_exception_translator<py::error_already_set>(&translate3);
+
+		py::to_python_converter<std::vector<std::string>, VecToList<std::string> >();
+		py::to_python_converter<std::vector<double>, VecToList<double> >();
+		py::to_python_converter<std::vector<std::vector<double> >, VecVecToList<double> >();
+		py::to_python_converter<std::vector<std::vector<std::vector<std::vector<double> > > >, VecVecVecVecToList<double> >();
+
+		void (PyFG::*PyFG_set_string)(const std::string& key, const std::string& value) = &PyFG::set;
+		void (PyFG::*PyFG_set_double)(const std::string& key, double value) = &PyFG::set;
+		void (PyFG::*PyFG_set_int)(const std::string& key, long value) = &PyFG::set;
+		void (PyFG::*PyFG_set)(const std::string& key) = &PyFG::set;
+
+		this->FG = py::class_<PyFG, boost::noncopyable>("FG")
+			.def("init", py::raw_function(&PyFGInit, 0))
+			.def("init_lss", &PyFG::init_lss)
+			.def("init_fibers", &PyFG::init_fibers)
+			.def("init_phase", &PyFG::init_phase)
+			.def("run", &PyFG::run)
+			.def("cancel", &PyFG::cancel)
+			.def("reset", &PyFG::reset)
+			.def("get_xml", &PyFG::get_xml)
+			.def("set_xml", &PyFG::set_xml)
+			.def("set_xml_precision", &PyFG::set_xml_precision)
+			.def("get_xml_precision", &PyFG::get_xml_precision)
+			.def("load_xml", &PyFG::load_xml)
+			.def("set", PyFG_set_string)
+			.def("set", PyFG_set_double)
+			.def("set", PyFG_set_int)
+			.def("set", PyFG_set)
+			.def("set", py::raw_function(&SetParameters, 1))
+			.def("get", &PyFG::get)
+			.def("erase", &PyFG::erase)
+			.def("get_phase_names", &PyFG::get_phase_names)
+			.def("get_volume_fraction", &PyFG::get_volume_fraction)
+			.def("get_real_volume_fraction", &PyFG::get_real_volume_fraction)
+			.def("get_solve_time", &PyFG::get_solve_time)
+			.def("get_distance_evals", &PyFG::get_distance_evals)
+			.def("get_residuals", &PyFG::get_residuals)
+			.def("get_effective_property", &PyFG::get_effective_property)
+			.def("get_A2", &PyFG::get_A2)
+			.def("get_A4", &PyFG::get_A4)
+			.def("get_error", &PyFG::get_error)
+			.def("get_mean_stress", &PyFG::get_mean_stress)
+			.def("get_mean_strain", &PyFG::get_mean_strain)
+			.def("get_mean_cauchy_stress", &PyFG::get_mean_cauchy_stress)
+			.def("get_mean_energy", &PyFG::get_mean_energy)
+			.def("get_field", py::raw_function(&GetField, 1))
+			.def("get_B_from_A", &PyFG::get_B_from_A)
+			.def("set_convergence_callback", &PyFG::set_convergence_callback)
+			.def("set_loadstep_callback", &PyFG::set_loadstep_callback)
+			.def("set_variable", &PyFG::set_variable)
+			.def("set_log_file", &PyFG::set_log_file)
+			.def("set_py_enabled", &PyFG::set_py_enabled)
+		;
+	}
+};
+
+
+#include FG_PYTHON_HEADER_NAME
+// BOOST_PYTHON_MODULE(fibergen)
+{
+	PyFGModule module;
+}
 
 
 // exception handling routine for std::set_terminate
@@ -24632,6 +24690,13 @@ void exception_handler()
 	catch(const char* e) {
 		LOG_CERR << e << std::endl;
 	}
+	catch(py::error_already_set& e) {
+		//PyObject *ptype, *pvalue, *ptraceback;
+		//PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+		//char* pStrErrorMessage = PyString_AsString(pvalue);
+		//LOG_CERR << "Python error: " << pStrErrorMessage << std::endl;
+		LOG_CERR << "Python error" << std::endl;
+	}
 	catch(...) {
 		LOG_CERR << "Unknown error" << std::endl;
 	}
@@ -24639,15 +24704,15 @@ void exception_handler()
 	// print date/time
 	LOG_CERR << "Local timestamp: " << boost::posix_time::second_clock::local_time() << std::endl;
 
-	print_stacktrace();
+	print_stacktrace(LOG_CERR);
 
 	// restore teminal colors
 	LOG_COUT << DEFAULT_TEXT << std::endl;
 
+	} // critical
+
 	// exit app with failure code
 	exit(EXIT_FAILURE);
-
-	} // critical
 }
 
 
@@ -24679,25 +24744,42 @@ void run_tests()
 }
 
 
+//#include "checkcpu.h"
+
+
 // main entry point of application
 int main(int argc, char* argv[])
 {
+	// init python
+	Py_Initialize();
+
 	// set exception handler
 	std::set_terminate(exception_handler);
 
+#if 0
 	// check CPU features (only informative)
 	if (can_use_intel_core_4th_gen_features()) {
 		LOG_COUT << GREEN_TEXT << BOLD_TEXT << "Info: This CPU supports ISA extensions introduced in Haswell!" << std::endl;
 	}
+#endif
 
+#if 0
 	// run some small problems for checking correctness
 	if (argc > 2) {
 		run_tests<double, double, 3>();
 		return 0;
 	}
+#endif
 
 	// run the app
+#if 1
+	PyFGModule module;
+	py::object pyfg = module.FG();
+	pyfg.attr("init")();
+	PyFG& fgp = py::extract<PyFG&>(pyfg);
+#else
 	FGProject fgp;
+#endif
 	int ret = fgp.exec(argc, argv);
 	fgp.reset();
 

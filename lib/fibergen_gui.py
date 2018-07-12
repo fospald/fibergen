@@ -3,54 +3,26 @@
 
 from __future__ import unicode_literals, division
 
-
-import sys
-#reload(sys)  # Reload does the trick!
-#sys.setdefaultencoding('UTF8')
-
 import fibergen
-import fibergen_common as fgc
-#import xml.dom.minidom
+import sys, os, re
 import webbrowser
-import re
 import base64
-import os
-import copy
-import time
-import random
 import traceback
 import codecs
-#import vtk
-import itertools
-import math
 import collections
 import tempfile
 import subprocess
 import xml.etree.ElementTree as ET
 import numpy as np
-#import pyOpt
-#import scipy.optimize as spo
 import scipy.misc
-from multiprocessing import Pool
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-
 try:
 	from PyQt5 import QtWebKitWidgets
 except:
 	from PyQt5 import QtWebEngineWidgets as QtWebKitWidgets
 	QtWebKitWidgets.QWebView = QtWebKitWidgets.QWebEngineView
 	QtWebKitWidgets.QWebPage = QtWebKitWidgets.QWebEnginePage
-
-# this may cause crashes
-#from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-
-#from matplotlib.backends import qt4_compat
-#use_pyside = qt4_compat.QT_API == qt4_compat.QT_API_PYSIDE
-#if use_pyside:
-#	from PySide import QtGui, QtCore
-#else:
-#	from PyQt5 import QtGui, QtCore
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 try:
@@ -66,6 +38,106 @@ from matplotlib import rcParams
 import matplotlib.ticker as mtick
 import matplotlib.cm as mcmap
 rcParams.update({'figure.autolayout': True})
+
+
+class FlowLayout(QtWidgets.QLayout):
+	def __init__(self, parent=None, margin=0):
+		super(FlowLayout, self).__init__(parent)
+
+		if parent is not None:
+			self.setContentsMargins(margin, margin, margin, margin)
+
+		self.itemList = []
+
+	def __del__(self):
+		item = self.takeAt(0)
+		while item:
+			item = self.takeAt(0)
+
+	def addLayout(self, item):
+		self.addItem(item)
+
+	def addItem(self, item):
+		self.itemList.append(item)
+
+	def addStretch(self, stretch):
+		pass
+
+	def addSpacing(self, spacing):
+		s = QtWidgets.QSpacerItem(spacing, 1)
+		self.addItem(s)
+
+	def count(self):
+		return len(self.itemList)
+
+	def itemAt(self, index):
+		if index >= 0 and index < len(self.itemList):
+			return self.itemList[index]
+
+		return None
+
+	def takeAt(self, index):
+		if index >= 0 and index < len(self.itemList):
+			return self.itemList.pop(index)
+
+		return None
+
+	def expandingDirections(self):
+		return QtCore.Qt.Orientations(QtCore.Qt.Orientation(0))
+
+	def hasHeightForWidth(self):
+		return True
+
+	def heightForWidth(self, width):
+		height = self.doLayout(QtCore.QRect(0, 0, width, 0), True)
+		return height
+
+	def setGeometry(self, rect):
+		super(FlowLayout, self).setGeometry(rect)
+		self.doLayout(rect, False)
+
+	def sizeHint(self):
+		return self.minimumSize()
+
+	def minimumSize(self):
+		size = QtCore.QSize()
+
+		for item in self.itemList:
+			size = size.expandedTo(item.minimumSize())
+
+		margin, _, _, _ = self.getContentsMargins()
+
+		size += QtCore.QSize(2 * margin, 2 * margin)
+		return size
+
+	def doLayout(self, rect, testOnly):
+		x = rect.x()
+		y = rect.y()
+		lineHeight = 0
+		spaceX = self.spacing()
+
+		for item in self.itemList:
+
+			if isinstance(item, QtWidgets.QSpacerItem):
+				x += item.sizeHint().width()
+				continue
+
+			spaceX = self.spacing() #+ wid.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Horizontal)
+			spaceY = self.spacing() #+ wid.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Vertical)
+			nextX = x + item.sizeHint().width()
+
+			if nextX > rect.right():
+				x = rect.x()
+				y = y + lineHeight + spaceY
+				nextX = x + item.sizeHint().width()
+
+			if not testOnly:
+				item.setGeometry(QtCore.QRect(QtCore.QPoint(x, y), item.sizeHint()))
+
+			x = nextX + spaceX
+			lineHeight = max(lineHeight, item.sizeHint().height())
+
+		return y + lineHeight - rect.y()
 
 
 class MyWebPage(QtWebKitWidgets.QWebPage):
@@ -197,33 +269,32 @@ class PlotWidget(QtWidgets.QWidget):
 		
 		self.fields = []
 		self.currentFieldIndex = other.currentFieldIndex if (other != None) else None
-		numFields = 0
-		hbox = None
-		for i, field_group in enumerate(field_groups):
-			if (numFields >= 100 or numFields == 0):
-				if (numFields > 0):
-					hbox.addStretch(1)
-				hbox = QtWidgets.QHBoxLayout()
-				#hbox.setSpacing(0)
-				vbox.addLayout(hbox)
-				numFields = 0
-			if (numFields > 0):
-				hbox.addSpacing(12)
-			for field in field_group:
+
+		spacing = 2
+
+		flow = FlowLayout()
+		for j, field_group in enumerate(field_groups):
+			gbox = QtWidgets.QHBoxLayout()
+			for i, field in enumerate(field_group):
 				button = QtWidgets.QToolButton()
 				field.button = button
 				button.setText(field.label)
 				button.setCheckable(True)
 				index = len(self.fields)
 				button.toggled.connect(makeChangeFieldCallback(index))
-				hbox.addWidget(button)
-				numFields += 1
+				if i > 0:
+					gbox.addSpacing(spacing)
+				gbox.addWidget(button)
 				self.fields.append(field)
+			if j > 0:
+				flow.addSpacing(spacing*4)
+			flow.addLayout(gbox)
 
-		if hbox is None:
-			hbox = QtWidgets.QHBoxLayout()
-
-		hbox.addStretch(1)
+		hbox = QtWidgets.QHBoxLayout()
+		hbox.setAlignment(QtCore.Qt.AlignTop)
+		hbox.setSpacing(spacing)
+		hbox.addLayout(flow)
+		hbox.addSpacing(4*spacing)
 
 		self.writePNGButton = QtWidgets.QToolButton()
 		self.writePNGButton.setText("Write PNG")
@@ -241,6 +312,8 @@ class PlotWidget(QtWidgets.QWidget):
 		self.viewXMLButton.setCheckable(True)
 		self.viewXMLButton.toggled.connect(self.viewXML)
 		hbox.addWidget(self.viewXMLButton)
+
+		vbox.addLayout(hbox)
 
 		if len(self.fields) == 0:
 			data_shape = [0, 0, 0]
@@ -374,19 +447,30 @@ class PlotWidget(QtWidgets.QWidget):
 		hbox.addWidget(self.replotButton)
 		vbox.addLayout(hbox)
 
+		self.stack = QtWidgets.QStackedWidget()
+		self.stack.setFrameShape(QtWidgets.QFrame.StyledPanel)
+		self.stack.setFrameShadow(QtWidgets.QFrame.Sunken)
+
+		vbox.addWidget(self.stack)
+		
 		self.figcanvas = FigureCanvas(self.fig)
 		self.figcanvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.fignavbar = NavigationToolbar(self.figcanvas, self)
 		self.fignavbar.set_cursor(cursors.SELECT_REGION)
-		vbox.addWidget(self.fignavbar)
-		vbox.addWidget(self.figcanvas)
+
+		wvbox = QtWidgets.QVBoxLayout()
+		wvbox.addWidget(self.fignavbar)
+		wvbox.addWidget(self.figcanvas)
+		wrap = QtWidgets.QWidget()
+		wrap.setLayout(wvbox)
+		self.stack.addWidget(wrap)
 
 		self.textEdit = XMLTextEdit()
-		self.textEdit.setVisible(False)
 		self.textEdit.setReadOnly(True)
 		self.textEdit.setPlainText(xml)
+		self.textEdit.setFrameShape(QtWidgets.QFrame.NoFrame)
 		self.textEdit.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-		vbox.addWidget(self.textEdit)
+		self.stack.addWidget(self.textEdit)
 
 		if 1:
 			self.resultTextEdit = QtWebKitWidgets.QWebView()
@@ -398,8 +482,7 @@ class PlotWidget(QtWidgets.QWidget):
 			self.resultTextEdit.setReadOnly(True)
 			self.resultTextEdit.setHtml(resultText)
 		self.resultTextEdit.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-		self.resultTextEdit.setVisible(False)
-		vbox.addWidget(self.resultTextEdit)
+		self.stack.addWidget(self.resultTextEdit)
 
 		if other != None:
 			self.viewXMLButton.setChecked(other.viewXMLButton.isChecked())
@@ -500,21 +583,23 @@ class PlotWidget(QtWidgets.QWidget):
 
 	def viewResultData(self, state):
 		v = (state == 0)
-		self.resultTextEdit.setVisible(not v)
 		self.viewXMLButton.setChecked(False)
 		self.viewResultDataButton.setChecked(not v)
 		self.updateFigCanvasVisible()
 		
 	def viewXML(self, state):
 		v = (state == 0)
-		self.textEdit.setVisible(not v)
 		self.viewResultDataButton.setChecked(False)
 		self.viewXMLButton.setChecked(not v)
 		self.updateFigCanvasVisible()
 
 	def updateFigCanvasVisible(self):
-		v = (not self.viewXMLButton.isChecked()) and (not self.viewResultDataButton.isChecked())
-		self.figcanvas.setVisible(v)
+		if self.viewXMLButton.isChecked():
+			self.stack.setCurrentIndex(1)
+		elif self.viewResultDataButton.isChecked():
+			self.stack.setCurrentIndex(2)
+		else:
+			self.stack.setCurrentIndex(0)
 	
 	def colormapComboChanged(self, index):
 		self.replot()
@@ -672,7 +757,6 @@ class PlotWidget(QtWidgets.QWidget):
 
 class XMLHighlighter(QtGui.QSyntaxHighlighter):
  
-	#INIT THE STUFF
 	def __init__(self, parent=None):
 		super(XMLHighlighter, self).__init__(parent)
  
@@ -683,36 +767,31 @@ class XMLHighlighter(QtGui.QSyntaxHighlighter):
 
 		xmlElementFormat = QtGui.QTextCharFormat()
 		xmlElementFormat.setFontWeight(QtGui.QFont.Bold)
-		#xmlElementFormat.setForeground(pal.link().color())
 		xmlElementFormat.setForeground(QtCore.Qt.darkGreen)
 		self.highlightingRules.append((QtCore.QRegExp("<[/\s]*[A-Za-z0-9_]+[\s/>]+"), xmlElementFormat))
  
 		keywordFormat = QtGui.QTextCharFormat()
 		keywordFormat.setFontWeight(QtGui.QFont.Bold)
 		keywordFormat.setForeground(QtCore.Qt.gray)
-		keywordPatterns = ["[/?]*>", "<([?]xml)?", "=", '"']
+		keywordPatterns = ["[/?]*>", "<([?]xml)?", "=", "['\"]"]
 		self.highlightingRules += [(QtCore.QRegExp(pattern), keywordFormat)
 				for pattern in keywordPatterns]
  
 		xmlAttributeFormat = QtGui.QTextCharFormat()
 		xmlAttributeFormat.setFontWeight(QtGui.QFont.Bold)
 		#xmlAttributeFormat.setFontItalic(True)
-		#xmlAttributeFormat.setForeground(pal.highlightedText().color().darker(150))
-		#xmlAttributeFormat.setForeground(QtCore.Qt.red)
 		xmlAttributeFormat.setForeground(pal.link().color())
 		self.highlightingRules.append((QtCore.QRegExp("\\b[A-Za-z0-9_]+(?=\\=)"), xmlAttributeFormat))
  
-		self.valueFormat = QtGui.QTextCharFormat()
-		self.valueFormat.setForeground(pal.windowText().color())
- 
-		self.valueStartExpression = QtCore.QRegExp("\"")
-		self.valueEndExpression = QtCore.QRegExp("\"(?=[\s></?])")
- 
-		singleLineCommentFormat = QtGui.QTextCharFormat()
-		singleLineCommentFormat.setForeground(QtCore.Qt.gray)
-		self.highlightingRules.append((QtCore.QRegExp("<!--[^\n]*-->"), singleLineCommentFormat))
- 
-	#VIRTUAL FUNCTION WE OVERRIDE THAT DOES ALL THE COLLORING
+		valueFormat = QtGui.QTextCharFormat()
+		valueFormat.setForeground(pal.windowText().color())
+		self.highlightingRules.append((QtCore.QRegExp("['\"][^'\"]*['\"]"), valueFormat))
+
+		self.commentFormat = QtGui.QTextCharFormat()
+		self.commentFormat.setForeground(QtCore.Qt.gray)
+		self.commentStartExpression = QtCore.QRegExp("<!--")
+		self.commentEndExpression = QtCore.QRegExp("-->")
+
 	def highlightBlock(self, text):
 		
 		#for every pattern
@@ -734,25 +813,24 @@ class XMLHighlighter(QtGui.QSyntaxHighlighter):
 				#Set index to where the expression ends in the text
 				index = expression.indexIn(text, index + length)
  
-		#HANDLE QUOTATION MARKS NOW.. WE WANT TO START WITH " AND END WITH ".. A THIRD " SHOULD NOT CAUSE THE WORDS INBETWEEN SECOND AND THIRD TO BE COLORED
+		# handle comments
 		self.setCurrentBlockState(0)
  
 		startIndex = 0
 		if self.previousBlockState() != 1:
-			startIndex = self.valueStartExpression.indexIn(text)
- 
+			startIndex = self.commentStartExpression.indexIn(text)
+		
 		while startIndex >= 0:
-			endIndex = self.valueEndExpression.indexIn(text, startIndex)
- 
+			endIndex = self.commentEndExpression.indexIn(text, startIndex)
+			commentLength = 0
 			if endIndex == -1:
 				self.setCurrentBlockState(1)
 				commentLength = len(text) - startIndex
 			else:
-				commentLength = endIndex - startIndex + self.valueEndExpression.matchedLength()
- 
-			self.setFormat(startIndex, commentLength, self.valueFormat)
- 
-			startIndex = self.valueStartExpression.indexIn(text, startIndex + commentLength);
+				commentLength = endIndex - startIndex + self.commentEndExpression.matchedLength()
+			self.setFormat(startIndex, commentLength, self.commentFormat)
+			startIndex = self.commentStartExpression.indexIn(text, startIndex + commentLength)
+
 
 
 class XMLTextEdit(QtWidgets.QTextEdit):
@@ -846,10 +924,10 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 		if url[1] == "add":
 			if url[3] == "empty":
 				c.insertText(indent + "<" + url[2] + " />")
-				c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, 4)
+				c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, 3)
 			else:
 				c.insertText(indent + "<" + url[2] + ">" + url[4] + "</" + url[2] + ">")
-				c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, len(url[2]) + 4)
+				c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, len(url[2]) + 3)
 				c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(url[4]))
 				
 		elif url[1] == "set":
@@ -861,17 +939,20 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 			ins = url[2] + '="' + url[3] + '"'
 			if (txt[c.position()-1].strip() != ""):
 				ins = " " + ins
+			if (txt[c.position()].strip() != ""):
+				ins += " "
 			c.insertText(ins)
 			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, 1)
 			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(url[3]))
 		elif url[1] == "ins":
+			txt = url[2]
 			pos1 = int(url[4])
 			pos2 = txt.find("<", pos1)
 			if (pos2 >= 0):
 				c.setPosition(pos1)
 				c.movePosition(QtGui.QTextCursor.Right, QtGui.QTextCursor.KeepAnchor, pos2-pos1)
-			c.insertText(url[2])
-			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(url[2]))
+			c.insertText(txt)
+			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(txt))
 
 		self.editor.setTextCursor(c)
 		self.editor.setFocus()
@@ -1130,7 +1211,10 @@ class DemoWidget(QtWebKitWidgets.QWebView):
 	margin: 0.5em;
 }
 .back {
+	font-size: 125%;
 	padding: 0.5em;
+	margin: 0;
+	margin-bottom: 0.5em;
 	border-radius: 0.5em;
 }
 h2 {
@@ -1300,7 +1384,10 @@ class MainWindow(QtWidgets.QMainWindow):
 		QtWidgets.QMainWindow.__init__(self, parent)
  
 		#self.setMinimumSize(1000, 800)
+		dir_path = os.path.dirname(os.path.realpath(__file__))
 		self.setWindowTitle("FFT Homogenization Tool")
+		self.setWindowIcon(QtGui.QIcon(dir_path + "/../gui/icons/logo1/icon32.png"))
+
 
 		self.textEdit = XMLTextEdit()
 	
@@ -1308,6 +1395,12 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.lastSaveText = self.getSaveText()
 
 		self.helpWidget = HelpWidget(self.textEdit)
+		vbox = QtWidgets.QVBoxLayout()
+		vbox.addWidget(self.helpWidget)
+		helpwrap = QtWidgets.QFrame()
+		helpwrap.setLayout(vbox)
+		helpwrap.setFrameShape(QtWidgets.QFrame.StyledPanel)
+		helpwrap.setFrameShadow(QtWidgets.QFrame.Sunken)
 
 		self.tabWidget = QtWidgets.QTabWidget()
 		self.tabWidget.setTabsClosable(True)
@@ -1330,7 +1423,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.vSplit = QtWidgets.QSplitter(self)
 		self.vSplit.setOrientation(QtCore.Qt.Vertical)
 		self.vSplit.insertWidget(0, self.textEdit)
-		self.vSplit.insertWidget(1, self.helpWidget)
+		self.vSplit.insertWidget(1, helpwrap)
 		#self.vSplit.insertWidget(2, self.statusBar)
 		self.setStatusBar(self.statusBar)
 
@@ -1382,11 +1475,11 @@ class MainWindow(QtWidgets.QMainWindow):
 		# https://specifications.freedesktop.org/icon-naming-spec/icon-naming-spec-latest.html
 		aa("document-new", "New", self.newProjectGui, QtCore.Qt.CTRL + QtCore.Qt.Key_N)
 		aa("document-open", "Open", self.openProjectGui, QtCore.Qt.CTRL + QtCore.Qt.Key_O)
-		aa("document-save", "Save", self.saveProjectGui, QtCore.Qt.CTRL + QtCore.Qt.Key_S)
-		aa("document-save-as", "Save As", lambda: self.saveProjectGui(True), QtCore.Qt.CTRL + QtCore.Qt.SHIFT + QtCore.Qt.Key_S)
+		self.saveAction = aa("document-save", "Save", self.saveProjectGui, QtCore.Qt.CTRL + QtCore.Qt.Key_S)
+		self.saveAsAction = aa("document-save-as", "Save As", lambda: self.saveProjectGui(True), QtCore.Qt.CTRL + QtCore.Qt.SHIFT + QtCore.Qt.Key_S)
 		self.undoAction = aa("edit-undo", "Undo", self.undo, QtCore.Qt.CTRL + QtCore.Qt.Key_Z)
 		self.redoAction = aa("edit-redo", "Redo", self.redo, QtCore.Qt.CTRL + QtCore.Qt.SHIFT + QtCore.Qt.Key_Z)
-		aa("media-playback-start", "Run", self.runProject, QtCore.Qt.CTRL + QtCore.Qt.Key_R)
+		self.runAction = aa("media-playback-start", "Run", self.runProject, QtCore.Qt.CTRL + QtCore.Qt.Key_R)
 		spacer = QtWidgets.QWidget()
 		spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.toolbar.addWidget(spacer)
@@ -1394,13 +1487,11 @@ class MainWindow(QtWidgets.QMainWindow):
 		aa("help-about", "About", self.openAbout, 0)
 		aa("application-exit", "Exit", self.exit, QtCore.Qt.CTRL + QtCore.Qt.Key_Q)
 
-		self.undoAction.setEnabled(False)
-		self.redoAction.setEnabled(False)
+		for a in [self.redoAction, self.undoAction]:
+			a.setEnabled(False)
+
 		self.textEdit.undoAvailable.connect(self.undoAvailable)
 		self.textEdit.redoAvailable.connect(self.redoAvailable)
-
-		dir_path = os.path.dirname(os.path.realpath(__file__))
-		self.setWindowIcon(QtGui.QIcon(dir_path + "/../gui/icons/logo1/icon32.png"))
 
 		self.addToolBar(self.toolbar)
 		self.setCentralWidget(self.hSplit)
@@ -1417,10 +1508,15 @@ class MainWindow(QtWidgets.QMainWindow):
 			self.hSplit.setSizes([self.width()/3, 2*self.width()/3])
 			self.vSplit.setSizes([2*self.height()/3, self.height()/3, 1])
 
-		self.vSplit.setVisible(False)
+		self.setDocumentVisible(False)
 		self.tabWidget.setVisible(False)
 
 		self.show()
+
+	def setDocumentVisible(self, visible):
+		self.vSplit.setVisible(visible)
+		for a in [self.saveAction, self.saveAsAction, self.undoAction, self.redoAction, self.runAction]:
+			a.setVisible(visible)
 
 	def exit(self):
 		self.close()
@@ -1548,7 +1644,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			self.file_id += 1
 			self.lastSaveText = self.getSaveText()
 			self.textEdit.document().clearUndoRedoStacks()
-			self.vSplit.setVisible(True)
+			self.setDocumentVisible(True)
 			self.updateStatus()
 		except:
 			QtWidgets.QMessageBox.critical(self, "Error", sys.exc_info()[0])
@@ -1581,7 +1677,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.file_id += 1
 		self.lastSaveText = self.getSaveText()
 		self.textEdit.document().clearUndoRedoStacks()
-		self.vSplit.setVisible(True)
+		self.setDocumentVisible(True)
 		self.updateStatus()
 		return True
 
@@ -1589,7 +1685,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		if not isinstance(fg, fibergen.FG):
 			try:
-				fg = fgc.new_FG()
+				fg = fibergen.FG().init()
 				xml = str(self.textEdit.toPlainText())
 				fg.set_xml(xml)
 			except:
@@ -1727,8 +1823,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 		"""
-                .def("get_effective_property", &PyFG::get_effective_property)
-                .def("get_B_from_A", &PyFG::get_B_from_A)
+				.def("get_effective_property", &PyFG::get_effective_property)
+				.def("get_B_from_A", &PyFG::get_B_from_A)
 		"""
 
 		def section(text):
@@ -1794,7 +1890,6 @@ class MainWindow(QtWidgets.QMainWindow):
 			return tab
 
 		def plot(x, y, title, xlabel, ylabel, yscale="linear"):
-			return ""
 			fig, ax = plt.subplots(nrows=1, ncols=1)
 			ax.plot(x, y)
 			plt.grid()
@@ -1804,12 +1899,23 @@ class MainWindow(QtWidgets.QMainWindow):
 			ax.set_yscale(yscale)
 			tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
 			fig.savefig(tf.name)
-			plt.close(fig)    # close the figure
-			img = "<hr /><p><img src='%s' />" % tf.name
-			img += "<br/>%s</p>" % tf.name
+			plt.close(fig)	# close the figure
+			img = "<p><img src='file://%s' /></p>" % tf.name
+			img += "<p>%s</p>" % tf.name
 			return img
 
 		resultText = ""
+
+		resultText += section('General')
+		resultText += table(collections.OrderedDict([
+			('solve_time', fg.get_solve_time()),
+			('error', fg.get_error()),
+			('distance_evals', fg.get_distance_evals()),
+		]))
+		
+		residuals = fg.get_residuals()
+		resultText += section('Residual plot')
+		resultText += plot(range(len(residuals)), residuals, "Residuals", "Iteration", "Residual", "log")
 
 		resultText += section('Volume fractions')
 		resultText += table(volume_fractions)
@@ -1826,27 +1932,35 @@ class MainWindow(QtWidgets.QMainWindow):
 			except:
 				return None
 
+		def mat(a):
+			if (len(a) == 6):
+				return np.array([
+					[a[0], a[5], a[4]],
+					[a[5], a[1], a[3]],
+					[a[4], a[3], a[2]]
+				], dtype=np.double)
+			if (len(a) == 9):
+				return np.array([
+					[a[0], a[5], a[4]],
+					[a[8], a[1], a[3]],
+					[a[7], a[6], a[2]]
+				], dtype=np.double)
+			return a
+
 		resultText += section('Mean quantities')
 		resultText += table(collections.OrderedDict([
-			('mean_stress', matrix(fgc.Voigt.mat(fg.get_mean_stress()))),
-			('mean_strain', matrix(fgc.Voigt.mat(fg.get_mean_strain()))),
-			('mean_cauchy_stress', matrix(fgc.Voigt.mat(fg.get_mean_cauchy_stress()))),
+			('mean_stress', matrix(mat(fg.get_mean_stress()))),
+			('mean_strain', matrix(mat(fg.get_mean_strain()))),
+			('mean_cauchy_stress', matrix(mat(fg.get_mean_cauchy_stress()))),
 		#	('mean_energy', safe_call(fg.get_mean_energy)),
-			('effective_property', matrix(fgc.Voigt.mat(fg.get_effective_property()))),
+			('effective_property', matrix(mat(fg.get_effective_property()))),
 		]))
 
-		resultText += section('Other')
-
-		residuals = fg.get_residuals()
+		resultText += section('Residuals')
 		resultText += table(collections.OrderedDict([
-			('solve_time', fg.get_solve_time()),
 			('residuals', matrix([[(i,r)] for i,r in enumerate(residuals)])),
-			('distance_evals', fg.get_distance_evals()),
-			('error', fg.get_error()),
 		]))
 		
-		resultText += plot(range(len(residuals)), residuals, "Residuals", "Iteration", "Residual", "log")
-
 		"""
 		for i, ij in enumerate([11, 22, 33, 23, 13, 12]):
 			resultText += plot(range(len(mean_stresses)), [s[i] for s in mean_stresses], "Sigma_%s" % ij, "Iteration", "Sigma_%d" % ij, "linear")
@@ -1860,7 +1974,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		elif other.file_id != self.file_id:
 			other = None
 
-		tab = PlotWidget(field_groups, fg.get_xml(), resultText, other)
+		tab = PlotWidget(field_groups, xml, resultText, other)
 		tab.file_id = self.file_id
 		if len(tab.fields) > 0:
 			i = self.addTab(tab, "Run_%d" % self.runConut)
@@ -1871,13 +1985,13 @@ class App(QtWidgets.QApplication):
 
 	def __init__(self, args):
 
-		QtWidgets.QApplication.__init__(self, args + ["--disable-web-security"])
+		QtWidgets.QApplication.__init__(self, list(args) + ["--disable-web-security"])
 		self.settings = QtCore.QSettings("NumaPDE", "FIBERGEN")
 		self.window = MainWindow()
 
 		try:
 			if (len(args) > 1):
-				self.window.openProject(args[1])
+				self.window.openProject(args[-1])
 				#self.window.runProject()
 			else:
 				self.window.newProjectGui()
@@ -1904,5 +2018,6 @@ class App(QtWidgets.QApplication):
  
 if __name__ == "__main__":
 	app = App(sys.argv)
-	sys.exit(app.exec_())
+	ret = app.exec_()
+	sys.exit(ret)
 
