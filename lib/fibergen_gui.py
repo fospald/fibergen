@@ -407,10 +407,14 @@ class PlotWidget(QtWidgets.QWidget):
 
 		self.setLayout(vbox)
 
-		if (self.currentFieldIndex is None and len(self.fields)):
+		if len(self.fields) == 0:
+			self.currentFieldIndex = None
+		elif self.currentFieldIndex is None:
 			self.currentFieldIndex = 0
 
-		if (not self.currentFieldIndex is None):
+		if not self.currentFieldIndex is None:
+			if (self.currentFieldIndex >= len(self.fields)):
+				self.currentFieldIndex = 0
 			self.fields[self.currentFieldIndex].button.setChecked(True)
 	
 		self.updateFigCanvasVisible()
@@ -761,7 +765,6 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 		#font.setStyleHint(QtGui.QFont.Monospace)
 		font.setFixedPitch(True)
 		font.setPointSize(font.pointSize())
-		print(font.pointSize())
 		fontmetrics = QtGui.QFontMetrics(font)
 		self.setFont(font)
 		self.setTabStopWidth(2 * fontmetrics.width(' '))
@@ -1586,7 +1589,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		if not isinstance(fg, fibergen.FG):
 			try:
-				fg = fibergen.FG()
+				fg = fgc.new_FG()
 				xml = str(self.textEdit.toPlainText())
 				fg.set_xml(xml)
 			except:
@@ -1646,8 +1649,14 @@ class MainWindow(QtWidgets.QMainWindow):
 		#progress.setWindowModality(QtCore.Qt.WindowModal)
 		#tol = fg.get("solver.tol".encode('utf8'))
 
+		def process_events():
+			for i in range(5):
+				QtWidgets.QApplication.processEvents()
+
 		def loadstep_callback():
 			
+			process_events()
+
 			loadstep_called.append(1)
 
 			if (len(field_groups) == 0):
@@ -1674,13 +1683,16 @@ class MainWindow(QtWidgets.QMainWindow):
 							data = fg.get_field(field.name.encode('utf8'))
 						field.data.append(data)
 
+			process_events()
+
 		def convergence_callback():
 			#residual = fg.get_residuals()[-1]
 			#print "res=", residual
 			# progress.setValue(100)
+			process_events()
 			mean_strains.append(fg.get_mean_strain())
 			mean_stresses.append(fg.get_mean_stress())
-			QtWidgets.QApplication.processEvents()
+			process_events()
 			return progress.wasCanceled()
 
 
@@ -1690,8 +1702,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			#print fg.get_xml()
 
 			progress.show()
-			QtWidgets.QApplication.processEvents()
-			QtWidgets.QApplication.processEvents()
+			process_events()
 			
 			fg.run()
 			fg.init_phase()
@@ -1707,6 +1718,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			print(traceback.format_exc())
 
 		progress.close()
+		process_events()
 		
 		volume_fractions = collections.OrderedDict()
 		phase_names = fg.get_phase_names()

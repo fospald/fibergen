@@ -353,6 +353,80 @@ void set_exception(const std::string& msg)
 
 
 
+void print_stacktrace()
+{
+	#pragma omp critical
+	{
+
+	// print stack trace
+	void *trace_elems[32];
+	int trace_elem_count = backtrace(trace_elems, sizeof(trace_elems)/sizeof(void*));
+	char **symbol_list = backtrace_symbols(trace_elems, trace_elem_count);
+	std::size_t funcnamesize = 265;
+	char* funcname = (char*) malloc(funcnamesize);
+
+	LOG_CERR << "Stack trace:" << std::endl;
+
+	// iterate over the returned symbol lines. skip the first, it is the
+	// address of this function.
+	int c = 0;
+	for (int i = trace_elem_count-1; i > 1; i--)
+	{
+		char *begin_name = 0, *begin_offset = 0, *end_offset = 0;
+
+		// find parentheses and +address offset surrounding the mangled name:
+		// ./module(function+0x15c) [0x8048a6d]
+		for (char *p = symbol_list[i]; *p; ++p)
+		{
+			if (*p == '(')
+				begin_name = p;
+			else if (*p == '+')
+				begin_offset = p;
+			else if (*p == ')' && begin_offset) {
+				end_offset = p;
+				break;
+			}
+		}
+
+		if (begin_name && begin_offset && end_offset && begin_name < begin_offset)
+		{
+			*begin_name++ = '\0';
+			*begin_offset++ = '\0';
+			*end_offset = '\0';
+
+			// mangled name is now in [begin_name, begin_offset) and caller
+			// offset in [begin_offset, end_offset). now apply
+			// __cxa_demangle():
+
+			int status;
+			char* ret = abi::__cxa_demangle(begin_name, funcname, &funcnamesize, &status);
+			if (status == 0) {
+				funcname = ret; // use possibly realloc()-ed string
+				LOG_CERR << (boost::format("%02d. %s: " _WHITE_TEXT "%s+%s") % c % symbol_list[i] % funcname % begin_offset).str() << std::endl;
+			}
+			else {
+				// demangling failed. Output function name as a C function with
+				// no arguments.
+				LOG_CERR << (boost::format("%02d. %s: %s()+%s") % c % symbol_list[i] % begin_name % begin_offset).str() << std::endl;
+			}
+		}
+		else
+		{
+			// couldn't parse the line? print the whole line.
+			LOG_CERR << (boost::format("%02d. " _WHITE_TEXT "%s") % c % symbol_list[i]).str() << std::endl;
+		}
+
+		c++;
+	}
+
+	free(symbol_list);
+	free(funcname);
+
+	} // critical
+}
+
+
+
 
 static ptree::ptree empty_ptree;
 
@@ -515,9 +589,9 @@ public:
 		py::exec("from math import *", main_namespace);
 	}
 
-	void eval(const std::string& expr)
+	void exec(const std::string& code)
 	{
-		py::eval(expr.c_str(), main_namespace, locals);
+		py::exec(code.c_str(), main_namespace, locals);
 	}
 
 	template <class T>
@@ -581,6 +655,12 @@ public:
 		}
 
 		return *_instance;
+	}
+
+	// release static instance
+	static void release()
+	{
+		_instance.reset();
 	}
 };
 
@@ -5442,11 +5522,16 @@ public:
 	
 	inline T closestFiber(const ublas::c_vector<T, DIM>& p, T r, int mat, ublas::c_vector<T, DIM>& x, boost::shared_ptr< const Fiber<T, DIM> >& fiber) const
 	{
+		if (!_cluster) {
+			BOOST_THROW_EXCEPTION(std::runtime_error("there are no fibers"));
+		}
+
 		return _cluster->closestFiber(p, r, mat, x, fiber);
 	}
 
 	inline void closestFibers(const ublas::c_vector<T, DIM>& p, T r, int mat, std::vector<typename FiberCluster<T, DIM>::ClosestFiberInfo>& info_list) const
 	{
+		if (!_cluster) return;
 		return _cluster->closestFibers(p, r, mat, info_list);
 	}
 
@@ -15703,6 +15788,8 @@ public:
 #ifdef TEST_DIST_EVAL
 		g_dist_evals = 0;
 #endif
+
+		if (mat.size() < 1) return;
 		
 		// calculate length scale for smooth interface transitions
 		// voxel diameter is diameter of sphere with same volume
@@ -15796,6 +15883,8 @@ public:
 	void normalizePhi(std::vector<pPhase>& mat)
 	{
 		Timer __t("normalize_phi");
+
+		if (mat.size() < 1) return;
 
 		// normalization step (volume fractions have to sum to 1)
 		// the last material has highest priority
@@ -22369,12 +22458,17 @@ public:
 		reset();
 	}
 
+	~FG()
+	{
+		PY::release();
+	}
+
 	void init_python()
 	{
 		const ptree::ptree& pt = xml_root->get_child("settings", empty_ptree);
 		const ptree::ptree& variables = pt.get_child("variables", empty_ptree);
 
-		PY::instance().clear_locals();
+		//PY::instance().clear_locals();
 
 		BOOST_FOREACH(const ptree::ptree::value_type &v, variables)
 		{
@@ -23159,7 +23253,7 @@ public:
 			}
 			else if (v.first == "python")
 			{
-				PY::instance().eval(v.second.data());
+				PY::instance().exec(v.second.data());
 			}
 			else if (v.first == "print_A2")
 			{
@@ -24087,7 +24181,7 @@ public:
 		ss << xml;
 		// read settings
 		xml_root.reset(new ptree::ptree());
-		read_xml(ss, *xml_root, ptree::xml_parser::trim_whitespace);
+		read_xml(ss, *xml_root, 0*ptree::xml_parser::trim_whitespace);
 	}
 
 	void set_log_file(const std::string& logfile)
@@ -24109,7 +24203,7 @@ public:
 	{
 		// read settings
 		xml_root.reset(new ptree::ptree());
-		read_xml(filename, *xml_root, ptree::xml_parser::trim_whitespace);
+		read_xml(filename, *xml_root, 0*ptree::xml_parser::trim_whitespace);
 	}
 
 	int exec(int argc, char* argv[])
@@ -24190,6 +24284,11 @@ public:
 	{
 		_py_loadstep_callback = cb;
 		fg()->set_loadstep_callback(boost::bind(&PyFG::loadstep_callback, this));
+	}
+
+	void set_variable(std::string key, py::object value)
+	{
+		PY::instance().add_local(key, value);
 	}
 
 	std::vector<double> get_B_from_A(double a0, double a1, double a2)
@@ -24430,7 +24529,7 @@ void translate2(std::runtime_error const& e)
 void translate3(py::error_already_set const& e)
 {
 	// Use the Python 'C' API to set up an exception object
-	PyErr_SetString(PyExc_RuntimeError, "There was a Python error inside fibergen!");
+	//PyErr_SetString(PyExc_RuntimeError, "There was a Python error inside fibergen!");
 }
 
 
@@ -24504,6 +24603,7 @@ void init_numpy() { import_array(); }
 		.def("set_loadstep_callback", &PyFG::set_loadstep_callback)
 		.def("get_field", py::raw_function(&GetField, 1))
 		.def("get_B_from_A", &PyFG::get_B_from_A)
+		.def("set_variable", &PyFG::set_variable)
 	;
 }
 
@@ -24544,69 +24644,7 @@ void exception_handler()
 	// print date/time
 	LOG_CERR << "Local timestamp: " << boost::posix_time::second_clock::local_time() << std::endl;
 
-	// print stack trace
-	void *trace_elems[32];
-	int trace_elem_count = backtrace(trace_elems, sizeof(trace_elems)/sizeof(void*));
-	char **symbol_list = backtrace_symbols(trace_elems, trace_elem_count);
-	std::size_t funcnamesize = 265;
-	char* funcname = (char*) malloc(funcnamesize);
-
-	LOG_CERR << "Stack trace:" << std::endl;
-
-	// iterate over the returned symbol lines. skip the first, it is the
-	// address of this function.
-	int c = 0;
-	for (int i = trace_elem_count-1; i > 1; i--)
-	{
-		char *begin_name = 0, *begin_offset = 0, *end_offset = 0;
-
-		// find parentheses and +address offset surrounding the mangled name:
-		// ./module(function+0x15c) [0x8048a6d]
-		for (char *p = symbol_list[i]; *p; ++p)
-		{
-			if (*p == '(')
-				begin_name = p;
-			else if (*p == '+')
-				begin_offset = p;
-			else if (*p == ')' && begin_offset) {
-				end_offset = p;
-				break;
-			}
-		}
-
-		if (begin_name && begin_offset && end_offset && begin_name < begin_offset)
-		{
-			*begin_name++ = '\0';
-			*begin_offset++ = '\0';
-			*end_offset = '\0';
-
-			// mangled name is now in [begin_name, begin_offset) and caller
-			// offset in [begin_offset, end_offset). now apply
-			// __cxa_demangle():
-
-			int status;
-			char* ret = abi::__cxa_demangle(begin_name, funcname, &funcnamesize, &status);
-			if (status == 0) {
-				funcname = ret; // use possibly realloc()-ed string
-				LOG_CERR << (boost::format("%02d. %s: " _WHITE_TEXT "%s+%s") % c % symbol_list[i] % funcname % begin_offset).str() << std::endl;
-			}
-			else {
-				// demangling failed. Output function name as a C function with
-				// no arguments.
-				LOG_CERR << (boost::format("%02d. %s: %s()+%s") % c % symbol_list[i] % begin_name % begin_offset).str() << std::endl;
-			}
-		}
-		else
-		{
-			// couldn't parse the line? print the whole line.
-			LOG_CERR << (boost::format("%02d. " _WHITE_TEXT "%s") % c % symbol_list[i]).str() << std::endl;
-		}
-
-		c++;
-	}
-
-	free(symbol_list);
-	free(funcname);
+	print_stacktrace();
 
 	// restore teminal colors
 	LOG_COUT << DEFAULT_TEXT << std::endl;

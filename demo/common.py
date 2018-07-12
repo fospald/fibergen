@@ -719,11 +719,15 @@ def savecsv(filename, data, keys = None, delimiter="\t"):
 
 		print("Saving", filename)
 
+def new_FG():
+	fg = fibergen.FG()
+	#fg.set_variable("fg", fg)
+	return fg
 
 print_max_problem_sizes()
 
 # create fibergen instance
-fg = fibergen.FG()
+fg = new_FG()
 
 # production mode (low res / high res switch)
 production = True
