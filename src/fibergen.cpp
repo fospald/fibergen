@@ -22458,17 +22458,12 @@ public:
 		reset();
 	}
 
-	~FG()
-	{
-		PY::release();
-	}
-
 	void init_python()
 	{
 		const ptree::ptree& pt = xml_root->get_child("settings", empty_ptree);
 		const ptree::ptree& variables = pt.get_child("variables", empty_ptree);
 
-		//PY::instance().clear_locals();
+		PY::instance().clear_locals();
 
 		BOOST_FOREACH(const ptree::ptree::value_type &v, variables)
 		{
