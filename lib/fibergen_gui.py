@@ -731,6 +731,8 @@ class PlotWidget(QtWidgets.QWidget):
 				field.button.setChecked(i == index)
 			self.changeFieldSuspended = False
 			self.resetBounds()
+			self.viewXMLButton.setChecked(False)
+			self.viewResultDataButton.setChecked(False)
 		else:
 			self.currentFieldIndex = None
 
@@ -1270,7 +1272,7 @@ class DemoWidget(QtWebKitWidgets.QWebView):
 .demo, .category, .back {
 	border: 2px solid """ + pal.link().color().name() + """;
 	border-radius: 1em;
-	background-color: """ + pal.button().color().lighter().name() + """;
+	background-color: """ + pal.window().color().name() + """;
 	color: """ + pal.buttonText().color().name() + """;
 	display: inline-block;
 	vertical-align: text-top;
