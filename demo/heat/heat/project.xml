@@ -4,17 +4,24 @@
 	<description>Example for computing the effective conductivity of a fiber reinforced material.</description>
 	<image>thumbnail.png</image>
   
+	<variables>
+		<res type="int" value="512" />
+		<scale type="float" value="2.0" />
+	</variables>
+
+	<type>cylinder</type>
+
 	<!-- Fiber length -->
-	<length>0.2</length>
+	<length>0.1*scale</length>
 
 	<!-- Fiber radius -->
-	<radius>0.025</radius>
+	<radius>0.0025*scale</radius>
 
 	<!-- Fiber volume fraction
 	<v>0.5</v> -->
 
 	<!-- Number of fibers -->
-	<n>400</n>
+	<n>10000</n>
 
 	<!-- Maximum number of tries to generate n non intersecing fibers -->
 	<m>1000000</m>
@@ -27,7 +34,9 @@
 
 	<!-- Create periodic structure -->
 	<!-- If fast=1, distance maps may be not correctly in the far field -->
-	<periodic fast="0">1</periodic>
+	<periodic>1</periodic>
+	<planar x="1" />
+	<dx>1.0/res</dx>
 
 	<!-- Allow intersecting structure -->
 	<intersecting>0</intersecting>
@@ -35,14 +44,14 @@
 	<!-- Number of threads to use -->
 	<num_threads>4</num_threads>
 
-	<solver n="128" nz="1" >
+	<solver nx="1" ny="res" nz="res">
 
 		<!-- Solver tolerance -->
 		<tol>1e-6</tol>
 
 		<materials>
-			<matrix mu="10" lambda="0" />
-			<fiber  mu="1" lambda="0" />
+			<matrix mu="10" />
+			<fiber  mu="1" />
 		</materials>
 
 		<method>cg</method>
@@ -62,10 +71,13 @@
 
 		<!-- Set the fiber distribution -->
 		<set_fiber_distribution>
-			<acg weight="1" axx="3.0" ayy="2.0" azz="1.0" axy="0.0" axz="0.0" ayz="0.0" />
+			<acg weight="1" axx="0.0" ayy="1.0" azz="0.0" axy="0.0" axz="0.0" ayz="0.0" />
 		</set_fiber_distribution>
 	
 		<calc_effective_properties />
+	
+		<print_A2 />
+
 	</actions>
 
 </settings>

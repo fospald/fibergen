@@ -83,7 +83,7 @@
     </loadsteps>
     <loadsteps help="number of loadsteps" type="int">1</loadsteps>
     <loadstep_extrapolation_order help="loadstep extrapolation order" type="int">1</loadstep_extrapolation_order>
-    <loadstep_extrapolation_method help="loadstep extrapolation order" type="str" values="polynomial,transformation">polynomial</loadstep_extrapolation_method>
+    <loadstep_extrapolation_method help="loadstep extrapolation method" type="str" values="polynomial,transformation">polynomial</loadstep_extrapolation_method>
     <write_loadsteps help="write results after each loadstep" type="bool">0</write_loadsteps>
 
     <gamma_scheme help="scheme for Gamma operator" type="str" values="collocated,staggered,full_staggered,half_staggered,willot">staggered</gamma_scheme>

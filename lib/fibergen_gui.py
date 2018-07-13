@@ -37,7 +37,6 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 import matplotlib.ticker as mtick
 import matplotlib.cm as mcmap
-rcParams.update({'figure.autolayout': True})
 
 
 class FlowLayout(QtWidgets.QLayout):
@@ -182,11 +181,11 @@ class MyWebPage(QtWebKitWidgets.QWebPage):
 
 		html = """
 a, html, body, div, span, p, h1, h2, h3, tr, td, th {
-	font-family: """ + font.family() + """pt;
+	font-family: \"""" + font.family() + """\";
 	font-size: """ + str(font.pointSize()) + """pt;
 }
 body {
-	background-color: """ + pal.window().color().name() + """;
+	background-color: """ + pal.base().color().name() + """;
 	color: """ + pal.text().color().name() + """;
 }
 a {
@@ -198,6 +197,10 @@ a:hover {
 }
 table {
 	border-collapse: collapse;
+	background-color: """ + pal.window().color().name() + """;
+}
+.border {
+	border: 1px solid """ + pal.shadow().color().name() + """;
 }
 th, td, .help {
 	border: 1px solid """ + pal.shadow().color().name() + """;
@@ -244,6 +247,9 @@ class PlotField(object):
 class PlotWidget(QtWidgets.QWidget):
 
 	def __init__(self, field_groups, xml, resultText, other = None, parent = None):
+
+		app = QtWidgets.QApplication.instance()
+		pal = app.palette()
 
 		self.changeFieldSuspended = False
 		self.replot_reset_limits = False
@@ -455,13 +461,52 @@ class PlotWidget(QtWidgets.QWidget):
 		
 		self.figcanvas = FigureCanvas(self.fig)
 		self.figcanvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+		#self.figcanvas.setContentsMargins(0, 0, 0, 0)
+		#self.figcanvas.setStyle(app.style())
+
 		self.fignavbar = NavigationToolbar(self.figcanvas, self)
 		self.fignavbar.set_cursor(cursors.SELECT_REGION)
+		self.fignavbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+
+		def setIcon(c, names):
+			for name in names:
+				if QtGui.QIcon.hasThemeIcon(name):
+					c.setIcon(QtGui.QIcon.fromTheme(name))
+					return True
+			return False
+				
+		for c in self.fignavbar.findChildren(QtWidgets.QToolButton):
+			if c.text() == "Home":
+				setIcon(c, ["go-first-view", "go-home", "go-first", "arrow-left-double"])
+			elif c.text() == "Back":
+				setIcon(c, ["go-previous-view", "go-previous", "arror-left"])
+			elif c.text() == "Forward":
+				setIcon(c, ["go-next-view", "go-next", "arror-right"])
+			elif c.text() == "Pan":
+				#setIcon(c, ["transform-move"])
+				pass
+			elif c.text() == "Zoom":
+				#setIcon(c, ["zoom-select", "zoom-in"])
+				pass
+			elif c.text() == "Subplots":
+				#setIcon(c, [""])
+				self.fignavbar.removeAction(c.defaultAction())
+			elif c.text() == "Customize":
+				#setIcon(c, ["preferences-system"])
+				self.fignavbar.removeAction(c.defaultAction())
+			elif c.text() == "Save":
+				setIcon(c, ["document-save"])
+
+		tb = QtWidgets.QToolBar()
+		self.fignavbar.setIconSize(tb.iconSize())
+		self.fignavbar.layout().setSpacing(tb.layout().spacing())
+		self.fignavbar.sizeHint = tb.sizeHint
 
 		wvbox = QtWidgets.QVBoxLayout()
 		wvbox.addWidget(self.fignavbar)
 		wvbox.addWidget(self.figcanvas)
 		wrap = QtWidgets.QWidget()
+		wrap.setStyleSheet("background-color:%s;" % pal.base().color().name());
 		wrap.setLayout(wvbox)
 		self.stack.addWidget(wrap)
 
@@ -551,10 +596,10 @@ class PlotWidget(QtWidgets.QWidget):
 
 		field = self.fields[self.currentFieldIndex]
 		zlabel = field.label
-		zlabel = zlabel.replace("ε", r'\varepsilon')
-		zlabel = zlabel.replace("σ", r'\sigma')
-		zlabel = zlabel.replace("φ", r'\varphi')
-		zlabel = zlabel.replace("∇", r'\nabla')
+		zlabel = zlabel.replace(u"ε", r'\varepsilon')
+		zlabel = zlabel.replace(u"σ", r'\sigma')
+		zlabel = zlabel.replace(u"φ", r'\varphi')
+		zlabel = zlabel.replace(u"∇", r'\nabla')
 		if ("_" in zlabel):
 			zlabel = zlabel.replace("_", '_{') + "}"
 		zlabel = "$" + zlabel + "$"
@@ -719,13 +764,18 @@ class PlotWidget(QtWidgets.QWidget):
 		if (self.currentFieldIndex != None):
 			
 			data = self.getCurrentSlice()
+			s_index = self.sliceCombo.currentIndex()
+			coords = ["x", "y", "z"]
+			z_cord = coords[s_index]
+			xy_cord = coords
+			del xy_cord[s_index]
 
 			vmin = float(self.vminText.text())
 			vmax = float(self.vmaxText.text())
 			
 			#color_norm = matplotlib.colors.SymLogNorm(linthresh=1e-2, linscale=1)
 			cm = mcmap.get_cmap(self.colormapCombo.currentText(), 2**11)
-			
+
 			p = self.axes.imshow(data.T, interpolation="nearest", origin="lower", norm=None, cmap=cm, vmin=vmin, vmax=vmax)
 
 			if (cbax != None):
@@ -733,16 +783,23 @@ class PlotWidget(QtWidgets.QWidget):
 			else:
 				self.cb = self.fig.colorbar(p, shrink=0.7)
 		
+			z_label = self.fields[self.currentFieldIndex].label
+			self.cb.ax.set_title(z_label, y=1.05)
+
 			numrows, numcols = data.shape
 			def format_coord(x, y):
 				col = int(x+0.5)
 				row = int(y+0.5)
 				if col>=0 and col<numcols and row>=0 and row<numrows:
 					z = data[row,col]
-					return 'x,y=%d,%d, z=%1.4f'%(col, row, z)
+					return '%s,%s=%d,%d, %s=%1.4f'%(*xy_cord, col, row, z_label, z)
 				else:
-					return 'x,y=%d,%d'%(col, row)
+					return '%s,%s=%d,%d'%(*xy_cord, col, row)
 			self.axes.format_coord = format_coord
+
+			font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
+			self.axes.set_xlabel(xy_cord[0], labelpad=font.pointSize())
+			self.axes.set_ylabel(xy_cord[1], labelpad=font.pointSize())
 
 		if (xlim != None):
 			self.axes.set_xlim(xlim)
@@ -1243,11 +1300,12 @@ img {
 }
 .header img {
 	width: auto;
-	height: 4.5em;
-	margin-top: -0.25em;
-	margin-right: -0.5em;
+	height: 5.5em;
+	margin-top: -0.5em;
+	margin-bottom: -0.5em;
 }
 .header {
+	background-color: initial;
 	padding: 1em;
 	border-bottom: 1px solid """ + pal.shadow().color().name() + """;
 	margin-bottom: 1em;
@@ -1380,6 +1438,7 @@ class MainWindow(QtWidgets.QMainWindow):
 	def __init__(self, parent = None):
 		
 		app = QtWidgets.QApplication.instance()
+		pal = app.palette()
 
 		QtWidgets.QMainWindow.__init__(self, parent)
  
@@ -1396,11 +1455,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		self.helpWidget = HelpWidget(self.textEdit)
 		vbox = QtWidgets.QVBoxLayout()
+		vbox.setContentsMargins(0,0,0,0)
 		vbox.addWidget(self.helpWidget)
 		helpwrap = QtWidgets.QFrame()
 		helpwrap.setLayout(vbox)
 		helpwrap.setFrameShape(QtWidgets.QFrame.StyledPanel)
 		helpwrap.setFrameShadow(QtWidgets.QFrame.Sunken)
+		helpwrap.setStyleSheet("background-color:%s;" % pal.base().color().name());
 
 		self.tabWidget = QtWidgets.QTabWidget()
 		self.tabWidget.setTabsClosable(True)
@@ -1475,16 +1536,20 @@ class MainWindow(QtWidgets.QMainWindow):
 		# https://specifications.freedesktop.org/icon-naming-spec/icon-naming-spec-latest.html
 		aa("document-new", "New", self.newProjectGui, QtCore.Qt.CTRL + QtCore.Qt.Key_N)
 		aa("document-open", "Open", self.openProjectGui, QtCore.Qt.CTRL + QtCore.Qt.Key_O)
+		self.saveSeparator = self.toolbar.addSeparator()
 		self.saveAction = aa("document-save", "Save", self.saveProjectGui, QtCore.Qt.CTRL + QtCore.Qt.Key_S)
 		self.saveAsAction = aa("document-save-as", "Save As", lambda: self.saveProjectGui(True), QtCore.Qt.CTRL + QtCore.Qt.SHIFT + QtCore.Qt.Key_S)
+		self.undoSeparator = self.toolbar.addSeparator()
 		self.undoAction = aa("edit-undo", "Undo", self.undo, QtCore.Qt.CTRL + QtCore.Qt.Key_Z)
 		self.redoAction = aa("edit-redo", "Redo", self.redo, QtCore.Qt.CTRL + QtCore.Qt.SHIFT + QtCore.Qt.Key_Z)
+		self.runSeparator = self.toolbar.addSeparator()
 		self.runAction = aa("media-playback-start", "Run", self.runProject, QtCore.Qt.CTRL + QtCore.Qt.Key_R)
 		spacer = QtWidgets.QWidget()
 		spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.toolbar.addWidget(spacer)
 		aa("help-contents", "Help", self.openHelp, QtCore.Qt.Key_F1)
 		aa("help-about", "About", self.openAbout, 0)
+		self.toolbar.addSeparator()
 		aa("application-exit", "Exit", self.exit, QtCore.Qt.CTRL + QtCore.Qt.Key_Q)
 
 		for a in [self.redoAction, self.undoAction]:
@@ -1515,7 +1580,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 	def setDocumentVisible(self, visible):
 		self.vSplit.setVisible(visible)
-		for a in [self.saveAction, self.saveAsAction, self.undoAction, self.redoAction, self.runAction]:
+		for a in [self.saveSeparator, self.saveAction, self.saveAsAction, self.undoSeparator, self.undoAction, self.redoAction, self.runSeparator, self.runAction]:
 			a.setVisible(visible)
 
 	def exit(self):
@@ -1697,9 +1762,9 @@ class MainWindow(QtWidgets.QMainWindow):
 		coord_names1 = ["x", "y", "z"]
 		coord_names2 = ["xx", "yy", "zz", "yz", "xz", "xy", "zy", "zx", "yx"]
 
-		field_labels = {"phi": lambda i: "φ_%d" % i,
-			"epsilon": lambda i: "ε_%s" % coord_names2[i],
-			"sigma": lambda i: "σ_%s" % coord_names2[i],
+		field_labels = {"phi": lambda i: u"φ_%d" % i,
+			"epsilon": lambda i: u"ε_%s" % coord_names2[i],
+			"sigma": lambda i: u"σ_%s" % coord_names2[i],
 			"u": lambda i: "u_%s" % coord_names1[i],
 			"normals": lambda i: "n_%s" % coord_names1[i],
 			"orientation": lambda i: "d_%s" % coord_names1[i],
@@ -1900,7 +1965,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
 			fig.savefig(tf.name)
 			plt.close(fig)	# close the figure
-			img = "<p><img src='file://%s' /></p>" % tf.name
+			img = "<p><img class=\"border\" src='file://%s' /></p>" % tf.name
 			img += "<p>%s</p>" % tf.name
 			return img
 
@@ -1986,6 +2051,26 @@ class App(QtWidgets.QApplication):
 	def __init__(self, args):
 
 		QtWidgets.QApplication.__init__(self, list(args) + ["--disable-web-security"])
+
+		# set matplotlib defaults
+		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
+		pal = self.palette()
+		text_color = pal.text().color().name()
+		bg_color = pal.base().color().name()
+		rcParams.update({
+			'figure.autolayout': True,
+			'font.size': font.pointSize(),
+			'font.family': font.family(),
+			'text.color': text_color,
+			'axes.labelcolor': text_color,
+			'xtick.color': text_color,
+			'ytick.color': text_color,
+			#'figure.facecolor': bg_color,
+			#'savefig.facecolor': bg_color,
+			#'axes.facecolor': bg_color,
+			'backend': 'Qt5Agg',
+		})
+
 		self.settings = QtCore.QSettings("NumaPDE", "FIBERGEN")
 		self.window = MainWindow()
 
@@ -2001,7 +2086,7 @@ class App(QtWidgets.QApplication):
 	def notify(self, receiver, event):
 		try:
 			QtWidgets.QApplication.notify(self, receiver, event)
-		except:
+		except e:
 			QtWidgets.QMessageBox.critical(self, "Error", sys.exc_info()[0])
 		return False
 	
