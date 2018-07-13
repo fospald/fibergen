@@ -14,5 +14,10 @@ cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF ../..
 make -j
 RET=$?
 cd "$FIBERGEN_DIR"
+
+echo "Please update your environmet variables, i.e.:"
+echo "export PATH=\$PATH:$FIBERGEN_DIR"
+echo "export PYTHONPATH=\$PYTHONPATH:$FIBERGEN_DIR/lib"
+
 test $RET -eq 0
 

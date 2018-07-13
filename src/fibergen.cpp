@@ -13329,6 +13329,9 @@ public:
 		_mg_residual_checking = false;
 		_mg_safe_mode = false;
 
+		_solve_time = 0;
+		_fft_time = 0;
+
 		// init forward and backward finite difference offsets
 		_ffd_x.resize(_nx);
 		_bfd_x.resize(_nx);

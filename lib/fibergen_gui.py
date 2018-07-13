@@ -199,8 +199,9 @@ table {
 	border-collapse: collapse;
 	background-color: """ + pal.window().color().name() + """;
 }
-.border {
+.plot {
 	border: 1px solid """ + pal.shadow().color().name() + """;
+	background-color: """ + pal.window().color().name() + """;
 }
 th, td, .help {
 	border: 1px solid """ + pal.shadow().color().name() + """;
@@ -786,13 +787,13 @@ class PlotWidget(QtWidgets.QWidget):
 			z_label = self.fields[self.currentFieldIndex].label
 			self.cb.ax.set_title(z_label, y=1.03)
 
-			numrows, numcols = data.shape
+			numcols, numrows = data.shape
 			def format_coord(x, y):
 				col = int(x+0.5)
 				row = int(y+0.5)
 				s = '%s = %d, %s = %d' % (xy_cord[0], col, xy_cord[1], row)
 				if col>=0 and col<numcols and row>=0 and row<numrows:
-					z = data[row,col]
+					z = data[col,row]
 					return '%s, %s = %1.4f' % (s, z_label, z)
 				else:
 					return s
@@ -804,6 +805,12 @@ class PlotWidget(QtWidgets.QWidget):
 			font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
 			self.axes.set_xlabel(xy_cord[0], labelpad=font.pointSize())
 			self.axes.set_ylabel(xy_cord[1], labelpad=font.pointSize())
+
+			self.figcanvas.setVisible(True)
+			self.fignavbar.setVisible(True)
+		else:
+			self.figcanvas.setVisible(False)
+			self.fignavbar.setVisible(False)
 
 		if (xlim != None):
 			self.axes.set_xlim(xlim)
@@ -1777,9 +1784,11 @@ class MainWindow(QtWidgets.QMainWindow):
 			"p": lambda i: "p",
 		}
 
-		field_names = ["phi", "epsilon", "sigma", "u"]
-
+		phase_fields = ["phi"]
+		run_fields = ["epsilon", "sigma", "u"]
 		const_fields = ["phi", "fiber_id", "fiber_translation", "normals", "orientation"]
+
+		field_names = phase_fields + run_fields
 
 		try:
 			mode = fg.get("solver.mode".encode('utf8'))
@@ -1789,18 +1798,12 @@ class MainWindow(QtWidgets.QMainWindow):
 		if (mode == "viscosity"):
 			field_labels["epsilon"] = lambda i: "σ_%s" % coord_names2[i]
 			field_labels["sigma"] = lambda i: "ɣ_%s" % coord_names2[i]
-			field_names.append("p")
+			run_fields.append("p")
 
 		if (mode == "heat"):
 			field_labels["u"] = lambda i: "T"
 			field_labels["epsilon"] = lambda i: "∇T_%s" % coord_names1[i]
 			field_labels["sigma"] = lambda i: "q_%s" % coord_names1[i]
-
-		#field_names.append("normals")
-		#field_names.append("orientation")
-
-		#field_names.append("fiber_id")
-		#field_names.append("fiber_translation")
 
 		field_groups = []
 		mean_strains = []
@@ -1873,6 +1876,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			fg.init_phase()
 
 			if len(loadstep_called) == 0:
+				field_names = phase_fields
 				loadstep_callback()
 
 			if progress.wasCanceled():
@@ -1889,12 +1893,6 @@ class MainWindow(QtWidgets.QMainWindow):
 		phase_names = fg.get_phase_names()
 		for key in phase_names:
 			volume_fractions[key] = fg.get_volume_fraction(key)
-
-
-		"""
-				.def("get_effective_property", &PyFG::get_effective_property)
-				.def("get_B_from_A", &PyFG::get_B_from_A)
-		"""
 
 		def section(text):
 			return "<h2>%s</h2>\n" % text
@@ -1960,16 +1958,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		def plot(x, y, title, xlabel, ylabel, yscale="linear"):
 			fig, ax = plt.subplots(nrows=1, ncols=1)
-			ax.plot(x, y)
+			ax.plot(x, y, 'ro-')
 			plt.grid()
 			ax.set_title(title)
 			ax.set_xlabel(xlabel)
 			ax.set_ylabel(ylabel)
 			ax.set_yscale(yscale)
 			tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-			fig.savefig(tf.name)
+			fig.savefig(tf.name, transparent=True)
 			plt.close(fig)	# close the figure
-			img = "<p><img class=\"border\" src='file://%s' /></p>" % tf.name
+			img = "<p><img class=\"plot\" src='file://%s' /></p>" % tf.name
 			img += "<p>%s</p>" % tf.name
 			return img
 
@@ -1983,8 +1981,9 @@ class MainWindow(QtWidgets.QMainWindow):
 		]))
 		
 		residuals = fg.get_residuals()
-		resultText += section('Residual plot')
-		resultText += plot(range(len(residuals)), residuals, "Residuals", "Iteration", "Residual", "log")
+		if len(residuals) > 0:
+			resultText += section('Residual plot')
+			resultText += plot(range(len(residuals)), residuals, "Residuals", "Iteration", "Residual", "log")
 
 		resultText += section('Volume fractions')
 		resultText += table(volume_fractions)
@@ -2020,15 +2019,16 @@ class MainWindow(QtWidgets.QMainWindow):
 		resultText += table(collections.OrderedDict([
 			('mean_stress', matrix(mat(fg.get_mean_stress()))),
 			('mean_strain', matrix(mat(fg.get_mean_strain()))),
-			('mean_cauchy_stress', matrix(mat(fg.get_mean_cauchy_stress()))),
-		#	('mean_energy', safe_call(fg.get_mean_energy)),
+			#('mean_cauchy_stress', matrix(mat(fg.get_mean_cauchy_stress()))),
+			#('mean_energy', safe_call(fg.get_mean_energy)),
 			('effective_property', matrix(mat(fg.get_effective_property()))),
 		]))
 
-		resultText += section('Residuals')
-		resultText += table(collections.OrderedDict([
-			('residuals', matrix([[(i,r)] for i,r in enumerate(residuals)])),
-		]))
+		if len(residuals) > 0:
+			resultText += section('Residuals')
+			resultText += table(collections.OrderedDict([
+				('residuals', matrix([[i,r] for i,r in enumerate(residuals)])),
+			]))
 		
 		"""
 		for i, ij in enumerate([11, 22, 33, 23, 13, 12]):
