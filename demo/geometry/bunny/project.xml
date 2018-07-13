@@ -9,6 +9,7 @@
 	<x0>70</x0>
 	<y0>40</y0>
 	<z0>12</z0>
+	<num_threads>4</num_threads>
 	<solver nx="256" ny="256" nz="0" mult="1" >
 		<materials>
 			<matrix law="iso" lambda="10" mu="10"/>

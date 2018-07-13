@@ -784,18 +784,22 @@ class PlotWidget(QtWidgets.QWidget):
 				self.cb = self.fig.colorbar(p, shrink=0.7)
 		
 			z_label = self.fields[self.currentFieldIndex].label
-			self.cb.ax.set_title(z_label, y=1.05)
+			self.cb.ax.set_title(z_label, y=1.03)
 
 			numrows, numcols = data.shape
 			def format_coord(x, y):
 				col = int(x+0.5)
 				row = int(y+0.5)
+				s = '%s = %d, %s = %d' % (xy_cord[0], col, xy_cord[1], row)
 				if col>=0 and col<numcols and row>=0 and row<numrows:
 					z = data[row,col]
-					return '%s,%s=%d,%d, %s=%1.4f'%(*xy_cord, col, row, z_label, z)
+					return '%s, %s = %1.4f' % (s, z_label, z)
 				else:
-					return '%s,%s=%d,%d'%(*xy_cord, col, row)
+					return s
+			def get_cursor_data(event):
+				return None
 			self.axes.format_coord = format_coord
+			p.get_cursor_data = get_cursor_data
 
 			font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
 			self.axes.set_xlabel(xy_cord[0], labelpad=font.pointSize())
