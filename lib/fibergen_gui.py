@@ -1883,6 +1883,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 			if progress.wasCanceled():
 				progress.close()
+				del fg
 				return
 
 		except:
@@ -2050,6 +2051,8 @@ class MainWindow(QtWidgets.QMainWindow):
 		if len(tab.fields) > 0:
 			i = self.addTab(tab, "Run_%d" % self.runConut)
 		self.runConut += 1
+
+		del fg
 
 
 class App(QtWidgets.QApplication):

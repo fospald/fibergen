@@ -585,6 +585,13 @@ public:
 		enabled = true;
 	}
 
+#if 0
+	~PY()
+	{
+		LOG_COUT << "~PY" << std::endl;
+	}
+#endif
+
 	py::object exec(const std::string& code)
 	{
 		if (enabled) {
@@ -22791,7 +22798,7 @@ public:
 
 		// init python variables
 		init_python();
-		struct AfterReturn { ~AfterReturn() { PY::instance().clear_locals(); } } ar;
+		struct AfterReturn { ~AfterReturn() { PY::release(); } } ar;
 
 		const ptree::ptree& settings = xml_root->get_child("settings", empty_ptree);
 
@@ -24284,6 +24291,12 @@ protected:
 	py::object _py_loadstep_callback;
 
 public:
+	~PyFG()
+	{
+		//LOG_COUT << "~PyFG" << std::endl;
+		PY::release();
+	}
+
 	bool convergence_callback()
 	{
 		if (_py_convergence_callback) {
