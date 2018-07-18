@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<settings>
+	<title>Mixed BC</title>
+	<description>This demo shows how to apply mixed boundary conditions for a simple sphere and Saint Venant-Kirchhoff materials.</description>
+	<num_threads>4</num_threads>
+	<solver n="32">
+		<tol>1e-10</tol>
+		<materials>
+			<matrix lambda="10" mu="10"/>
+			<pore lambda="100" mu="10"/>
+		</materials>
+		<mode>hyperelasticity</mode>
+		<num_loadsteps>1</num_loadsteps>
+	</solver>
+	<actions>
+		<select_material name="pore" />
+		<place_fiber R="0.3" />
+		<!-- The 11 component of the projection matrix is set to zero in order to set the bc for the 
+			mean 1st Piola-Kirchhoff stress to 1.0. The mean of the deformation gradient 22 component is set to 1.1. -->
+		<run_load_case p11="0.0" s11="1.0" e22="0.1" />
+	</actions>
+</settings>
+
+

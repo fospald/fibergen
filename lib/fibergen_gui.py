@@ -917,6 +917,7 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 		self.setFont(font)
 		self.setTabStopWidth(2 * fontmetrics.width(' '))
 		self.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
+		self.setAcceptRichText(False)
 
 		# add syntax highlighting
 		self.highlighter = XMLHighlighter(self.document())
@@ -1002,6 +1003,7 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 				
 		elif url[1] == "set":
 			pos1 = int(url[5])
+			mov = 1
 			if txt[pos1-2] == "/":
 				c.setPosition(pos1-2)
 			else:
@@ -1011,8 +1013,9 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 				ins = " " + ins
 			if (txt[c.position()].strip() != ""):
 				ins += " "
+				mov += 1
 			c.insertText(ins)
-			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, 1)
+			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, mov)
 			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(url[3]))
 		elif url[1] == "ins":
 			txt = url[2]
@@ -1328,40 +1331,46 @@ img {
 
 		category_file = os.path.join(path, "category.xml")
 
-		if os.path.isfile(category_file):
-			try:
+		try:
+			if os.path.isfile(category_file):
 				xml = ET.parse(category_file).getroot()
-				html += '<table class="header">'
-				html += '<tr>'
-				if path == self.demodir:
-					html += '<td>'
-					html += '<h1>fibergen</h1>'
-					html += '<p>A FFT-based homogenization tool.</p>'
-					html += '</td>'
-					img = xml.find("image")
-					if not img is None and not img.text is None and len(img.text):
-						img = os.path.join(path, img.text)
-						html += '<td><img src="file://' + img + '" /></td>'
+			else:
+				xml = ET.Element("dummy")
+			html += '<table class="header">'
+			html += '<tr>'
+			if path == self.demodir:
+				html += '<td>'
+				html += '<h1>fibergen</h1>'
+				html += '<p>A FFT-based homogenization tool.</p>'
+				html += '</td>'
+				img = xml.find("image")
+				if not img is None and not img.text is None and len(img.text):
+					img = os.path.join(path, img.text)
+					html += '<td><img src="file://' + img + '" /></td>'
+			else:
+				html += '<td>'
+				title = xml.find("title")
+				if not title is None and len(title.text):
+					html += '<h1>' + title.text + '</h1>'
 				else:
-					html += '<td>'
-					title = xml.find("title")
-					if not title is None and len(title.text):
-						html += '<h1>' + title.text + '</h1>'
-					else:
-						html += '<h1>' + d + '</h1>'
-					html += '</td>'
-					html += '<td><a class="back" href="http://x#cd#' + path + '/..">&#x21a9; Back</a></td>'
-				html += '</tr>'
-				html += '</table>'
-			except:
-				print("error in file", category_file)
-				print(traceback.format_exc())
+					html += '<h1>' + os.path.basename(path) + '</h1>'
+				html += '</td>'
+				html += '<td><a class="back" href="http://x#cd#' + path + '/..">&#x21a9; Back</a></td>'
+			html += '</tr>'
+			html += '</table>'
+		except:
+			print("error in file", category_file)
+			print(traceback.format_exc())
+			
 
 		html += '<center class="body">'
 
 		items = []
 		indices = []
-		for d in os.listdir(path):
+		dirs = sorted(os.listdir(path), key=lambda s: s.lower(), reverse=True)
+		
+		for d in dirs:
+
 			subdir = os.path.join(path, d)
 			if not os.path.isdir(subdir):
 				continue
@@ -1403,9 +1412,12 @@ img {
 					item += '<p>' + desc.text + '</p>'
 				item += '</a>'
 				index = xml.find("index")
-			elif os.path.isfile(category_file):
+			else:
 				try:
-					xml = ET.parse(category_file).getroot()
+					if os.path.isfile(category_file):
+						xml = ET.parse(category_file).getroot()
+					else:
+						xml = ET.Element("dummy")
 				except:
 					print("error in file", category_file)
 					print(traceback.format_exc())
@@ -1422,8 +1434,6 @@ img {
 					item += '<img src="file://' + img + '" />'
 				item += '</a>'
 				index = xml.find("index")
-			else:
-				continue
 
 			try:
 				index = int(index.text)
@@ -1811,6 +1821,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		mean_strains = []
 		mean_stresses = []
 		loadstep_called = []
+		phase_names = []
 
 		progress = QtWidgets.QProgressDialog("Computation is running...", "Cancel", 0, 0, self)
 		progress.setWindowTitle("Run")
@@ -1829,7 +1840,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
 			loadstep_called.append(1)
 
-			if (len(field_groups) == 0):
+			if len(loadstep_called) == 1:
+				phase_names = fg.get_phase_names()
+				field_labels['phi'] = lambda i: phase_names[i]
+
+			if len(field_groups) == 0:
 				for name in field_names:
 					data = fg.get_field(name.encode('utf8'))
 					shape = data.shape

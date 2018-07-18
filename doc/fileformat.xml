@@ -41,7 +41,8 @@
   <dy help="RVE length in z direction" type="float">1.0</dy>
   <dz help="RVE length in z direction" type="float">1.0</dz>
   
-  <num_threads help="number of threads to use for OpenMP parallelization, by default uses nproc-1 and nproc-2 if nproc>16 threads, at least one" type="int"></num_threads>
+  <num_threads help="number of threads to use for OpenMP parallelization, if &lt; 1 then the number system cores is added to this number" type="int">1</num_threads>
+  <dynamic_threads help="enable or disable the dynamic adjustment of the number of threads" type="bool">0</dynamic_threads>
   <fft_threads help="number of threads to use for FFT parallelization, if &lt; 1 then uses same as num_threads" type="int">-1</fft_threads>
   <fft_wisdom help="FFTW wisdom file, defaults to ~/.fibergen_fft_wisdom_$(uname -n)" type="str">...</fft_wisdom>
   
@@ -144,7 +145,7 @@
         <attrib name="K" type="float" help="bulk modulus"></attrib>
         <attrib name="E" type="float" help="Young's modulus"></attrib>
         <attrib name="lambda" type="float" help="first Lamé parameter"></attrib>
-        <attrib name="mu" type="float" help="second Lamé parameter"></attrib>
+        <attrib name="mu" type="float" help="second Lamé parameter (shear modulus)"></attrib>
         <attrib name="nu" type="float" help="Poisson's ratio"></attrib>
         <attrib name="M" type="float" help="P-wave modulus"></attrib>
         TODO: add more parameters for different materials

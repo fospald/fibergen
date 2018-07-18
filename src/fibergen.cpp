@@ -806,6 +806,13 @@ std::string format(const T* data, std::size_t nx, std::size_t ny, std::size_t nz
 }
 
 
+template <typename T>
+inline T norm_2_sqr(const ublas::vector<T>& v)
+{
+	return ublas::inner_prod(v, v);
+}
+
+
 template <class V, typename T>
 inline void set_vector(V& v, T x0, T x1, T x2)
 {
@@ -897,204 +904,205 @@ void InvertMatrix(const ublas::c_matrix<T,DIM,DIM>& input, ublas::c_matrix<T,DIM
 }
 
 
+// x, n: plane parameters
+// x0, dx, dy, dz: box parameters
 template <typename T, int DIM>
 inline T halfspace_box_cut_volume(const ublas::c_vector<T, DIM>& x, const ublas::c_vector<T, DIM>& n, const ublas::c_vector<T, DIM>& x0, T dx, T dy, T dz)
 {
-	T eps = std::numeric_limits<T>::epsilon()*(dx+dy+dz);
-
-	// compute intersection volume of cube (x0, dx, dy, dz) and halfspace (x, n)
-
-	ublas::c_vector<T, DIM> x1, x2, x3;
-
-	x1[0] = x0[0] + dx;
-	x1[1] = x0[1];
-	x1[2] = x0[2] + dz;
-
-	x2[0] = x0[0] + dx;
-	x2[1] = x0[1] + dy;
-	x2[2] = x0[2];
-
-	x3[0] = x0[0];
-	x3[1] = x0[1] + dy;
-	x3[2] = x0[2] + dz;
-
-	const ublas::c_vector<T, DIM>* px[4];
-	px[0] = &x0;
-	px[1] = &x1;
-	px[2] = &x2;
-	px[3] = &x3;
-
-	// list of edges
-	// e0: x0 + t*ex
-	// e1: x0 + t*ey
-	// e2: x0 + t*ez
-	//
-	// e3: x1 - t*ex
-	// e4: x1 + t*ey
-	// e5: x1 - t*ez
-	//
-	// e6: x2 - t*ex
-	// e7: x2 - t*ey
-	// e8: x2 + t*ez
-	//
-	// e9: x3 + t*ex
-	// ea: x3 - t*ey
-	// eb: x3 - t*ez
-
-	static T signs[12] = {1,1,1, -1,1,-1, -1,-1,1, 1,-1,-1};
-
-	T dx0n = ublas::inner_prod(x - x0, n);
-	T dx1n = ublas::inner_prod(x - x1, n);
-	T dx2n = ublas::inner_prod(x - x2, n);
-	T dx3n = ublas::inner_prod(x - x3, n);
-
-	// compute intersection parameters
-	T t[12];
-	for (int k = 0; k < 3; k++) {
-		if (n[k] != 0) {
-			t[0 + k] = signs[0 + k]*dx0n/n[k];
-			t[3 + k] = signs[3 + k]*dx1n/n[k];
-			t[6 + k] = signs[6 + k]*dx2n/n[k];
-			t[9 + k] = signs[9 + k]*dx3n/n[k];
-		}
-		else {
-			t[0 + k] = t[3 + k] = t[6 + k] = t[9 + k] = -1;
-		}
-	}
-
-	// check for intersections
-	bool i[12];
-	for (int k = 0; k < 4; k++) {
-		i[3*k + 0] = (t[3*k + 0] >= 0 && t[3*k + 0] <= dx);
-		i[3*k + 1] = (t[3*k + 1] >= 0 && t[3*k + 1] <= dy);
-		i[3*k + 2] = (t[3*k + 2] >= 0 && t[3*k + 2] <= dz);
-	}
-
-	// get first intersection point
-	ublas::c_vector<T, DIM> pi0, pi1, pi2;
-	int pi0_index = -1;
-	for (int k = 0; k < 12; k++) {
-		if (i[k]) {
-			pi0 = *px[k/3];
-			pi0[k%3] += signs[k]*t[k];
-			pi0_index = k;
-			break;
-		}
-	}
-
 #if 0
 	#define DEBUG_HSBCV(x) LOG_COUT << x << std::endl;
 
+	DEBUG_HSBCV("### called");
 	DEBUG_HSBCV("x " << format(x));
 	DEBUG_HSBCV("n " << format(n));
 	DEBUG_HSBCV("x0 " << format(x0));
-	for (int k = 0; k < 12; k++) {
-		DEBUG_HSBCV("intersection " << k << ": " << (i[k] ? 1 : 0) << " t=" << t[k]);
-	}
 #else
 	#define DEBUG_HSBCV(x)
 #endif
 
-	T I;
+	// vertices:
+	// 0: x0
+	// 1: x0 + dx
+	// 2: x0 + dy
+	// 3: x0 + dz
+	// 4: x0 + dx + dy
+	// 5: x0 + dy + dz
+	// 6: x0 + dx + dz
+	// 7: x0 + dx + dy + dz
+	ublas::c_vector<T, DIM> vertices[8];
+	vertices[0] = x0;
+	vertices[1] = x0 + dx*ublas::unit_vector<T>(DIM, 0);
+	vertices[2] = x0 + dy*ublas::unit_vector<T>(DIM, 1);
+	vertices[3] = x0 + dz*ublas::unit_vector<T>(DIM, 2);
+	vertices[4] = vertices[1] + dy*ublas::unit_vector<T>(DIM, 1);
+	vertices[5] = vertices[2] + dz*ublas::unit_vector<T>(DIM, 2);
+	vertices[6] = vertices[3] + dx*ublas::unit_vector<T>(DIM, 0);
+	vertices[7] = vertices[6] + dy*ublas::unit_vector<T>(DIM, 1);
 
-	// perform volume integration by surface integration (Gauss)
-	if (pi0_index < 0) {
-		// no intersection found
-		I = (dx0n > 0) ? (dx*dy*dz) : 0;
-		DEBUG_HSBCV("no intersection" << I);
-		return I;
-	}
-
-	// V = int_V 1 dx = int_S z*n_z ds
-	// only the facets with n_z != 0 are important
-	// we shift the orign of the cube to to x1 so only one surface integral is left
-
-	// edges for each facet:
-	// f0: 0 5 3 2
-	// f1: 6 8 9 11
-	// f2: 5 4 8 7
-	// f3: 2 1 11 10
-	// f4: 0 7 6 1  (n_z = -1)
-	// f5: 3 10 9 4 (n_z = +1)
-
-	if (i[0] && i[6]) {
-		I = 0.5*(t[0] + dx - t[6])*dy*dz;
-		if (n[0] < 0) I = dx*dy*dz - I;
-		DEBUG_HSBCV("case 1 " << I);
-	}
-	else if (i[1] && i[7]) {
-		I = 0.5*(t[1] + dy - t[7])*dx*dz;
-		if (n[1] < 0) I = dx*dy*dz - I;
-		DEBUG_HSBCV("case 2 " << I);
-	}
-	else if (i[0] && i[1]) {
-		I = 0.5*t[0]*t[1]*dz;
-		if (n[0] < 0) I = dx*dy*dz - I;
-		DEBUG_HSBCV("case 3 " << I);
-	}
-	else if (i[1] && i[6]) {
-		I = 0.5*(dy-t[1])*(dx-t[6])*dz;
-		if (n[0] < 0) I = dx*dy*dz - I;
-		DEBUG_HSBCV("case 4 " << I);
-	}
-	else if (i[6] && i[7]) {
-		I = 0.5*t[6]*t[7]*dz;
-		if (n[0] > 0) I = dx*dy*dz - I;
-		DEBUG_HSBCV("case 5 " << I);
-	}
-	else if (i[7] && i[0]) {
-		I = 0.5*(dy-t[7])*(dx-t[0])*dz;
-		if (n[0] > 0) I = dx*dy*dz - I;
-		DEBUG_HSBCV("case 6 " << I);
-	}
-	else {
-		I = (n[2] > 0) ? (dx*dy*dz) : 0;
-		DEBUG_HSBCV("case 7 " << I);
-	}
-
-	static int facets[6][4] = {
-		{0, 5, 3, 2},
-		{6, 8, 9, 11},
-		{5, 4, 8, 7},
-		{2, 1, 11, 10},
-		{0, 7, 6, 1},
-		{3, 10, 9, 4},
+	// vertex pairs for edges
+	static int edges[12][2] = {
+		{0, 1}, {2, 4}, {3, 6}, {5, 7}, // x
+		{0, 2}, {1, 4}, {3, 5}, {6, 7}, // y
+		{0, 3}, {1, 6}, {2, 5}, {4, 7}, // z
 	};
 
-	for (int k = 0; k < 6; k++) {
-		bool ok = false;
-		int j;
-		for (j = 0; j < 4; j++) {
-			int e = facets[k][j];
-			if (i[e] && e != pi0_index) {
-				pi1 = *px[e/3];
-				pi1[e%3] += signs[e]*t[e];
-				if (ublas::norm_2(pi1 - pi0) > eps) {
-					break;
-				}
-			}
+	// edge quadruples for faces
+	static int faces[6][4] = {
+		{8, 6, -10, -4},
+		{9, 7, -11, -5},
+		{0, 9, -2, -8},
+		{1, 11, -3, -10},
+		{0, 5, -1, -4},
+		{2, 7, -3, -6},
+	};
+
+	//static int face_normal_indices[6] = {0, 0, 1, 1, 2, 2};
+	static int face_normal_signs[6] = {-1, 1, -1, 1, -1, 1};
+
+	// determine which vertices are inside of halfspace
+	bool inside[8];
+	int num_inside = 0;
+	for (int i = 0; i < 8; i++) {
+		inside[i] = ublas::inner_prod(vertices[i] - x, n) < 0;
+		num_inside += inside[i];
+		DEBUG_HSBCV("inside " << i << ": " << (inside[i] ? 1 : 0));
+	}
+
+	// determine edge intersections relative to x0 in edge direction
+	// no more than 6 edge intersections are possible
+	T intersection_distance[6];
+	int intersection_edge[12];
+	int num_intersections = 0;
+	int any_intersection_edge = -1;
+	for (int i = 0; i < 12; i++) {
+		if (inside[edges[i][0]] + inside[edges[i][1]] == 1) {
+			// edge has intersection
+			// the edge direction is the i/4-th unit vector (as we sorted the edge list this way)
+			// the intersection parameter is determined by
+			// dot(vertices[edges[i][0]] + t*ublas::unit_vector<T>(DIM, i/4) - x, n) = 0
+			intersection_distance[num_intersections] = ublas::inner_prod(x - vertices[edges[i][0]], n)/n[i/4];
+			intersection_edge[i] = num_intersections;
+			DEBUG_HSBCV("intersection " << i << ": " << intersection_distance[num_intersections]);
+			any_intersection_edge = i;
+			num_intersections++;
 		}
-		for (j++; j < 4; j++) {
-			int e = facets[k][j];
-			if (i[e] && e != pi0_index) {
-				pi2 = *px[e/3];
-				pi2[e%3] += signs[e]*t[e];
-				if (ublas::norm_2(pi2 - pi0) > eps && ublas::norm_2(pi2 - pi1) > eps) {
-					ok = true;
-					break;
-				}
-			}
-		}
-		if (ok) {
-			// compute triangle contribution to surface integral
-			T dI = 0.5*ublas::norm_2(cross_prod(pi1-pi0, pi2-pi0))*n[2]*((pi0[2]+pi1[2]+pi2[2])/3.0 - x1[2]);
-			DEBUG_HSBCV("dI: " << dI << " " << format(pi0) << " " << format(pi1) << " " << format(pi2));
-			I += dI;
+		else {
+			intersection_edge[i] = -1;
 		}
 	}
 
-	return I;
+	if (num_intersections == 0) {
+		// no intersection means all or nothing
+		DEBUG_HSBCV("num_intersections == 0");
+		DEBUG_HSBCV("V = " << (inside[0] ? (dx*dy*dz) : 0));
+		return inside[0] ? (dx*dy*dz) : 0;
+	}
+
+	static int crossp_indices[3][2] = {
+		{1, 2},
+		{2, 0},
+		{0, 1},
+	};
+
+	// get one intersection point
+	ublas::c_vector<T, DIM> xi = vertices[edges[any_intersection_edge][0]] +
+		intersection_distance[intersection_edge[any_intersection_edge]]*
+		ublas::unit_vector<T>(DIM, any_intersection_edge/4);
+
+	// decide if we flip from inside to outside volume computation
+	bool flip = (num_inside > 4);
+	DEBUG_HSBCV("flip: " << (flip ? 1 : 0));
+
+	// integrate over all faces
+	// the volume is calculated by Gauss divergence theorem, using f(x) = x - xi
+	// where xi is any intersection point
+	// int_V div f = 3 |V| = int_S dot(f,n) dS = sum_facets F dot(f(some point of facet F), facet normal)*|facet area|
+	ublas::c_vector<T, DIM> points[5];
+	T V = 0;
+	for (int f = 0; f < 6; f++)
+	{
+		DEBUG_HSBCV("face: " << f);
+
+		int ni = f>>1;		// facet normal index
+		int num_points = 0;	// number of points
+
+		for (int i = 0; i < 4; i++) {
+			// add all inside and intersection points as boundary points for the integration area
+			// the points will be ordered in circular manner
+			int e = faces[f][i];
+			int i1 = 0;
+			int i2 = 1;
+			// do we need to reverse the edge vertex order?
+			if (e < 0) {
+				e = -e;
+				i1 = 1;
+				i2 = 0;
+			}
+			if (num_points == 0 && inside[edges[e][i1]] ^ flip) {
+				// vertex 0 inside
+				// the first vertex of an edge is only used for the first point to avoid repeating
+				// (first vertex of first edge = last vertex of last edge)
+				points[num_points] = vertices[edges[e][i1]];
+				DEBUG_HSBCV("point 1: " << points[num_points]);
+				num_points++;
+			}
+			if (intersection_edge[e] >= 0) {
+				// edge has intersection
+				points[num_points] = vertices[edges[e][0]] + intersection_distance[intersection_edge[e]]*ublas::unit_vector<T>(DIM, e/4);
+				DEBUG_HSBCV("point 2: " << points[num_points]);
+				num_points++;
+			}
+			if (i < 3 && inside[edges[e][i2]] ^ flip) {
+				// vertex 1 inside
+				// the last vertex of an edge is not used for the last edge to avoid repeating
+				// (first vertex of first edge = last vertex of last edge)
+				points[num_points] = vertices[edges[e][i1]];
+				points[num_points] = vertices[edges[e][i2]];
+				DEBUG_HSBCV("point 3: " << points[num_points]);
+				num_points++;
+			}
+		}
+
+		if (num_points < 3) {
+			DEBUG_HSBCV("num_points < 3");
+			// primitve has no area
+			continue;
+		}
+
+		// TODO: this test could be done after we have point 0
+		T d = points[0][ni] - xi[ni];	// normal distance to xi
+		DEBUG_HSBCV("d " << d);
+		if (d == 0) continue;
+
+		int i1 = crossp_indices[ni][0];
+		int i2 = crossp_indices[ni][1];
+
+		// compute area
+		T area = 0;
+		for (int i = 2; i < num_points; i++) {
+			// ublas::norm_2(cross_prod(points[i-1] - points[0], points[i] - points[0]))
+			T da = std::abs((points[i-1][i1] - points[0][i1])*(points[i][i2] - points[0][i2]) -
+				(points[i-1][i2] - points[0][i2])*(points[i][i1] - points[0][i1]));
+			area += da;
+			DEBUG_HSBCV("da " << da);
+		}
+
+		V += face_normal_signs[f]*d*area;
+		DEBUG_HSBCV("dV " << (face_normal_signs[f]*d*area));
+	}
+
+	// need to divide by 6, 0.5 for the facet area and 1/3 for the div theorem
+	V *= (1.0/6.0);
+
+	if (flip) {
+		// compute inside volume from outside volume
+		V = dx*dy*dz - V;
+	}
+
+	DEBUG_HSBCV("V: " << V);
+	return V;
 }
+
 
 template <typename T>
 class ProgressBar
@@ -22814,7 +22822,8 @@ public:
 		//int max_threads = omp_get_max_threads();
 
 		// init OpenMP threads
-		int num_threads_omp = pt_get(settings, "num_threads", (max_threads > 16) ? (int)-2 : (int)-1);
+		int num_threads_omp = pt_get(settings, "num_threads", 1);
+		int dynamic_threads_omp = pt_get(settings, "dynamic_threads", 1);
 
 		if (num_threads_omp < 1) {
 			num_threads_omp = std::max(1, max_threads + num_threads_omp);
@@ -22828,8 +22837,8 @@ public:
 #endif
 		}
 
-		omp_set_dynamic(0);
-		omp_set_nested(0);
+		omp_set_nested(false);
+		omp_set_dynamic(dynamic_threads_omp != 0);
 		omp_set_num_threads(num_threads_omp);
 
 		// Init FFTW threads
@@ -23601,7 +23610,7 @@ public:
 						}
 					}
 
-					LOG_COUT << "Effective stiffness matrix (Voigt notation):\n" << format(Ceff_voigt) << std::endl;
+					LOG_COUT << "Effective stiffness matrix (Voigt notation):" << format(Ceff_voigt) << std::endl;
 
 					LOG_COUT << "A least square fit w.r.t. the Frobenian inner product to an isotropic material gives the parameters:" << std::endl;
 
@@ -23672,7 +23681,7 @@ public:
 
 					Ceff_voigt = Ceff;
 
-					LOG_COUT << "Effective conductivity matrix:\n" << format(Ceff) << std::endl;
+					LOG_COUT << "Effective conductivity matrix:" << format(Ceff) << std::endl;
 				}
 				else if (lss->mode() == "hyperelasticity")
 				{
@@ -23733,7 +23742,7 @@ public:
 						}
 					}
 
-					LOG_COUT << "Effective stiffness matrix (Voigt notation):\n" << format(Ceff_voigt) << std::endl;
+					LOG_COUT << "Effective stiffness matrix (Voigt notation):" << format(Ceff_voigt) << std::endl;
 
 					LOG_COUT << "A least square fit w.r.t. the Frobenian inner product to an isotropic material gives the parameters:" << std::endl;
 
@@ -23819,8 +23828,8 @@ public:
 					ublas::c_matrix<T,5,5> Feff55 = ublas::identity_matrix<T>(5);
 					err = lapack::gesv(Ceff55copy, Feff55);
 
-					LOG_COUT << "Effective fluidity matrix \"0.5*f\" (5x5):\n" << format(Feff55) << std::endl;
-					LOG_COUT << "Effective viscosity matrix \"2*eta\" (5x5):\n" << format(Ceff55) << std::endl;
+					LOG_COUT << "Effective fluidity matrix \"0.5*f\" (5x5):" << format(Feff55) << std::endl;
+					LOG_COUT << "Effective viscosity matrix \"2*eta\" (5x5):" << format(Ceff55) << std::endl;
 
 					// build 6x6 effecitve viscosity matrix by knowing
 					// that Ceff maps from traceless 3x3 to traceless 3x3 matricces
@@ -23857,7 +23866,7 @@ public:
 						}
 					}
 
-					LOG_COUT << "Effective viscosity matrix \"2*eta\" (Voigt notation):\n" << format(Ceff_voigt) << std::endl;
+					LOG_COUT << "Effective viscosity matrix \"2*eta\" (Voigt notation):" << format(Ceff_voigt) << std::endl;
 
 					// indices for Voigt notation
 					const int v[3][3] = {{0, 5, 4}, {5, 1, 3}, {4, 3, 2}};
@@ -23967,7 +23976,7 @@ public:
 				}
 */
 
-				LOG_COUT << "Effective stiffness matrix (Voigt notation):\n" << format(Ceff) << std::endl;
+				LOG_COUT << "Effective stiffness matrix (Voigt notation):" << format(Ceff) << std::endl;
 			}
 			else if (v.first == "print_timings")
 			{

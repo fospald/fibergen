@@ -1,0 +1,40 @@
+<settings>
+
+	<title>Digital rocks</title>
+	<description>Example for loading a multi-phase material.</description>
+
+	<!-- Number of threads to use -->
+	<num_threads>4</num_threads>
+
+	<solver n="128">
+
+		<!-- Solver tolerance -->
+		<tol>1e-5</tol>
+
+		<materials>
+			<matrix K="0.037" mu="0.044" />
+			<quartz K="37.0" mu="44.0" />
+			<calcite K="68.3" mu="28.4" />
+		</materials>
+
+		<gamma_scheme>staggered</gamma_scheme>
+
+	</solver>
+
+	<!-- List of actions to perform -->
+	<actions>
+
+		<!--
+			Data from: https://github.com/fkrzikalla/drp-benchmarks
+			See also: https://www.digitalrocksportal.org/
+			https://doi.org/10.1016/j.cageo.2012.09.005
+			https://doi.org/10.1016/j.cageo.2012.09.008
+		-->
+		
+		<read_raw_data material="quartz" filename="data/grosmont_stanford_128x128x128_1.raw.gz" />
+		<read_raw_data material="calcite" filename="data/grosmont_stanford_128x128x128_2.raw.gz" />
+		<calc_effective_properties />
+
+	</actions>
+
+</settings>
