@@ -1018,14 +1018,14 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, mov)
 			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(url[3]))
 		elif url[1] == "ins":
-			txt = url[2]
+			ins = url[2]
 			pos1 = int(url[4])
 			pos2 = txt.find("<", pos1)
 			if (pos2 >= 0):
 				c.setPosition(pos1)
 				c.movePosition(QtGui.QTextCursor.Right, QtGui.QTextCursor.KeepAnchor, pos2-pos1)
-			c.insertText(txt)
-			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(txt))
+			c.insertText(ins)
+			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(ins))
 
 		self.editor.setTextCursor(c)
 		self.editor.setFocus()
