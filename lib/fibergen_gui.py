@@ -7,6 +7,7 @@ import fibergen
 import sys, os, re
 import webbrowser
 import base64
+import copy
 import traceback
 import codecs
 import collections
@@ -252,8 +253,10 @@ class PlotWidget(QtWidgets.QWidget):
 		app = QtWidgets.QApplication.instance()
 		pal = app.palette()
 
+		self.replotSuspended = True
 		self.changeFieldSuspended = False
 		self.replot_reset_limits = False
+		self.initialView = None
 
 		QtWidgets.QWidget.__init__(self, parent)
 		
@@ -392,7 +395,7 @@ class PlotWidget(QtWidgets.QWidget):
 
 		self.colormapCombo = QtWidgets.QComboBox()
 		self.colormapCombo.setEditable(False)
-		colormaps = sorted(mcmap.datad)
+		colormaps = sorted(mcmap.datad, key=lambda s: s.lower())
 		for cm in colormaps:
 			self.colormapCombo.addItem(cm)
 		self.colormapCombo.setCurrentIndex(colormaps.index("jet"))
@@ -464,10 +467,12 @@ class PlotWidget(QtWidgets.QWidget):
 		self.figcanvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		#self.figcanvas.setContentsMargins(0, 0, 0, 0)
 		#self.figcanvas.setStyle(app.style())
+		#self.figcanvas.setStyleSheet("background-color: yellow")
 
 		self.fignavbar = NavigationToolbar(self.figcanvas, self)
 		self.fignavbar.set_cursor(cursors.SELECT_REGION)
 		self.fignavbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+		self.fignavbar.set_history_buttons = self.setHistoryButtons
 
 		def setIcon(c, names):
 			for name in names:
@@ -475,7 +480,13 @@ class PlotWidget(QtWidgets.QWidget):
 					c.setIcon(QtGui.QIcon.fromTheme(name))
 					return True
 			return False
-				
+
+		action = self.fignavbar.addAction("Embed")
+		action.triggered.connect(self.saveCurrentView)
+		setIcon(action, ["text-xml"])
+		action.setToolTip("Embed view into XML document")
+		self.fignavbar.insertAction(self.fignavbar.actions()[-2], action)
+		
 		for c in self.fignavbar.findChildren(QtWidgets.QToolButton):
 			if c.text() == "Home":
 				setIcon(c, ["go-first-view", "go-home", "go-first", "arrow-left-double"])
@@ -502,6 +513,13 @@ class PlotWidget(QtWidgets.QWidget):
 		self.fignavbar.setIconSize(tb.iconSize())
 		self.fignavbar.layout().setSpacing(tb.layout().spacing())
 		self.fignavbar.sizeHint = tb.sizeHint
+		self.fignavbar.locLabel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignCenter)
+		self.fignavbar.locLabel.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding))
+		self.fignavbar.locLabel.setContentsMargins(0,-4,0,-4)
+
+		if other != None:
+			self.fignavbar._views = copy.copy(other.fignavbar._views)
+			self.fignavbar._positions = copy.copy(other.fignavbar._positions)
 
 		wvbox = QtWidgets.QVBoxLayout()
 		wvbox.addWidget(self.fignavbar)
@@ -546,7 +564,171 @@ class PlotWidget(QtWidgets.QWidget):
 				self.currentFieldIndex = 0
 			self.fields[self.currentFieldIndex].button.setChecked(True)
 	
+		try:
+			root = ET.fromstring(xml)
+			if not root is None:
+				view = root.find('view')
+				if not view is None:
+					self.setViewXML(view)
+		except:
+			print(traceback.format_exc())
+
+		self.resetBounds()
+		self.replotSuspended = False
+		self.replot()
+
 		self.updateFigCanvasVisible()
+
+
+	def setHistoryButtons(self):
+		#self.fignavbar._actions["home"].setEnabled(not self.fignavbar._views is None and len(self.fignavbar._views))
+		pass
+
+	def getViewXML(self):
+		view = ET.Element('view')
+		field = ET.SubElement(view, 'field')
+		field.text = self.fields[self.currentFieldIndex].key
+		mode = ET.SubElement(view, 'mode')
+		if self.viewXMLButton.isChecked():
+			mode.text = 'xml'
+		elif self.viewResultDataButton.isChecked():
+			mode.text = 'results'
+		else:
+			mode.text = 'plot'
+		slice_dim = ET.SubElement(view, 'slice_dim')
+		slice_dim.text = self.sliceCombo.currentText()
+		slice_index = ET.SubElement(view, 'slice_index')
+		slice_index.text = str((self.sliceSlider.value()+0.5)/(self.sliceSlider.maximum()+1))
+		loadstep = ET.SubElement(view, 'loadstep')
+		loadstep.text = str((self.loadstepSlider.value()+0.5)/(self.loadstepSlider.maximum()+1))
+		colormap = ET.SubElement(view, 'colormap')
+		colormap.text = self.colormapCombo.currentText()
+		alpha = ET.SubElement(view, 'alpha')
+		alpha.text = str(self.getAlpha())
+		custom_bounds = ET.SubElement(view, 'custom_bounds')
+		custom_bounds.text = str(1 if self.customBoundsCheck.checkState() else 0)
+		vmin = ET.SubElement(view, 'vmin')
+		vmin.text = self.vminText.text()
+		vmax = ET.SubElement(view, 'vmax')
+		vmax.text = self.vmaxText.text()
+
+		views = self.fignavbar._views()
+		if views and len(views):
+			v = views[0]
+			for i, key in enumerate(["zoom_xmin", "zoom_xmax", "zoom_ymin", "zoom_ymax"]):
+				vi = ET.SubElement(view, key)
+				vi.text = str(v[i])
+
+		def indent(elem, level=0):
+			i = "\n" + level*"  "
+			j = "\n" + (level-1)*"  "
+			if len(elem):
+				if not elem.text or not elem.text.strip():
+					elem.text = i + "  "
+				if not elem.tail or not elem.tail.strip():
+					elem.tail = i
+				for subelem in elem:
+					indent(subelem, level+1)
+				if not elem.tail or not elem.tail.strip():
+					elem.tail = j
+			else:
+				if level and (not elem.tail or not elem.tail.strip()):
+					elem.tail = j
+			return elem		
+
+		indent = "\t"
+		view.text = "\n" + indent
+		for e in view:
+			e.tail = "\n" + indent
+		e.tail = "\n"
+
+		#indent(view)
+
+		return view;
+
+	def saveCurrentView(self):
+		app = QtWidgets.QApplication.instance()
+		xml = app.window.textEdit.toPlainText()
+		view = self.getViewXML()
+		sub = ET.tostring(view, encoding='unicode')
+		lines = sub.split("\n")
+		indent = "\t"
+		for i in range(len(lines)):
+			lines[i] = indent + lines[i]
+		sub = "\n".join(lines)
+		match = re.search("\s*<view>.*</view>\s*", xml, flags=re.S)
+		pre = "\n\n"
+		post = "\n\n"
+		if not match:
+			match = re.search("\s*</settings>", xml)
+			post = "\n\n</settings>"
+		if match:
+			c = app.window.textEdit.textCursor()
+			c.setPosition(match.start())
+			c.movePosition(QtGui.QTextCursor.Right, QtGui.QTextCursor.KeepAnchor, match.end()-match.start())
+			c.insertText(pre + sub + post)
+			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, len(post))
+			c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.KeepAnchor, len(sub))
+			app.window.textEdit.setTextCursor(c)
+
+	def setViewXML(self, view):
+
+		field = view.find('field')
+		if not field is None:
+			for f in self.fields:
+				if f.key == field.text:
+					f.button.setChecked(True)
+					break
+
+		mode = view.find('mode')
+		if not mode is None:
+			if mode.text == 'xml':
+				self.viewXMLButton.setChecked(True)
+			elif mode.text == 'results':
+				self.viewResultDataButton.setChecked(True)
+		
+		slice_dim = view.find('slice_dim')
+		if not slice_dim is None:
+			self.sliceCombo.setCurrentText(slice_dim.text)
+
+		slice_index = view.find('slice_index')
+		if not slice_index is None:
+			self.sliceSlider.setValue(int(float(slice_index.text)*(self.sliceSlider.maximum()+1)))
+
+		loadstep = view.find('loadstep')
+		if not loadstep is None:
+			self.loadstepSlider.setValue(int(float(loadstep.text)*(self.loadstepSlider.maximum()+1)))
+
+		colormap = view.find('colormap')
+		if not colormap is None:
+			self.colormapCombo.setCurrentText(colormap.text)
+
+		alpha = view.find('alpha')
+		if not alpha is None:
+			self.setAlpha(float(alpha.text))
+
+		custom_bounds = view.find('custom_bounds')
+		if not custom_bounds is None:
+			self.customBoundsCheck.setChecked(int(custom_bounds.text))
+
+		vmin = view.find('vmin')
+		if not vmin is None:
+			self.vminText.setText(vmin.text)
+
+		vmax = view.find('vmax')
+		if not vmax is None:
+			self.vmaxText.setText(vmax.text)
+
+		zoom = np.zeros(4)
+		for i, key in enumerate(["zoom_xmin", "zoom_xmax", "zoom_ymin", "zoom_ymax"]):
+			val = view.find(key)
+			if not val is None:
+				zoom[i] = float(val.text)
+			else:
+				zoom = None
+				break
+
+		self.initialView = zoom
 
 	def writePNG(self):
 		
@@ -672,6 +854,9 @@ class PlotWidget(QtWidgets.QWidget):
 		if (state == 0):
 			self.replot()
 
+	def setAlpha(self, a):
+		self.alphaSlider.setValue(int(self.alphaSlider.maximum()*(a/0.4999)**(1.0/3.0) + 0.5))
+	
 	def getAlpha(self):
 		return 0.4999*(self.alphaSlider.value()/self.alphaSlider.maximum())**3
 	
@@ -745,16 +930,24 @@ class PlotWidget(QtWidgets.QWidget):
 
 	def alphaSliderChanged(self):
 		self.alphaLabel.setText("alpha=%4f" % self.getAlpha())
-		self.customBoundsCheckChanged(0)
+		if self.customBoundsCheck.checkState() != 0:
+			self.customBoundsCheck.setCheckState(0)
+		else:
+			self.customBoundsCheckChanged(0)
 
 	def replot(self):
+
+		if self.replotSuspended:
+			return
 
 		self.axes.clear()
 
 		xlim = None
 		ylim = None
 
-		if self.cb:
+		firstReplot = self.cb is None
+
+		if not firstReplot:
 			if not self.replot_reset_limits:
 				xlim = self.axes.get_xlim()
 				ylim = self.axes.get_ylim()
@@ -796,7 +989,7 @@ class PlotWidget(QtWidgets.QWidget):
 				s = '%s = %d, %s = %d' % (xy_cord[0], col, xy_cord[1], row)
 				if col>=0 and col<numcols and row>=0 and row<numrows:
 					z = data[col,row]
-					return '%s, %s = %1.4f' % (s, z_label, z)
+					return '%s\n%s = %.8g' % (s, z_label, z)
 				else:
 					return s
 			def get_cursor_data(event):
@@ -823,6 +1016,24 @@ class PlotWidget(QtWidgets.QWidget):
 		self.axes.yaxis.set_major_formatter(mtick.FormatStrFormatter('%04d'))
 
 		self.figcanvas.draw()
+
+		if firstReplot:
+			self.fignavbar.push_current()
+			if not self.initialView is None:
+				# /usr/lib/python3/dist-packages/matplotlib/backend_bases.py
+				views = []
+				pos = []
+				for a in self.figcanvas.figure.get_axes():
+					views.append(a._get_view())
+					pos.append((
+						a.get_position(True).frozen(),
+						a.get_position().frozen()))
+				if len(views):
+					views[0] = tuple(self.initialView)
+					self.fignavbar._views.push(views)
+					self.fignavbar._positions.push(pos)
+			self.fignavbar.forward()
+			#self.fignavbar._update_view()
 
 
 class XMLHighlighter(QtGui.QSyntaxHighlighter):
@@ -1131,7 +1342,7 @@ p ~ p {
 
 			if not values is None:
 				values = values.split(",")
-				values = sorted(values)
+				values = sorted(values, key=lambda s: s.lower())
 				html += "<p><b>Valid values:</b> "
 				for i, v in enumerate(values):
 					if i > 0:
@@ -1145,7 +1356,7 @@ p ~ p {
 			if (not en is None):
 				attr = ""
 				attribs = list(e.findall("attrib"))
-				attribs = sorted(attribs, key=lambda a: a.get("name"))
+				attribs = sorted(attribs, key=lambda a: a.get("name").lower())
 				for a in attribs:
 					default = ("" if a.text is None else a.text.strip())
 					attr += "<tr>"
@@ -1168,7 +1379,7 @@ p ~ p {
 		else:
 			tags = ""
 			items = list(e.findall("./*"))
-			items = sorted(items, key=lambda e: e.tag)
+			items = sorted(items, key=lambda e: e.tag.lower())
 			for a in items:
 				if a.tag == "attrib":
 					continue
@@ -1456,6 +1667,24 @@ img {
 		self.mypage.setHtml(html)
 
 
+class TabDoubleClickEventFilter(QtCore.QObject):
+
+	def eventFilter(self, obj, event):
+
+		if event.type() == QtCore.QEvent.MouseButtonDblClick:
+			i = obj.tabAt(event.pos())
+			if i >= 0:
+				#tab = self.widget(i);
+				flags = QtCore.Qt.WindowFlags(QtCore.Qt.Dialog+QtCore.Qt.WindowTitleHint)
+				text, ok = QtWidgets.QInputDialog.getText(obj, "Modify tab title", "Please enter new tab title:", text=obj.parent().tabText(i), flags=flags)
+				if ok:
+					obj.parent().setTabText(i, text)
+				return True
+
+		return False
+
+
+
 class MainWindow(QtWidgets.QMainWindow):
  
 	def __init__(self, parent = None):
@@ -1473,7 +1702,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		self.textEdit = XMLTextEdit()
 	
-		self.runConut = 0
+		self.runCount = 0
 		self.lastSaveText = self.getSaveText()
 
 		self.helpWidget = HelpWidget(self.textEdit)
@@ -1489,6 +1718,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.tabWidget = QtWidgets.QTabWidget()
 		self.tabWidget.setTabsClosable(True)
 		self.tabWidget.tabCloseRequested.connect(self.tabCloseRequested)
+		self.tabWidget.tabBar().installEventFilter(TabDoubleClickEventFilter(self.tabWidget))
 		
 		self.filename = None
 		self.file_id = 0
@@ -1854,6 +2084,7 @@ class MainWindow(QtWidgets.QMainWindow):
 						field.data = [data]
 						field.label = field_labels[name](i)
 						field.name = name
+						field.key = name if shape[0] == 1 else (name + str(i))
 						field.component = i
 						#field.amin = np.amin(data[i])
 						#field.amax = np.amax(data[i])
@@ -2061,11 +2292,12 @@ class MainWindow(QtWidgets.QMainWindow):
 		elif other.file_id != self.file_id:
 			other = None
 
+		self.runCount += 1
+
 		tab = PlotWidget(field_groups, xml, resultText, other)
 		tab.file_id = self.file_id
 		if len(tab.fields) > 0:
-			i = self.addTab(tab, "Run_%d" % self.runConut)
-		self.runConut += 1
+			i = self.addTab(tab, "Run_%d" % self.runCount)
 
 		del fg
 

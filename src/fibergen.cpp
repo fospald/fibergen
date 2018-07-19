@@ -904,6 +904,207 @@ void InvertMatrix(const ublas::c_matrix<T,DIM,DIM>& input, ublas::c_matrix<T,DIM
 }
 
 
+template <typename T, int DIM>
+inline T halfspace_box_cut_volume_old(const ublas::c_vector<T, DIM>& x, const ublas::c_vector<T, DIM>& n, const ublas::c_vector<T, DIM>& x0, T dx, T dy, T dz)
+{
+	T eps = std::numeric_limits<T>::epsilon()*(dx+dy+dz);
+
+	// compute intersection volume of cube (x0, dx, dy, dz) and halfspace (x, n)
+
+	ublas::c_vector<T, DIM> x1, x2, x3;
+
+	x1[0] = x0[0] + dx;
+	x1[1] = x0[1];
+	x1[2] = x0[2] + dz;
+
+	x2[0] = x0[0] + dx;
+	x2[1] = x0[1] + dy;
+	x2[2] = x0[2];
+
+	x3[0] = x0[0];
+	x3[1] = x0[1] + dy;
+	x3[2] = x0[2] + dz;
+
+	const ublas::c_vector<T, DIM>* px[4];
+	px[0] = &x0;
+	px[1] = &x1;
+	px[2] = &x2;
+	px[3] = &x3;
+
+	// list of edges
+	// e0: x0 + t*ex
+	// e1: x0 + t*ey
+	// e2: x0 + t*ez
+	//
+	// e3: x1 - t*ex
+	// e4: x1 + t*ey
+	// e5: x1 - t*ez
+	//
+	// e6: x2 - t*ex
+	// e7: x2 - t*ey
+	// e8: x2 + t*ez
+	//
+	// e9: x3 + t*ex
+	// ea: x3 - t*ey
+	// eb: x3 - t*ez
+
+	static T signs[12] = {1,1,1, -1,1,-1, -1,-1,1, 1,-1,-1};
+
+	T dx0n = ublas::inner_prod(x - x0, n);
+	T dx1n = ublas::inner_prod(x - x1, n);
+	T dx2n = ublas::inner_prod(x - x2, n);
+	T dx3n = ublas::inner_prod(x - x3, n);
+
+	// compute intersection parameters
+	T t[12];
+	for (int k = 0; k < 3; k++) {
+		if (n[k] != 0) {
+			t[0 + k] = signs[0 + k]*dx0n/n[k];
+			t[3 + k] = signs[3 + k]*dx1n/n[k];
+			t[6 + k] = signs[6 + k]*dx2n/n[k];
+			t[9 + k] = signs[9 + k]*dx3n/n[k];
+		}
+		else {
+			t[0 + k] = t[3 + k] = t[6 + k] = t[9 + k] = -1;
+		}
+	}
+
+	// check for intersections
+	bool i[12];
+	for (int k = 0; k < 4; k++) {
+		i[3*k + 0] = (t[3*k + 0] >= 0 && t[3*k + 0] <= dx);
+		i[3*k + 1] = (t[3*k + 1] >= 0 && t[3*k + 1] <= dy);
+		i[3*k + 2] = (t[3*k + 2] >= 0 && t[3*k + 2] <= dz);
+	}
+
+	// get first intersection point
+	ublas::c_vector<T, DIM> pi0, pi1, pi2;
+	int pi0_index = -1;
+	for (int k = 0; k < 12; k++) {
+		if (i[k]) {
+			pi0 = *px[k/3];
+			pi0[k%3] += signs[k]*t[k];
+			pi0_index = k;
+			break;
+		}
+	}
+
+#if 0
+	#define DEBUG_HSBCV(x) LOG_COUT << x << std::endl;
+
+	DEBUG_HSBCV("x " << format(x));
+	DEBUG_HSBCV("n " << format(n));
+	DEBUG_HSBCV("x0 " << format(x0));
+	for (int k = 0; k < 12; k++) {
+		DEBUG_HSBCV("intersection " << k << ": " << (i[k] ? 1 : 0) << " t=" << t[k]);
+	}
+#else
+	#define DEBUG_HSBCV(x)
+#endif
+
+	T I;
+
+	// perform volume integration by surface integration (Gauss)
+	if (pi0_index < 0) {
+		// no intersection found
+		I = (dx0n > 0) ? (dx*dy*dz) : 0;
+		DEBUG_HSBCV("no intersection" << I);
+		return I;
+	}
+
+	// V = int_V 1 dx = int_S z*n_z ds
+	// only the facets with n_z != 0 are important
+	// we shift the orign of the cube to to x1 so only one surface integral is left
+
+	// edges for each facet:
+	// f0: 0 5 3 2
+	// f1: 6 8 9 11
+	// f2: 5 4 8 7
+	// f3: 2 1 11 10
+	// f4: 0 7 6 1  (n_z = -1)
+	// f5: 3 10 9 4 (n_z = +1)
+
+	if (i[0] && i[6]) {
+		I = 0.5*(t[0] + dx - t[6])*dy*dz;
+		if (n[0] < 0) I = dx*dy*dz - I;
+		DEBUG_HSBCV("case 1 " << I);
+	}
+	else if (i[1] && i[7]) {
+		I = 0.5*(t[1] + dy - t[7])*dx*dz;
+		if (n[1] < 0) I = dx*dy*dz - I;
+		DEBUG_HSBCV("case 2 " << I);
+	}
+	else if (i[0] && i[1]) {
+		I = 0.5*t[0]*t[1]*dz;
+		if (n[0] < 0) I = dx*dy*dz - I;
+		DEBUG_HSBCV("case 3 " << I);
+	}
+	else if (i[1] && i[6]) {
+		I = 0.5*(dy-t[1])*(dx-t[6])*dz;
+		if (n[0] < 0) I = dx*dy*dz - I;
+		DEBUG_HSBCV("case 4 " << I);
+	}
+	else if (i[6] && i[7]) {
+		I = 0.5*t[6]*t[7]*dz;
+		if (n[0] > 0) I = dx*dy*dz - I;
+		DEBUG_HSBCV("case 5 " << I);
+	}
+	else if (i[7] && i[0]) {
+		I = 0.5*(dy-t[7])*(dx-t[0])*dz;
+		if (n[0] > 0) I = dx*dy*dz - I;
+		DEBUG_HSBCV("case 6 " << I);
+	}
+	else {
+		I = (n[2] > 0) ? (dx*dy*dz) : 0;
+		DEBUG_HSBCV("case 7 " << I);
+	}
+
+	static int facets[6][4] = {
+		{0, 5, 3, 2},
+		{6, 8, 9, 11},
+		{5, 4, 8, 7},
+		{2, 1, 11, 10},
+		{0, 7, 6, 1},
+		{3, 10, 9, 4},
+	};
+
+	for (int k = 0; k < 6; k++) {
+		bool ok = false;
+		int j;
+		for (j = 0; j < 4; j++) {
+			int e = facets[k][j];
+			if (i[e] && e != pi0_index) {
+				pi1 = *px[e/3];
+				pi1[e%3] += signs[e]*t[e];
+				if (ublas::norm_2(pi1 - pi0) > eps) {
+					break;
+				}
+			}
+		}
+		for (j++; j < 4; j++) {
+			int e = facets[k][j];
+			if (i[e] && e != pi0_index) {
+				pi2 = *px[e/3];
+				pi2[e%3] += signs[e]*t[e];
+				if (ublas::norm_2(pi2 - pi0) > eps && ublas::norm_2(pi2 - pi1) > eps) {
+					ok = true;
+					break;
+				}
+			}
+		}
+		if (ok) {
+			// compute triangle contribution to surface integral
+			T dI = 0.5*ublas::norm_2(cross_prod(pi1-pi0, pi2-pi0))*n[2]*((pi0[2]+pi1[2]+pi2[2])/3.0 - x1[2]);
+			DEBUG_HSBCV("dI: " << dI << " " << format(pi0) << " " << format(pi1) << " " << format(pi2));
+			I += dI;
+		}
+	}
+
+	return I;
+}
+
+
+
 // x, n: plane parameters
 // x0, dx, dy, dz: box parameters
 template <typename T, int DIM>
@@ -1044,21 +1245,23 @@ inline T halfspace_box_cut_volume(const ublas::c_vector<T, DIM>& x, const ublas:
 				// (first vertex of first edge = last vertex of last edge)
 				points[num_points] = vertices[edges[e][i1]];
 				DEBUG_HSBCV("point 1: " << points[num_points]);
+				if (points[0][ni] == xi[ni]) break;
 				num_points++;
 			}
 			if (intersection_edge[e] >= 0) {
 				// edge has intersection
 				points[num_points] = vertices[edges[e][0]] + intersection_distance[intersection_edge[e]]*ublas::unit_vector<T>(DIM, e/4);
 				DEBUG_HSBCV("point 2: " << points[num_points]);
+				if (num_points == 0 && points[0][ni] == xi[ni]) break;
 				num_points++;
 			}
 			if (i < 3 && inside[edges[e][i2]] ^ flip) {
 				// vertex 1 inside
 				// the last vertex of an edge is not used for the last edge to avoid repeating
 				// (first vertex of first edge = last vertex of last edge)
-				points[num_points] = vertices[edges[e][i1]];
 				points[num_points] = vertices[edges[e][i2]];
 				DEBUG_HSBCV("point 3: " << points[num_points]);
+				if (num_points == 0 && points[0][ni] == xi[ni]) break;
 				num_points++;
 			}
 		}
@@ -1068,11 +1271,6 @@ inline T halfspace_box_cut_volume(const ublas::c_vector<T, DIM>& x, const ublas:
 			// primitve has no area
 			continue;
 		}
-
-		// TODO: this test could be done after we have point 0
-		T d = points[0][ni] - xi[ni];	// normal distance to xi
-		DEBUG_HSBCV("d " << d);
-		if (d == 0) continue;
 
 		int i1 = crossp_indices[ni][0];
 		int i2 = crossp_indices[ni][1];
@@ -1087,6 +1285,7 @@ inline T halfspace_box_cut_volume(const ublas::c_vector<T, DIM>& x, const ublas:
 			DEBUG_HSBCV("da " << da);
 		}
 
+		T d = points[0][ni] - xi[ni];	// normal distance to xi
 		V += face_normal_signs[f]*d*area;
 		DEBUG_HSBCV("dV " << (face_normal_signs[f]*d*area));
 	}
@@ -4889,7 +5088,6 @@ public:
 		}
 		
 		_p  = p;
-		_n  = n;
 	}
 
 	virtual void distanceGrad(const ublas::c_vector<T, DIM>& p, ublas::c_vector<T, DIM>& g) const
@@ -14947,11 +15145,6 @@ public:
 			return 0;
 		}
 
-		ublas::c_vector<T, DIM> x0, xs;
-		x0[0] = p[0] - 0.5*dx;
-		x0[1] = p[1] - 0.5*dy;
-		x0[2] = p[2] - 0.5*dz;
-
 		T r_voxel = 0.5*std::sqrt(dx*dx + dy*dy + dz*dz);
 
 		// find minimum distance
@@ -14960,22 +15153,24 @@ public:
 			if (info_list[i].d < info_list[i_min].d) i_min = i;
 		}
 
-		ublas::c_vector<T, DIM>& x = info_list[i_min].x;
-		P D = std::max(std::max(std::abs(x[0]-p[0])/dx, std::abs(x[1]-p[1])/dy), std::abs(x[2]-p[2])/dz);
+		// quick check
+		if (std::abs(info_list[i_min].d) >= r_voxel) {
+			// voxel is completely inside/outside of fiber
+			return (info_list[i_min].d < 0) ? dx*dy*dz : 0;
+		}
+
+		ublas::c_vector<T, DIM> x0;
+		x0[0] = p[0] - 0.5*dx;
+		x0[1] = p[1] - 0.5*dy;
+		x0[2] = p[2] - 0.5*dz;
 
 		//LOG_COUT << " p=" << format(p) << " x_min=" << format(x) << " D=" << D << std::endl;
-
-		if (D > 0.5) {
-			// integrated voxel is either complete inside or outside of fiber
-			T d = info_list[i_min].d;
-			//LOG_COUT << " inside/outside d=" << d << std::endl;
-			return (d > 0) ? 0 : (dx*dy*dz);
-		}
 
 		P V = 0;
 		P V_max = dx*dy*dz;
 
-		if (levels < 0) {
+		if (levels < 0)
+		{
 			// adaptive error estimator
 			T K = info_list[i_min].fiber->curvature();
 			T Kd = r_voxel*K;
@@ -14998,11 +15193,13 @@ public:
 			// sum up the volumes of each interface intersection
 			// TODO: the volume may be overestimated actually should calculate the union of halfspaces
 			
+			ublas::c_vector<T, DIM> n;
+
 			for (std::size_t i = 0; i < info_list.size(); i++)
 			{
-				// get interface normal
-				ublas::c_vector<T, DIM> n;
 				ublas::c_vector<T, DIM>& x = info_list[i].x;
+
+				// get interface normal
 				info_list[i].fiber->distanceGrad(x, n);
 
 				P dV = halfspace_box_cut_volume<T, DIM>(x, n, x0, dx, dy, dz);
@@ -15030,33 +15227,40 @@ public:
 		dz *= 0.5;
 		r_voxel *= 0.5;
 
+		ublas::c_vector<T, DIM> ps;
+		std::vector<typename FiberCluster<T, DIM>::ClosestFiberInfo> sub_info_list;
+		sub_info_list.reserve(info_list.size());
+
 		// recursive sub division of voxel
 		for (std::size_t i = 0; i < 2; i++) {
-			xs[0] = x0[0] + (i+0.5)*dx;
+			ps[0] = x0[0] + (i+0.5)*dx;
 			for (std::size_t j = 0; j < 2; j++) {
-				xs[1] = x0[1] + (j+0.5)*dy;
+				ps[1] = x0[1] + (j+0.5)*dy;
 				for (std::size_t k = 0; k < 2; k++)
 				{
-					xs[2] = x0[2] + (k+0.5)*dz;
+					ps[2] = x0[2] + (k+0.5)*dz;
 
 					// recalculate distances in list and build sub_list
-					std::vector<typename FiberCluster<T, DIM>::ClosestFiberInfo> sub_info_list;
+					sub_info_list.clear();
 					for (std::size_t i = 0; i < info_list.size(); i++) {
-						info_list[i].d = info_list[i].fiber->distanceTo(xs, info_list[i].x);
-						if (info_list[i].d < r_voxel) {
-							//typename FiberCluster<T, DIM>::ClosestFiberInfo fi;
-							//fi.fiber = info_list[i].fiber;
-							//fi.d = info_list[i].d;
-							//fi.x = info_list[i].x;
-							sub_info_list.push_back(info_list[i]);
+						info_list[i].d = info_list[i].fiber->distanceTo(ps, info_list[i].x);
+						// quick check
+						if (std::abs(info_list[i].d) >= r_voxel) {
+							if (info_list[i].d < 0) {
+								// voxel is completely inside of fiber
+								V += dx*dy*dz;
+								sub_info_list.clear();
+								break;
+							}
+							// voxel is completely outside of fiber
+							continue;
 						}
+						sub_info_list.push_back(info_list[i]);
 					}
 
-					if (sub_info_list.size() == 0) {
-						continue;
+					if (sub_info_list.size() != 0) {
+						V += integratePhiVoxel(fg, levels, tol, r_voxel0, ps, dx, dy, dz, mat, sub_info_list);
 					}
-
-					V += integratePhiVoxel(fg, levels, tol, r_voxel0, xs, dx, dy, dz, mat, sub_info_list);
 				}
 			}
 		}
@@ -15846,6 +16050,7 @@ public:
 			#pragma omp parallel for schedule (static)
 			for (std::size_t i = 0; i < nx; i++)
 			{
+				std::vector<typename FiberCluster<T, DIM>::ClosestFiberInfo> info_list;
 				ublas::c_vector<T, DIM> x0;
 				
 				x0[0] = dx_voxel*(i + 0.5) + _x0[0];
@@ -15854,8 +16059,6 @@ public:
 				{
 					x0[1] = dy_voxel*(j + 0.5) + _x0[1];
 					std::size_t kk = i*nyzp + j*nzp;
-
-					std::vector<typename FiberCluster<T, DIM>::ClosestFiberInfo> info_list;
 					
 					for (std::size_t k = 0; k < nz; k++)
 					{
@@ -21473,7 +21676,11 @@ public:
 		}
 
 		if (r > tol || std::isnan(r)) {
+#if 0
 			BOOST_THROW_EXCEPTION(std::runtime_error(((((boost::format("TEST FAILED: '%s' test exceeds tolerance (%g) by %g%% (residual=%g)") % test) % tol) % (100*(r-tol)/tol)) % r).str()));
+#else
+			LOG_COUT << RED_TEXT << ((((boost::format("TEST FAILED: '%s' test exceeds tolerance (%g) by %g%% (residual=%g)") % test) % tol) % (100*(r-tol)/tol)) % r).str() << DEFAULT_TEXT << std::endl;
+#endif
 		}
 
 		LOG_COUT << GREEN_TEXT << "TEST PASSED: " << test << " (residual=" << r << ")" << DEFAULT_TEXT << std::endl;
@@ -21608,12 +21815,419 @@ public:
 	// run test routines
 	void run_tests()
 	{
+		this->run_tests_math();
+		this->run_tests_elasticity();
+		this->run_tests_hyperelasticity();
+	}
+
+	void run_tests_math()
+	{
+		{
+			SymTensor3x3<T> ep, tau;
+			Tensor3x3<T> id;
+			tau.random();
+			ep.inv(tau);
+
+			id.mult_sym_sym(ep, tau);
+			id[0] -= 1;
+			id[1] -= 1;
+			id[2] -= 1;
+			check_tol("symmetric left inverse", id.dot(id));
+
+			id.mult_sym_sym(tau, ep);
+			id[0] -= 1;
+			id[1] -= 1;
+			id[2] -= 1;
+			check_tol("symmetric right inverse", id.dot(id));
+		}
+
+		{
+			Tensor3x3<T> ep, tau, id;
+			tau.random();
+			ep.inv(tau);
+
+			id.mult(ep, tau);
+			id[0] -= 1;
+			id[1] -= 1;
+			id[2] -= 1;
+			check_tol("left inverse", id.dot(id));
+
+			id.mult(tau, ep);
+			id[0] -= 1;
+			id[1] -= 1;
+			id[2] -= 1;
+			check_tol("right inverse", id.dot(id));
+		}
+
+		// check matrix calculus
+	
+		for (std::size_t k = 0; k < 100; k ++)	
+		{
+			Tensor3<T> n1, n2;
+			n1.random(); n1.normalize();
+			n2.random(); n2.normalize();
+
+			Tensor3x3<T> R, RRT;
+			Tensor3<T> Rn1;
+			R.rot(n1, n2);
+
+			RRT.mult_t(R, R);
+			RRT[0] -= 1;
+			RRT[1] -= 1;
+			RRT[2] -= 1;
+			check_tol("vector rotation I", RRT.dot(RRT));
+
+			Rn1.mult(R, n1);
+			Rn1 -= n2;
+			check_tol("vector rotation II", Rn1.dot(Rn1));
+		}
+
+		{
+			SymTensor3x3<T> eps;
+			eps.zero();
+			eps[0] = 1; eps[1] = 2; eps[2] = 3;
+
+			check_tol("sym determinant", eps.det() - 6);
+		}
+
+		{
+			Tensor3x3<T> a, b, c;
+			a.zero();
+			a[0] = a[1] = a[2] = 1;
+			b.random();
+
+			c.mult(a, b);
+			c.sub(b);
+
+			check_tol("mul by identity", c.dot(c));
+		}
+
+		{
+			Tensor3x3<T> ep;
+			ep.zero();
+			ep[0] = 1; ep[1] = 2; ep[2] = 3;
+
+			check_tol("determinant", ep.det() - 6);
+		}
+
+		// check box halfspace cutting algorithm
+		#if 1
+		{
+			ublas::c_vector<T, DIM> p = ublas::zero_vector<T>(DIM);
+			ublas::c_vector<T, DIM> x = ublas::zero_vector<T>(DIM);
+			ublas::c_vector<T, DIM> n = ublas::zero_vector<T>(DIM);
+			ublas::c_vector<T, DIM> x0 = ublas::zero_vector<T>(DIM);
+			ublas::c_vector<T, DIM> dim = ublas::zero_vector<T>(DIM);
+			RandomUniform01<T> rnd;
+
+			for (int k = 0; k < 1000; k++)
+			{
+				for (int i = 0; i < 3; i++) {
+					dim[i] = 0.01 + rnd.rnd();
+					n[i] = rnd.rnd() - 0.5;
+					x0[i] = dim[i]*rnd.rnd();
+					x[i] = x0[i] + 0.5*dim[i] + 3*dim[i]*(rnd.rnd() - 0.5);
+				}
+
+				n /= ublas::norm_2(n);
+
+				T V1 = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
+				T V2 = halfspace_box_cut_volume_old<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
+				LOG_COUT << format(x) << " " << format(n) << " " << format(x0) << " " << format(dim) << " " << V1 << " " << V2 << std::endl;
+
+				/*
+				int res = 1000
+				int nx = (int)(dim[0]*res + 1);
+				int ny = (int)(dim[1]*res + 1);
+				int nz = (int)(dim[2]*res + 1);
+				T V2 = 0;
+				T dV = dim[0]*dim[1]*dim[2]/(nx*ny*nz);
+
+				for (int x = 0; x < nx; x++) {
+					p[0] = dim[0]*(x + 0.5)/nx;
+					for (int y = 0; y < ny; y++) {
+						p[1] = dim[1]*(y + 0.5)/ny;
+						for (int z = 0; z < nz; z++) {
+							p[2] = dim[2]*(z + 0.5)/nz;
+							if (ublas::inner_prod(p - x, n) < 0) {
+								V2 += dV;
+							}
+						}
+					}
+				}
+				*/
+
+				check_tol("halfspace cutting XX", V1 - V2);
+			}
+		}
+		#endif
+
+		{
+			T dim[3]; dim[0] = 1; dim[1] = 2; dim[2] = 3;
+			ublas::c_vector<T, DIM> x = ublas::zero_vector<T>(DIM);
+			ublas::c_vector<T, DIM> n = ublas::zero_vector<T>(DIM);
+			ublas::c_vector<T, DIM> x0 = ublas::zero_vector<T>(DIM);
+
+			#if 0
+			T dx = 0.015625;
+			x0[0] = 9.375e-02; x0[1] = 4.062e-01; x0[2] = 4.844e-01;
+			n[0] = -9.773e-01; n[1] = -2.108e-01; n[2] = -1.916e-02;
+			x[0] = 1.091e-01; x[1] = 4.157e-01; x[2] = 4.923e-01;
+
+			T V = halfspace_box_cut_volume<T, DIM>(x, n, x0, dx, dx, dx);
+			LOG_COUT << V << std::endl;
+
+			x -= x0;
+			x0 = ublas::zero_vector<T>(DIM);
+			V = halfspace_box_cut_volume<T, DIM>(x, n, x0, dx, dx, dx);
+			LOG_COUT << V << std::endl;
+
+			x /= dx;
+			dx = 1;
+			V = halfspace_box_cut_volume<T, DIM>(x, n, x0, dx, dx, dx);
+			LOG_COUT << V << std::endl;
+			#endif
+
+			for (int k = -10; k < 30; k ++) {
+				for (int j = 0; j < 3; j++) {
+					T t = dim[j]*k/30.0;
+					x = ublas::zero_vector<T>(DIM);
+					n = ublas::zero_vector<T>(DIM);
+					x0 = ublas::zero_vector<T>(DIM);
+					n[j] = 1;
+					x0[j] = -t;
+					T V = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
+					//LOG_COUT << format(x0) << " " << format(n) << " " << V << " " << std::min(std::max((T)0, t), dim[j])*dim[(j+1)%3]*dim[(j+2)%3] << std::endl;
+					check_tol("halfspace cutting I", V - std::min(std::max((T)0, t), dim[j])*dim[(j+1)%3]*dim[(j+2)%3]);
+				}
+			}
+			
+			for (int k = -10; k < 30; k ++) {
+				for (int j = 0; j < 3; j++) {
+					x = ublas::zero_vector<T>(DIM);
+					n[0] = n[1] = n[2] = 1/std::sqrt(3);
+					x0[0] = x0[1] = x0[2] = -2.0*k/30.0;
+					T V1 = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
+					x0[j] *= -1;
+					n[j] *= -1;
+					x[j] += dim[j];
+					T V2 = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
+					//LOG_COUT << k << " " << j << " " << V1 << " " << V2 << std::endl;
+					check_tol("halfspace cutting II", V1 - V2);
+				}
+			}
+		}
+	}
+
+	// run test routines
+	void run_tests_elasticity()
+	{
+		// TODO: perform separate tests for elastic and hyperelastic case
+		omp_set_num_threads(1);
+
+		_method = "cg";
+		_mode = "elasticity";
+		_gamma_scheme = "collocated";
+		_debug = true;
+		_G0_solver = "fft";
+
+		_mat.reset(new VoigtMixedMaterialLaw<T, P, 6>());
+		_temp_dfg_1.reset(new RealTensor(2*_nx, 2*_ny, 2*_nz, _mat->dim()));
+		_temp_dfg_2.reset(new RealTensor(2*_nx, 2*_ny, 2*_nz, _mat->dim()));
+		_epsilon.reset(new RealTensor(_nx, _ny, _nz, _mat->dim()));
+		init_fft();
+		_tau = _epsilon->complex_shadow();
+		_E = ublas::zero_vector<T>(_mat->dim());
+		_Id = ublas::zero_vector<T>(_mat->dim());
+		_Id(0) = _Id(1) = _Id(2) = 1;
+		_matrix_mat = 0;
+		_lambda_0 = 324.2;
+		_mu_0 = 1324.3;
+		
+		pPhase p1(new Phase());
+
+		p1->name = "matrix";
+		p1->init(_nx, _ny, _nz, true);
+
+		LinearIsotropicMaterialLaw<T>* law1 = new LinearIsotropicMaterialLaw<T>();
+		law1->lambda = 1.23*_lambda_0;
+		law1->mu = 1.56*_mu_0;
+		p1->law.reset(law1);
+
+		_mat->add_phase(p1);
+
+
+		pPhase p2(new Phase());
+
+		p2->name = "fiber";
+		p2->init(_nx, _ny, _nz, true);
+
+		LinearIsotropicMaterialLaw<T>* law2 = new LinearIsotropicMaterialLaw<T>();
+		law2->lambda = 1.23*_lambda_0;
+		law2->mu = 1.56*_mu_0;
+		p2->law.reset(law2);
+
+		_mat->add_phase(p2);
+
+# if 1
+		boost::shared_ptr< FiberGenerator<T, DIM> > gen;
+		gen.reset(new FiberGenerator<T, DIM>());
+
+		boost::shared_ptr< const Fiber<T, DIM> > fiber;
+		ublas::c_vector<T, DIM> c;
+		ublas::c_vector<T, DIM> a;
+		c[0] = c[1] = c[2] = 0.5;
+		a[0] = a[1] = a[2] = 0.5;
+		fiber.reset(new CapsuleFiber<T, DIM>(c, a, 0.6, 0.3));
+		fiber->set_material(0);
+		gen->addFiber(fiber);
+
+		get_normals();
+		initPhi(*gen);
+#else
+		p->_phi->random();
+		initRawPhi();
+//		printField("phi", p->phi);
+#endif
+
+		RealTensor& F = *_epsilon;
+
+		// check linear material laws
+		{
+			T delta = std::sqrt(std::numeric_limits<T>::epsilon());
+			
+			LinearIsotropicMaterialLaw<T> law;
+			law.lambda = 1234.3;
+			law.mu = 134.4;
+			
+			SymTensor3x3<T> eps;
+			SymTensor3x3<T> deps;
+			SymTensor3x3<T> sigma1;
+			SymTensor3x3<T> sigma2;
+			SymTensor3x3<T> sigma3;
+
+			eps.random();
+			deps.random();
+			law.dPK1(0, eps, 1, false, deps, sigma1);
+			law.PK1(0, deps, 1, false, sigma2);
+			law.dPK1_fd(0, eps, 1, false, deps, sigma3, 1, 6, delta);
+
+		//	LOG_COUT << sigma1 << std::endl;
+		//	LOG_COUT << sigma2 << std::endl;
+		//	LOG_COUT << sigma3 << std::endl;
+		
+			check_tol("isotropic material derivative", ublas::norm_2(sigma1 - sigma2) + ublas::norm_2(sigma1 - sigma3), 12*std::sqrt(delta));
+		}
+
+		// checking collocated operators for elasticity
+		{
+			RealTensor tau(F, 6);
+			RealTensor tau_org(F, 6);
+			pComplexTensor ptau_hat = tau.complex_shadow();
+			ComplexTensor& tau_hat = *ptau_hat;
+
+			tau.random();
+			GammaOperatorCollocated(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
+			tau.copyTo(tau_org);
+
+			calcStressConst(_mu_0, _lambda_0, tau, tau);
+			GammaOperatorCollocated(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
+
+			//printTensor("tau", tau, 1);
+			//printTensor("tau_org", tau_org, 1);
+
+			tau.xpay(tau, -1, tau_org);
+			tau.abs();
+			check_tol("collocated epsG0div identity", ublas::norm_2(tau.max()));
+		}
+
+		// checking WillotR operators for elasticity
+		{
+			RealTensor tau(F, 6);
+			RealTensor tau_org(F, 6);
+			pComplexTensor ptau_hat = tau.complex_shadow();
+			ComplexTensor& tau_hat = *ptau_hat;
+
+			tau.random();
+			GammaOperatorWillotR(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
+			tau.copyTo(tau_org);
+
+			calcStressConst(_mu_0, _lambda_0, tau, tau);
+			GammaOperatorWillotR(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
+
+			//printTensor("tau", tau, 1);
+			//printTensor("tau_org", tau_org, 1);
+
+			tau.xpay(tau, -1, tau_org);
+			tau.abs();
+			check_tol("WillotR epsG0div identity", ublas::norm_2(tau.max()));
+		}
+
+		// checking staggered grid operators for elasticity
+		{
+			RealTensor tau(F, 6);
+			RealTensor tau_org(F, 6);
+			pComplexTensor ptau_hat = tau.complex_shadow();
+			ComplexTensor& tau_hat = *ptau_hat;
+
+			tau.random();
+			epsOperatorStaggered(ublas::zero_vector<T>(tau.dim), tau, tau);
+			tau.copyTo(tau_org);
+
+			calcStressConst(_mu_0, _lambda_0, tau, tau);
+			divOperatorStaggered(tau, tau);
+			G0OperatorStaggered(_mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
+			epsOperatorStaggered(ublas::zero_vector<T>(tau.dim), tau, tau);
+
+			//printTensor("tau", tau, 1);
+			//printTensor("tau_org", tau_org, 1);
+
+			tau.xpay(tau, -1, tau_org);
+			tau.abs();
+			check_tol("staggered epsG0div identity", ublas::norm_2(tau.max()));
+		}
+
+		// check full staggered grid scheme
+		{
+			_gamma_scheme = "full_staggered";
+
+			LinearIsotropicMaterialLaw<T>* law = new LinearIsotropicMaterialLaw<T>();
+			law->lambda = 1.23*_lambda_0;
+			law->mu = 1.56*_mu_0;
+			p2->law.reset(law);
+
+			RealTensor tau(F, 6);
+			RealTensor tau_org(F, 6);
+			pComplexTensor ptau_hat = tau.complex_shadow();
+			ComplexTensor& tau_hat = *ptau_hat;
+
+			tau.random();
+			epsOperatorStaggered(ublas::zero_vector<T>(tau.dim), tau, tau);
+			tau.copyTo(tau_org);
+
+			calcStressConst(_mu_0, _lambda_0, tau, tau);
+			divOperatorStaggered(tau, tau);
+			G0OperatorStaggered(_mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
+			epsOperatorStaggered(ublas::zero_vector<T>(tau.dim), tau, tau);
+
+			//printTensor("tau", tau, 1);
+			//printTensor("tau_org", tau_org, 1);
+
+			tau.xpay(tau, -1, tau_org);
+			tau.abs();
+			check_tol("full_staggered epsG0div identity", ublas::norm_2(tau.max()));
+		}
+
+	}
+
+	// run test routines
+	void run_tests_hyperelasticity()
+	{
 		// TODO: perform separate tests for elastic and hyperelastic case
 		omp_set_num_threads(1);
 
 		_method = "cg";
 		_mode = "hyperelasticity";
-		_mode = "elasticity";
 		_gamma_scheme = "collocated";
 		_debug = true;
 		_G0_solver = "fft";
@@ -21682,6 +22296,7 @@ public:
 		RealTensor& F = *_epsilon;
 
 		// check material laws
+
 		{
 			Fiber5GoldbergMaterialLaw<T> law;
 			//law.f1 = 234.3;
@@ -21692,7 +22307,6 @@ public:
 			test_law(law, true);
 		}
 
-		// check material laws
 		{
 			Matrix4GoldbergMaterialLaw<T> law;
 			//law.m1 = 234.3;
@@ -21703,7 +22317,6 @@ public:
 			test_law(law, true);
 		}
 
-		// check material laws
 		{
 			NeoHookeMaterialLaw<T> law;
 			law.lambda = 1.0;
@@ -21712,7 +22325,6 @@ public:
 			test_law(law);
 		}
 
-		// check material laws
 		{
 			Fiber6GoldbergMaterialLaw<T> law;
 			//law.f1 = 234.3;
@@ -21723,9 +22335,6 @@ public:
 			test_law(law, true);
 		}
 
-
-
-		// check material laws
 		{
 			Matrix1GoldbergMaterialLaw<T> law;
 			//law.m1 = 1234.3;
@@ -21734,7 +22343,6 @@ public:
 			test_law(law, true);
 		}
 
-		// check material laws
 		{
 			Matrix2GoldbergMaterialLaw<T> law;
 			//law.m1 = 234.3;
@@ -21745,7 +22353,6 @@ public:
 			test_law(law, true);
 		}
 
-		// check material laws
 		{
 			Matrix3GoldbergMaterialLaw<T> law;
 			//law.m1 = 234.3;
@@ -21756,7 +22363,6 @@ public:
 			test_law(law, true);
 		}
 
-		// check material laws
 		{
 			Fiber1GoldbergMaterialLaw<T> law;
 			//law.f1 = 1234.3;
@@ -21765,7 +22371,6 @@ public:
 			test_law(law, true);
 		}
 
-		// check material laws
 		{
 			Fiber2GoldbergMaterialLaw<T> law;
 			//law.f1 = 234.3;
@@ -21775,7 +22380,6 @@ public:
 			test_law(law, true);
 		}
 
-		// check material laws
 		{
 			Fiber3GoldbergMaterialLaw<T> law;
 			//law.f1 = 234.3;
@@ -21786,7 +22390,6 @@ public:
 			test_law(law, true);
 		}
 
-		// check material laws
 		{
 			Fiber4GoldbergMaterialLaw<T> law;
 			//law.f1 = 234.3;
@@ -21797,9 +22400,6 @@ public:
 			test_law(law, true);
 		}
 
-		return;
-
-		// check material laws
 		for (int coef = 1; coef < 4; coef++)
 		{
 			CheckGoldbergMaterialLaw<T> law(coef);
@@ -21807,10 +22407,7 @@ public:
 			test_law(law, true);
 		}
 
-		return;
-
 		// check laminate mixing law
-		if (0)
 		{
 			pRealTensor normals(new RealTensor(1, 1, 1, 3));
 			(*normals)[0][0] = 1.0;
@@ -21844,77 +22441,6 @@ public:
 			test_law(law, true);
 		}
 
-#if 1
-		{
-			SymTensor3x3<T> ep, tau;
-			Tensor3x3<T> id;
-			tau.random();
-			ep.inv(tau);
-
-			id.mult_sym_sym(ep, tau);
-			id[0] -= 1;
-			id[1] -= 1;
-			id[2] -= 1;
-			check_tol("symmetric left inverse", id.dot(id));
-
-			id.mult_sym_sym(tau, ep);
-			id[0] -= 1;
-			id[1] -= 1;
-			id[2] -= 1;
-			check_tol("symmetric right inverse", id.dot(id));
-		}
-#endif
-
-		{
-			Tensor3x3<T> ep, tau, id;
-			tau.random();
-			ep.inv(tau);
-
-			id.mult(ep, tau);
-			id[0] -= 1;
-			id[1] -= 1;
-			id[2] -= 1;
-			check_tol("left inverse", id.dot(id));
-
-			id.mult(tau, ep);
-			id[0] -= 1;
-			id[1] -= 1;
-			id[2] -= 1;
-			check_tol("right inverse", id.dot(id));
-		}
-
-		return;
-
-
-		
-		// checking WillotR operators for elasticity
-		{
-			RealTensor tau(F, 6);
-			RealTensor tau_org(F, 6);
-			pComplexTensor ptau_hat = tau.complex_shadow();
-			ComplexTensor& tau_hat = *ptau_hat;
-
-			tau.random();
-			GammaOperatorWillotR(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
-			tau.add(-tau.average());
-
-			LOG_COUT << "tau average " << format(tau.average()) << std::endl;
-
-			tau.copyTo(tau_org);
-
-			calcStressConst(_mu_0, _lambda_0, tau, tau);
-			GammaOperatorWillotR(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
-
-			printTensor("tau", tau, 1);
-			printTensor("tau_org", tau_org, 1);
-
-			tau.xpay(tau, -1, tau_org);
-			tau.abs();
-			check_tol("WillotR epsG0div identity", ublas::norm_2(tau.max()));
-		}
-
-		return;
-
 		{
 			SaintVenantKirchhoffMaterialLaw<T> law1;
 			LinearIsotropicMaterialLaw<T> law2;
@@ -21943,9 +22469,151 @@ public:
 			LOG_COUT << format(sigma) << std::endl;
 		}
 
-		// return;
+		// check material laws
+		{
+			NeoHooke2MaterialLaw<T> law;
+			law.mu = 134.4;
+			law.K = 1234.3;
+			
+			test_law(law);
+		}
 
-		// 
+		// check material laws
+		{
+			SaintVenantKirchhoffMaterialLaw<T> law;
+			law.lambda = 1234.3;
+			law.mu = 134.4;
+			
+			test_law(law);
+		}
+
+		// checking staggered grid operators for hyperelasticity
+		{
+			RealTensor tau(F, 9);
+			RealTensor tau_org(F, 9);
+			pComplexTensor ptau_hat = tau.complex_shadow();
+			ComplexTensor& tau_hat = *ptau_hat;
+
+			tau.random();
+			epsOperatorStaggeredHyper(ublas::zero_vector<T>(tau.dim), tau, tau);
+			tau.copyTo(tau_org);
+
+			calcStressConst(_mu_0, _lambda_0, tau_org, tau);
+			divOperatorStaggeredHyper(tau, tau);
+			G0OperatorStaggeredHyper(_mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
+			epsOperatorStaggeredHyper(ublas::zero_vector<T>(tau.dim), tau, tau);
+
+			//printTensor("tau", tau, 1);
+			//printTensor("tau_org", tau_org, 1);
+
+			tau.xpay(tau, -1, tau_org);
+			tau.abs();
+			check_tol("staggered epsG0divHyper identity", ublas::norm_2(tau.max()));
+
+			calcStressConst(_mu_0, _lambda_0, tau_org, tau);
+			GammaOperatorStaggeredHyper(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
+
+			tau.xpay(tau, -1, tau_org);
+			tau.abs();
+			check_tol("staggered GammaHyper identity", ublas::norm_2(tau.max()));
+		}
+
+		// checking staggered grid dfg operators
+		{
+			RealTensor c1(F, 9);
+			RealTensor c2(F, 9);
+			RealTensor f1(*_temp_dfg_1, 9);
+			RealTensor f2(*_temp_dfg_1, 9);
+		
+			c1.random();
+			c1.copyTo(c2);
+	
+			prolongate_to_dfg(c1, f1);
+			f1.copyTo(f2);
+			restrict_from_dfg(f2, c2);
+
+			//printTensor("c1", c1, 1);
+			//printTensor("f1", f1, 1);
+			//printTensor("c2", c2, 1);
+
+			//printTensor("c1", c1, 1, 3);
+			//printTensor("f1", f1, 1, 3);
+			//printTensor("c2", c2, 1, 3);
+
+			c1.xpay(c1, -1, c2);
+			c1.abs();
+			check_tol("staggered dfg operator", ublas::norm_2(c1.max()));
+		}
+
+		// checking operators for hyperelasticity
+		{
+			RealTensor u(F, 3);
+			pComplexTensor pu_hat = u.complex_shadow();
+			ComplexTensor& u_hat = *pu_hat;
+
+			u.random();			// u = random
+			//printTensor("u", u);
+
+			RealTensor W(F, 0);
+			pComplexTensor pW_hat = W.complex_shadow();
+			ComplexTensor& W_hat = *pW_hat;
+
+			fftTensor(u, u_hat);
+			//printTensor("u_hat", u);
+			GradOperatorFourierHyper(u_hat, W_hat);
+			//printTensor("W_hat", W);
+			fftInvTensor(W_hat, W);		// W = grad u
+
+			RealTensor W_org(F, 0);
+			W.copyTo(W_org);		// W_org = W
+			//printTensor("W_org", W_org);
+
+			calcStressConst(_mu_0, _lambda_0, W, W);	// W = C : grad u
+			G0DivOperatorHyper(_mu_0, _lambda_0, W, W_hat, u_hat, u, 1);	// u = G0 Div(C : grad u)
+			
+			//printTensor("u2", u);
+
+			fftTensor(u, u_hat);
+			GradOperatorFourierHyper(u_hat, W_hat);
+			fftInvTensor(W_hat, W);		// W = -grad G0 Div(C : grad u)
+
+			//printTensor("W", W, 1);		// should be W_org
+			//printTensor("W_org", W_org, 1);
+			
+			W.xpay(W, -1, W_org);
+			W.abs();
+			check_tol("G0DivHyper identity", ublas::norm_2(W.max()));
+		}
+
+		// checking operators for hyperelasticity
+		{
+			RealTensor W1(F, 0);
+			pComplexTensor pW1_hat = W1.complex_shadow();
+			ComplexTensor& W1_hat = *pW1_hat;
+
+			RealTensor W2(F, 0);
+			pComplexTensor pW2_hat = W2.complex_shadow();
+			ComplexTensor& W2_hat = *pW2_hat;
+
+			W1.random();
+			GammaOperatorCollocatedHyper(ublas::zero_vector<T>(F.dim), _mu_0, _lambda_0, W1, W1_hat, W1_hat, W1);	// W1 = -Gamma W1
+			W1.copyTo(W2);	// W2 = W1
+
+			calcStressConst(_mu_0, _lambda_0, W2, W2);	// W2 = C : W2
+			fftTensor(W2, W2_hat);
+			G0DivOperatorFourierHyper(_mu_0, _lambda_0, W2_hat, W2_hat, 1);
+			GradOperatorFourierHyper(W2_hat, W2_hat);
+			fftInvTensor(W2_hat, W2);	// W2 = -Gamma W2
+
+			//printTensor("W1", W1, 1);
+			//printTensor("W2", W2, 1);
+			
+			W2.xpay(W2, -1, W1);
+			W2.abs();
+			check_tol("GammaHyper identity", ublas::norm_2(W2.max()));
+		}
+
+
 		#if 0
 		{
 			NeoHookeMaterialLaw<T> law1, law2;
@@ -22027,63 +22695,6 @@ public:
 		}
 		#endif
 
-		// check box halfspace cutting algorithm
-		{
-			T dim[3]; dim[0] = 1; dim[1] = 2; dim[2] = 3;
-			ublas::c_vector<T, DIM> x = ublas::zero_vector<T>(DIM);
-			ublas::c_vector<T, DIM> n = ublas::zero_vector<T>(DIM);
-			ublas::c_vector<T, DIM> x0 = ublas::zero_vector<T>(DIM);
-
-			#if 0
-			T dx = 0.015625;
-			x0[0] = 9.375e-02; x0[1] = 4.062e-01; x0[2] = 4.844e-01;
-			n[0] = -9.773e-01; n[1] = -2.108e-01; n[2] = -1.916e-02;
-			x[0] = 1.091e-01; x[1] = 4.157e-01; x[2] = 4.923e-01;
-
-			T V = halfspace_box_cut_volume<T, DIM>(x, n, x0, dx, dx, dx);
-			LOG_COUT << V << std::endl;
-
-			x -= x0;
-			x0 = ublas::zero_vector<T>(DIM);
-			V = halfspace_box_cut_volume<T, DIM>(x, n, x0, dx, dx, dx);
-			LOG_COUT << V << std::endl;
-
-			x /= dx;
-			dx = 1;
-			V = halfspace_box_cut_volume<T, DIM>(x, n, x0, dx, dx, dx);
-			LOG_COUT << V << std::endl;
-			#endif
-
-			for (int k = -10; k < 30; k ++) {
-				for (int j = 0; j < 3; j++) {
-					T t = dim[j]*k/30.0;
-					x = ublas::zero_vector<T>(DIM);
-					n = ublas::zero_vector<T>(DIM);
-					x0 = ublas::zero_vector<T>(DIM);
-					n[j] = 1;
-					x0[j] = -t;
-					T V = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
-					//LOG_COUT << format(x0) << " " << format(n) << " " << V << " " << std::min(std::max((T)0, t), dim[j])*dim[(j+1)%3]*dim[(j+2)%3] << std::endl;
-					check_tol("halfspace cutting I", V - std::min(std::max((T)0, t), dim[j])*dim[(j+1)%3]*dim[(j+2)%3]);
-				}
-			}
-			
-			for (int k = -10; k < 30; k ++) {
-				for (int j = 0; j < 3; j++) {
-					x = ublas::zero_vector<T>(DIM);
-					n[0] = n[1] = n[2] = 1/std::sqrt(3);
-					x0[0] = x0[1] = x0[2] = -2.0*k/30.0;
-					T V1 = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
-					x0[j] *= -1;
-					n[j] *= -1;
-					x[j] += dim[j];
-					T V2 = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
-					//LOG_COUT << k << " " << j << " " << V1 << " " << V2 << std::endl;
-					check_tol("halfspace cutting II", V1 - V2);
-				}
-			}
-		}
-
 		#if 0
 		// check Neo-Hooke material law
 		{
@@ -22097,327 +22708,60 @@ public:
 		}
 		#endif
 
-		// check matrix calculus
-	
-		for (std::size_t k = 0; k < 100; k ++)	
-		{
-			Tensor3<T> n1, n2;
-			n1.random(); n1.normalize();
-			n2.random(); n2.normalize();
+		#if 0
+		omp_set_num_threads(1);
 
-			Tensor3x3<T> R, RRT;
-			Tensor3<T> Rn1;
-			R.rot(n1, n2);
+		std::size_t nx = atoi(argv[1]);
+		std::size_t ny = atoi(argv[2]);
+		std::size_t nz = atoi(argv[3]);
+		double Lx = atof(argv[4]);
+		double Ly = atof(argv[5]);
+		double Lz = atof(argv[6]);
+		std::size_t nzp = 2*(nz/2+1);
+		std::size_t nxyz = nx*ny*nz;
+		std::size_t n = nx*ny*nzp;
+		boost::shared_ptr< MultiGridLevel<double> > mg(new MultiGridLevel<double>(nx, ny, nz, nzp, Lx, Ly, Lz, false));
+		std::vector<double> q(n, 0);
+		std::vector<double> b(n, 0);
+		std::vector<double> r(n, 0);
+		std::vector<double> x(n, 0);
 
-			RRT.mult_t(R, R);
-			RRT[0] -= 1;
-			RRT[1] -= 1;
-			RRT[2] -= 1;
-			check_tol("vector rotation I", RRT.dot(RRT));
-
-			Rn1.mult(R, n1);
-			Rn1 -= n2;
-			check_tol("vector rotation II", Rn1.dot(Rn1));
+		// init rhs
+		double s = 0;
+		double R = 0.3*std::sqrt(nx*nx + ny*ny + nz*nz);
+		for (std::size_t i = 0; i < nx; i++) {
+			for (std::size_t j = 0; j < ny; j++) {
+				for (std::size_t k = 0; k < nz; k++) {
+					std::size_t kk = i*ny*nzp + j*nzp + k;
+					b[kk] = std::sqrt((i+0.5-nx*0.5)*(i+0.5-nx*0.5)
+						+ (j+0.5-ny*0.5)*(j+0.5-ny*0.5)
+						+ (k+0.5-nz*0.5)*(k+0.5-nz*0.5)) <= R ? 1.0 : -1.0;
+					s += b[kk];
+				}
+			}
 		}
 
-		{
-			SymTensor3x3<T> eps;
-			eps.zero();
-			eps[0] = 1; eps[1] = 2; eps[2] = 3;
-
-			check_tol("sym determinant", eps.det() - 6);
+		// project out the null space from b
+		s /= nxyz;
+		for (std::size_t i = 0; i < n; i++) {
+			b[i] -= s;
 		}
 
-		{
-			Tensor3x3<T> a, b, c;
-			a.zero();
-			a[0] = a[1] = a[2] = 1;
-			b.random();
 
-			c.mult(a, b);
-			c.sub(b);
+		mg->r = &(r[0]);
+		mg->b = &(b[0]);
+		mg->x = &(x[0]);
 
-			check_tol("mul by identity", c.dot(c));
-		}
+		mg->init_levels(4);
 
 		{
-			Tensor3x3<T> ep;
-			ep.zero();
-			ep[0] = 1; ep[1] = 2; ep[2] = 3;
-
-			check_tol("determinant", ep.det() - 6);
-		}
-		// check material laws
-		{
-			NeoHooke2MaterialLaw<T> law;
-			law.mu = 134.4;
-			law.K = 1234.3;
-			
-			test_law(law);
+			Timer __t("fft");
+			mg->solve_direct_fft(mg->b, mg->x);
 		}
 
-		// check material laws
-		{
-			SaintVenantKirchhoffMaterialLaw<T> law;
-			law.lambda = 1234.3;
-			law.mu = 134.4;
-			
-			test_law(law);
-		}
-
-		// check linear material laws
-		{
-			T delta = std::sqrt(std::numeric_limits<T>::epsilon());
-			
-			LinearIsotropicMaterialLaw<T> law;
-			law.lambda = 1234.3;
-			law.mu = 134.4;
-			
-			SymTensor3x3<T> eps;
-			SymTensor3x3<T> deps;
-			SymTensor3x3<T> sigma1;
-			SymTensor3x3<T> sigma2;
-			SymTensor3x3<T> sigma3;
-
-			eps.random();
-			deps.random();
-			law.dPK1(0, eps, 1, false, deps, sigma1);
-			law.PK1(0, deps, 1, false, sigma2);
-			law.dPK1_fd(0, eps, 1, false, deps, sigma3, 1, 6, delta);
-
-		//	LOG_COUT << sigma1 << std::endl;
-		//	LOG_COUT << sigma2 << std::endl;
-		//	LOG_COUT << sigma3 << std::endl;
-		
-			check_tol("isotropic material derivative", ublas::norm_2(sigma1 - sigma2) + ublas::norm_2(sigma1 - sigma3), 12*std::sqrt(delta));
-		}
-
-		// checking staggered grid operators for hyperelasticity
-		{
-			RealTensor tau(F, 9);
-			RealTensor tau_org(F, 9);
-			pComplexTensor ptau_hat = tau.complex_shadow();
-			ComplexTensor& tau_hat = *ptau_hat;
-
-			tau.random();
-			epsOperatorStaggeredHyper(ublas::zero_vector<T>(tau.dim), tau, tau);
-			tau.copyTo(tau_org);
-
-			calcStressConst(_mu_0, _lambda_0, tau_org, tau);
-			divOperatorStaggeredHyper(tau, tau);
-			G0OperatorStaggeredHyper(_mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
-			epsOperatorStaggeredHyper(ublas::zero_vector<T>(tau.dim), tau, tau);
-
-		//	printTensor("tau", tau, 1);
-		//	printTensor("tau_org", tau_org, 1);
-
-			tau.xpay(tau, -1, tau_org);
-			tau.abs();
-			check_tol("staggered epsG0divHyper identity", ublas::norm_2(tau.max()));
-
-			calcStressConst(_mu_0, _lambda_0, tau_org, tau);
-			GammaOperatorStaggeredHyper(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
-
-			tau.xpay(tau, -1, tau_org);
-			tau.abs();
-			check_tol("staggered GammaHyper identity", ublas::norm_2(tau.max()));
-		}
-
-		// checking staggered grid dfg operators
-		{
-			RealTensor c1(F, 9);
-			RealTensor c2(F, 9);
-			RealTensor f1(*_temp_dfg_1, 9);
-			RealTensor f2(*_temp_dfg_1, 9);
-		
-			c1.random();
-			c1.copyTo(c2);
-	
-			prolongate_to_dfg(c1, f1);
-			f1.copyTo(f2);
-			restrict_from_dfg(f2, c2);
-
-	//		printTensor("c1", c1, 1);
-	//		printTensor("f1", f1, 1);
-	//		printTensor("c2", c2, 1);
-
-	//		printTensor("c1", c1, 1, 3);
-	//		printTensor("f1", f1, 1, 3);
-	//		printTensor("c2", c2, 1, 3);
-
-			c1.xpay(c1, -1, c2);
-			c1.abs();
-			check_tol("staggered dfg operator", ublas::norm_2(c1.max()));
-		}
-
-	//	return;
-
-		// checking staggered grid operators for elasticity
-		{
-			RealTensor tau(F, 6);
-			RealTensor tau_org(F, 6);
-			pComplexTensor ptau_hat = tau.complex_shadow();
-			ComplexTensor& tau_hat = *ptau_hat;
-
-			tau.random();
-			epsOperatorStaggered(ublas::zero_vector<T>(tau.dim), tau, tau);
-			tau.copyTo(tau_org);
-
-			calcStressConst(_mu_0, _lambda_0, tau, tau);
-			divOperatorStaggered(tau, tau);
-			G0OperatorStaggered(_mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
-			epsOperatorStaggered(ublas::zero_vector<T>(tau.dim), tau, tau);
-
-	//		printTensor("tau", tau, 1);
-	//		printTensor("tau_org", tau_org, 1);
-
-			tau.xpay(tau, -1, tau_org);
-			tau.abs();
-			check_tol("staggered epsG0div identity", ublas::norm_2(tau.max()));
-		}
-
-		// checking WillotR operators for elasticity
-		{
-			RealTensor tau(F, 6);
-			RealTensor tau_org(F, 6);
-			pComplexTensor ptau_hat = tau.complex_shadow();
-			ComplexTensor& tau_hat = *ptau_hat;
-
-			tau.random();
-			GammaOperatorWillotR(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
-			tau.copyTo(tau_org);
-
-			calcStressConst(_mu_0, _lambda_0, tau, tau);
-			GammaOperatorWillotR(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
-
-	//		printTensor("tau", tau, 1);
-	//		printTensor("tau_org", tau_org, 1);
-
-			tau.xpay(tau, -1, tau_org);
-			tau.abs();
-			check_tol("WillotR epsG0div identity", ublas::norm_2(tau.max()));
-		}
-
-		// checking operators for hyperelasticity
-		{
-			RealTensor u(F, 3);
-			pComplexTensor pu_hat = u.complex_shadow();
-			ComplexTensor& u_hat = *pu_hat;
-
-			u.random();			// u = random
-	//		printTensor("u", u);
-
-			RealTensor W(F, 0);
-			pComplexTensor pW_hat = W.complex_shadow();
-			ComplexTensor& W_hat = *pW_hat;
-
-			fftTensor(u, u_hat);
-	//		printTensor("u_hat", u);
-			GradOperatorFourierHyper(u_hat, W_hat);
-	//		printTensor("W_hat", W);
-			fftInvTensor(W_hat, W);		// W = grad u
-
-			RealTensor W_org(F, 0);
-			W.copyTo(W_org);		// W_org = W
-	//		printTensor("W_org", W_org);
-
-			calcStressConst(_mu_0, _lambda_0, W, W);	// W = C : grad u
-			G0DivOperatorHyper(_mu_0, _lambda_0, W, W_hat, u_hat, u, 1);	// u = G0 Div(C : grad u)
-			
-	//		printTensor("u2", u);
-
-			fftTensor(u, u_hat);
-			GradOperatorFourierHyper(u_hat, W_hat);
-			fftInvTensor(W_hat, W);		// W = -grad G0 Div(C : grad u)
-
-	//		printTensor("W", W, 1);		// should be W_org
-	//		printTensor("W_org", W_org, 1);
-			
-			W.xpay(W, -1, W_org);
-			W.abs();
-			check_tol("G0DivHyper identity", ublas::norm_2(W.max()));
-		}
-
-		// check full staggered grid scheme
-		{
-			_gamma_scheme = "full_staggered";
-
-			LinearIsotropicMaterialLaw<T>* law = new LinearIsotropicMaterialLaw<T>();
-			law->lambda = 1.23*_lambda_0;
-			law->mu = 1.56*_mu_0;
-			p2->law.reset(law);
-
-			RealTensor tau(F, 6);
-			RealTensor tau_org(F, 6);
-			pComplexTensor ptau_hat = tau.complex_shadow();
-			ComplexTensor& tau_hat = *ptau_hat;
-
-			tau.random();
-			epsOperatorStaggered(ublas::zero_vector<T>(tau.dim), tau, tau);
-			tau.copyTo(tau_org);
-
-			calcStressConst(_mu_0, _lambda_0, tau, tau);
-			divOperatorStaggered(tau, tau);
-			G0OperatorStaggered(_mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
-			epsOperatorStaggered(ublas::zero_vector<T>(tau.dim), tau, tau);
-
-	//		printTensor("tau", tau, 1);
-	//		printTensor("tau_org", tau_org, 1);
-
-			tau.xpay(tau, -1, tau_org);
-			tau.abs();
-			check_tol("full_staggered epsG0div identity", ublas::norm_2(tau.max()));
-		}
-
-		// checking collocated operators for elasticity
-		{
-			RealTensor tau(F, 6);
-			RealTensor tau_org(F, 6);
-			pComplexTensor ptau_hat = tau.complex_shadow();
-			ComplexTensor& tau_hat = *ptau_hat;
-
-			tau.random();
-			GammaOperatorCollocated(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
-			tau.copyTo(tau_org);
-
-			calcStressConst(_mu_0, _lambda_0, tau, tau);
-			GammaOperatorCollocated(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1.0);
-
-	//		printTensor("tau", tau, 1);
-	//		printTensor("tau_org", tau_org, 1);
-
-			tau.xpay(tau, -1, tau_org);
-			tau.abs();
-			check_tol("collocated epsG0div identity", ublas::norm_2(tau.max()));
-		}
-
-		// checking operators for hyperelasticity
-		{
-			RealTensor W1(F, 0);
-			pComplexTensor pW1_hat = W1.complex_shadow();
-			ComplexTensor& W1_hat = *pW1_hat;
-
-			RealTensor W2(F, 0);
-			pComplexTensor pW2_hat = W2.complex_shadow();
-			ComplexTensor& W2_hat = *pW2_hat;
-
-			W1.random();
-			GammaOperatorCollocatedHyper(ublas::zero_vector<T>(F.dim), _mu_0, _lambda_0, W1, W1_hat, W1_hat, W1);	// W1 = -Gamma W1
-			W1.copyTo(W2);	// W2 = W1
-
-			calcStressConst(_mu_0, _lambda_0, W2, W2);	// W2 = C : W2
-			fftTensor(W2, W2_hat);
-			G0DivOperatorFourierHyper(_mu_0, _lambda_0, W2_hat, W2_hat, 1);
-			GradOperatorFourierHyper(W2_hat, W2_hat);
-			fftInvTensor(W2_hat, W2);	// W2 = -Gamma W2
-
-			//printTensor("W1", W1, 1);
-			//printTensor("W2", W2, 1);
-			
-			W2.xpay(W2, -1, W1);
-			W2.abs();
-			check_tol("GammaHyper identity", ublas::norm_2(W2.max()));
-		}
+		mg->zero(mg->x);
+		mg->run_direct(mg->r, mg->b, mg->x, 1e-10);
+		#endif
 	}
 };
 
@@ -24742,15 +25086,13 @@ void exception_handler()
 
 
 template<typename T, typename P, int DIM>
-void run_tests()
+int run_tests()
 {
 	{
 		LOG_COUT << "########## Test 0" << std::endl;
 		LSSolver<T, P, DIM> lss(7, 5, 1, 1, 1, 1);
 		lss.run_tests();
 	}
-
-	return;
 	{
 		LOG_COUT << "########## Test 1" << std::endl;
 		LSSolver<T, P, DIM> lss(41, 33, 11, 1, 1, 1);
@@ -24766,6 +25108,8 @@ void run_tests()
 		LSSolver<T, P, DIM> lss(42, 33, 11, 1.1, 10.4, 2.23);
 		lss.run_tests();
 	}
+
+	return 0;
 }
 
 
@@ -24788,11 +25132,10 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-#if 0
+#if 1
 	// run some small problems for checking correctness
-	if (argc > 2) {
-		run_tests<double, double, 3>();
-		return 0;
+	if (argc > 1 && std::string(argv[1]) == "--test") {
+		return run_tests<double, double, 3>();
 	}
 #endif
 
@@ -24810,78 +25153,5 @@ int main(int argc, char* argv[])
 
 	// return exit code
 	return ret;
-
-#if 0
-	omp_set_num_threads(1);
-
-	std::size_t nx = atoi(argv[1]);
-	std::size_t ny = atoi(argv[2]);
-	std::size_t nz = atoi(argv[3]);
-	double Lx = atof(argv[4]);
-	double Ly = atof(argv[5]);
-	double Lz = atof(argv[6]);
-	std::size_t nzp = 2*(nz/2+1);
-	std::size_t nxyz = nx*ny*nz;
-	std::size_t n = nx*ny*nzp;
-	boost::shared_ptr< MultiGridLevel<double> > mg(new MultiGridLevel<double>(nx, ny, nz, nzp, Lx, Ly, Lz, false));
-	std::vector<double> q(n, 0);
-	std::vector<double> b(n, 0);
-	std::vector<double> r(n, 0);
-	std::vector<double> x(n, 0);
-
-	// init rhs
-	double s = 0;
-	double R = 0.3*std::sqrt(nx*nx + ny*ny + nz*nz);
-	for (std::size_t i = 0; i < nx; i++) {
-		for (std::size_t j = 0; j < ny; j++) {
-			for (std::size_t k = 0; k < nz; k++) {
-				std::size_t kk = i*ny*nzp + j*nzp + k;
-				b[kk] = std::sqrt((i+0.5-nx*0.5)*(i+0.5-nx*0.5)
-					+ (j+0.5-ny*0.5)*(j+0.5-ny*0.5)
-					+ (k+0.5-nz*0.5)*(k+0.5-nz*0.5)) <= R ? 1.0 : -1.0;
-				s += b[kk];
-			}
-		}
-	}
-
-	// project out the null space from b
-	s /= nxyz;
-	for (std::size_t i = 0; i < n; i++) {
-		b[i] -= s;
-	}
-
-
-	mg->r = &(r[0]);
-	mg->b = &(b[0]);
-	mg->x = &(x[0]);
-
-	mg->init_levels(4);
-
-	{
-		Timer __t("fft");
-		mg->solve_direct_fft(mg->b, mg->x);
-	}
-
-	mg->zero(mg->x);
-	mg->run_direct(mg->r, mg->b, mg->x, 1e-10);
-#endif
 }
 
-/*
-PyObject* myfunc()
-{
-   // If your data is already in a boost::multiarray object:
-   // numpy_boost< double, 1 > to_python( numpy_from_boost_array(result_cm) );
-   // otherwise:
-	size_t n = 100;
-
-   numpy_boost< double, 1> to_python( boost::extents[n] );
-//   std::copy( my_vector.begin(), my_vector.end(), to_python.begin() );
-
-   PyObject* result = to_python.py_ptr();
-   Py_INCREF( result );
-
-   return result;
-}
-
-*/
