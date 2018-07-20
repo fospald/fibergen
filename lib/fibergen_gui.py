@@ -393,12 +393,13 @@ class PlotWidget(QtWidgets.QWidget):
 		hbox.addLayout(hbox2)
 		vbox.addLayout(hbox)
 
+		self.defaultColormap = "jet"
 		self.colormapCombo = QtWidgets.QComboBox()
 		self.colormapCombo.setEditable(False)
 		colormaps = sorted(mcmap.datad, key=lambda s: s.lower())
 		for cm in colormaps:
 			self.colormapCombo.addItem(cm)
-		self.colormapCombo.setCurrentIndex(colormaps.index("jet"))
+		self.colormapCombo.setCurrentIndex(colormaps.index(self.defaultColormap))
 		if (other != None):
 			self.colormapCombo.setCurrentIndex(other.colormapCombo.currentIndex())
 		self.colormapCombo.currentIndexChanged.connect(self.colormapComboChanged)
@@ -480,6 +481,14 @@ class PlotWidget(QtWidgets.QWidget):
 					c.setIcon(QtGui.QIcon.fromTheme(name))
 					return True
 			return False
+
+		action = self.fignavbar.addAction("Grid")
+		action.toggled.connect(lambda c: self.replot())
+		action.setCheckable(True)
+		setIcon(action, ["view-grid", "show-grid"])
+		action.setToolTip("Show grid lines")
+		self.fignavbar.insertAction(self.fignavbar.actions()[-8], action)
+		self.showGridAction = action
 
 		action = self.fignavbar.addAction("Embed")
 		action.triggered.connect(self.saveCurrentView)
@@ -579,70 +588,75 @@ class PlotWidget(QtWidgets.QWidget):
 
 		self.updateFigCanvasVisible()
 
-
 	def setHistoryButtons(self):
 		#self.fignavbar._actions["home"].setEnabled(not self.fignavbar._views is None and len(self.fignavbar._views))
 		pass
 
 	def getViewXML(self):
+
 		view = ET.Element('view')
+
 		field = ET.SubElement(view, 'field')
 		field.text = self.fields[self.currentFieldIndex].key
-		mode = ET.SubElement(view, 'mode')
+
 		if self.viewXMLButton.isChecked():
-			mode.text = 'xml'
+			vmode = 'xml'
 		elif self.viewResultDataButton.isChecked():
-			mode.text = 'results'
+			vmode = 'results'
 		else:
-			mode.text = 'plot'
+			vmode = 'plot'
+		if vmode != "plot":
+			mode = ET.SubElement(view, 'mode')
+			mode.text = vmode
+
 		slice_dim = ET.SubElement(view, 'slice_dim')
 		slice_dim.text = self.sliceCombo.currentText()
-		slice_index = ET.SubElement(view, 'slice_index')
-		slice_index.text = str((self.sliceSlider.value()+0.5)/(self.sliceSlider.maximum()+1))
-		loadstep = ET.SubElement(view, 'loadstep')
-		loadstep.text = str((self.loadstepSlider.value()+0.5)/(self.loadstepSlider.maximum()+1))
-		colormap = ET.SubElement(view, 'colormap')
-		colormap.text = self.colormapCombo.currentText()
-		alpha = ET.SubElement(view, 'alpha')
-		alpha.text = str(self.getAlpha())
-		custom_bounds = ET.SubElement(view, 'custom_bounds')
-		custom_bounds.text = str(1 if self.customBoundsCheck.checkState() else 0)
-		vmin = ET.SubElement(view, 'vmin')
-		vmin.text = self.vminText.text()
-		vmax = ET.SubElement(view, 'vmax')
-		vmax.text = self.vmaxText.text()
+
+		if self.sliceSlider.minimum() < self.sliceSlider.maximum():
+			slice_index = ET.SubElement(view, 'slice_index')
+			slice_index.text = str((self.sliceSlider.value()+0.5)/(self.sliceSlider.maximum()+1))
+
+		if self.loadstepSlider.minimum() < self.loadstepSlider.maximum():
+			loadstep = ET.SubElement(view, 'loadstep')
+			loadstep.text = str((self.loadstepSlider.value()+0.5)/(self.loadstepSlider.maximum()+1))
+
+		if self.colormapCombo.currentText() != self.defaultColormap:
+			colormap = ET.SubElement(view, 'colormap')
+			colormap.text = self.colormapCombo.currentText()
+
+		valpha = self.getAlpha()
+		if valpha != 0.0:
+			alpha = ET.SubElement(view, 'alpha')
+			alpha.text = str(valpha)
+
+		vcustom_bounds = 1 if self.customBoundsCheck.checkState() else 0
+		if vcustom_bounds != 0:
+			custom_bounds = ET.SubElement(view, 'custom_bounds')
+			custom_bounds.text = str(vcustom_bounds)
+			vmin = ET.SubElement(view, 'vmin')
+			vmin.text = self.vminText.text()
+			vmax = ET.SubElement(view, 'vmax')
+			vmax.text = self.vmaxText.text()
 
 		views = self.fignavbar._views()
-		if views and len(views):
+		if not views is None and len(views):
 			v = views[0]
-			for i, key in enumerate(["zoom_xmin", "zoom_xmax", "zoom_ymin", "zoom_ymax"]):
-				vi = ET.SubElement(view, key)
-				vi.text = str(v[i])
+			data = self.getCurrentSlice()
+			numcols, numrows = data.shape
+			norm = [numcols, numcols, numrows, numrows]
+			defaults = [0.0, 1.0, 0.0, 1.0]
+			values = [(v[i] + 0.5)/norm[i] for i in range(4)]
+			if values != defaults:
+				for i, key in enumerate(["zoom_xmin", "zoom_xmax", "zoom_ymin", "zoom_ymax"]):
+					vi = ET.SubElement(view, key)
+					vi.text = str(values[i])
 
-		def indent(elem, level=0):
-			i = "\n" + level*"  "
-			j = "\n" + (level-1)*"  "
-			if len(elem):
-				if not elem.text or not elem.text.strip():
-					elem.text = i + "  "
-				if not elem.tail or not elem.tail.strip():
-					elem.tail = i
-				for subelem in elem:
-					indent(subelem, level+1)
-				if not elem.tail or not elem.tail.strip():
-					elem.tail = j
-			else:
-				if level and (not elem.tail or not elem.tail.strip()):
-					elem.tail = j
-			return elem		
-
+		# indent XML
 		indent = "\t"
 		view.text = "\n" + indent
 		for e in view:
 			e.tail = "\n" + indent
 		e.tail = "\n"
-
-		#indent(view)
 
 		return view;
 
@@ -709,21 +723,25 @@ class PlotWidget(QtWidgets.QWidget):
 
 		custom_bounds = view.find('custom_bounds')
 		if not custom_bounds is None:
-			self.customBoundsCheck.setChecked(int(custom_bounds.text))
+			vcustom_bounds = int(custom_bounds.text) != 0
+			self.customBoundsCheck.setChecked(vcustom_bounds)
+			if vcustom_bounds:
+				vmin = view.find('vmin')
+				if not vmin is None:
+					self.vminText.setText(vmin.text)
 
-		vmin = view.find('vmin')
-		if not vmin is None:
-			self.vminText.setText(vmin.text)
-
-		vmax = view.find('vmax')
-		if not vmax is None:
-			self.vmaxText.setText(vmax.text)
+				vmax = view.find('vmax')
+				if not vmax is None:
+					self.vmaxText.setText(vmax.text)
 
 		zoom = np.zeros(4)
+		data = self.getCurrentSlice()
+		numcols, numrows = data.shape
+		norm = [numcols, numcols, numrows, numrows]
 		for i, key in enumerate(["zoom_xmin", "zoom_xmax", "zoom_ymin", "zoom_ymax"]):
 			val = view.find(key)
 			if not val is None:
-				zoom[i] = float(val.text)
+				zoom[i] = float(val.text)*norm[i] - 0.5
 			else:
 				zoom = None
 				break
@@ -855,7 +873,9 @@ class PlotWidget(QtWidgets.QWidget):
 			self.replot()
 
 	def setAlpha(self, a):
-		self.alphaSlider.setValue(int(self.alphaSlider.maximum()*(a/0.4999)**(1.0/3.0) + 0.5))
+		a_max = 0.4999
+		a = max(min(a, a_max), 0.0)
+		self.alphaSlider.setValue(int(self.alphaSlider.maximum()*(a/a_max)**(1.0/3.0) + 0.5))
 	
 	def getAlpha(self):
 		return 0.4999*(self.alphaSlider.value()/self.alphaSlider.maximum())**3
@@ -977,7 +997,7 @@ class PlotWidget(QtWidgets.QWidget):
 			if (cbax != None):
 				self.cb = self.fig.colorbar(p, cax=cbax)
 			else:
-				self.cb = self.fig.colorbar(p, shrink=0.7)
+				self.cb = self.fig.colorbar(p, shrink=0.7, pad=0.05, fraction=0.1, use_gridspec=True)
 		
 			z_label = self.fields[self.currentFieldIndex].label
 			self.cb.ax.set_title(z_label, y=1.03)
@@ -1001,6 +1021,13 @@ class PlotWidget(QtWidgets.QWidget):
 			self.axes.set_xlabel(xy_cord[0], labelpad=font.pointSize())
 			self.axes.set_ylabel(xy_cord[1], labelpad=font.pointSize())
 
+			# show grid
+			if self.showGridAction.isChecked():
+				b = 1
+				self.axes.set_xticks(np.arange(-0.5+b, numcols-b, 1), minor=True);
+				self.axes.set_yticks(np.arange(-0.5+b, numrows-b, 1), minor=True);
+				self.axes.grid(which='minor', color='w', linestyle='-', alpha=0.5, linewidth=0.5, antialiased=False, snap=True)
+
 			self.figcanvas.setVisible(True)
 			self.fignavbar.setVisible(True)
 		else:
@@ -1018,7 +1045,7 @@ class PlotWidget(QtWidgets.QWidget):
 		self.figcanvas.draw()
 
 		if firstReplot:
-			self.fignavbar.push_current()
+			#self.fignavbar.push_current()
 			if not self.initialView is None:
 				# /usr/lib/python3/dist-packages/matplotlib/backend_bases.py
 				views = []
@@ -1032,8 +1059,8 @@ class PlotWidget(QtWidgets.QWidget):
 					views[0] = tuple(self.initialView)
 					self.fignavbar._views.push(views)
 					self.fignavbar._positions.push(pos)
-			self.fignavbar.forward()
-			#self.fignavbar._update_view()
+					#self.fignavbar.forward()
+			self.fignavbar._update_view()
 
 
 class XMLHighlighter(QtGui.QSyntaxHighlighter):
@@ -1772,6 +1799,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		for theme, size in themes:
 			QtGui.QIcon.setThemeName(theme)
 			if QtGui.QIcon.hasThemeIcon("document-new"):
+				#print("selected theme:", theme)
 				break
 
 		# add toolbar actions

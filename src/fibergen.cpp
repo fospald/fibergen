@@ -23267,8 +23267,13 @@ public:
 				continue;
 			}
 
-			Timer __t(v.first, true, false);
 			const ptree::ptree& attr = v.second.get_child("<xmlattr>", empty_ptree);
+
+			if (v.first == "skip" || pt_get(attr, "skip", false)) {
+				continue;
+			}
+			
+			Timer __t(v.first, true, false);
 
 			if (boost::starts_with(v.first, "group-"))
 			{
