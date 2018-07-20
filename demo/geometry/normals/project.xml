@@ -3,7 +3,9 @@
 	<title>Distance and normal fields</title>
 	<description>This example shows how to view distance and normal fields for a geometry.</description>
 	<num_threads>2</num_threads>
-	<solver n="128" >
+	<z0>0.5</z0>
+	<dz>1/512.0</dz>
+	<solver n="512" nz="1" >
 		<materials>
 			<matrix />
 			<tet />
@@ -18,7 +20,9 @@
 	<view>
 		<field>normals0</field>
 		<slice_dim>z</slice_dim>
-		<slice_index>0.48828125</slice_index>
+		<custom_bounds>1</custom_bounds>
+		<vmin>-1</vmin>
+		<vmax>1</vmax>
 		<extra_fields>distance,normals</extra_fields>
 	</view>
 </settings>
