@@ -3966,6 +3966,7 @@ public:
 	
 	inline virtual T curvature() const
 	{
+		// TODO: the curvature at the edges is actually infinite and this causes trouble at integration for those cases
 		return 0;
 	}
 	
@@ -4216,6 +4217,7 @@ public:
 	
 	inline virtual T curvature() const
 	{
+		// TODO: the curvature at the edges is actually infinite and this causes trouble at integration for those cases
 		return 0;
 	}
 
@@ -4454,6 +4456,7 @@ public:
 	
 	inline virtual T curvature() const
 	{
+		// TODO: the curvature at the edges is actually infinite and this causes trouble at integration for those cases
 		return 0;
 	}
 
@@ -4632,6 +4635,7 @@ public:
 	
 	inline virtual T curvature() const
 	{
+		// TODO: the curvature at the edges is actually infinite and this causes trouble at integration for those cases
 		return 0;
 	}
 
@@ -4737,6 +4741,7 @@ public:
 	
 	inline virtual T curvature() const
 	{
+		// TODO: the curvature is actually infinite
 		return 0;
 	}
 
@@ -14043,6 +14048,12 @@ public:
 		nzp = _nzp;
 		elsize = sizeof(T);
 
+		ProgressBar<T> pb(_nx);
+		#define PB_UPDATE \
+		if (pb.update()) { \
+			pb.message() << "get field '" << field << "'" << pb.end(); \
+		}
+
 		if (field == "epsilon")
 		{
 			for (std::size_t i = 0; i < _epsilon->dim; i++) {
@@ -14056,6 +14067,38 @@ public:
 					components.push_back((*_orientation)[i]);
 				}
 			}
+			else {
+				RealTensor* pfield = new RealTensor(*_epsilon, 3);
+				std::vector<T> data(_ny*_nz*3);
+				T* pdata = &(data[0]);
+
+				bool fast = false;
+				std::size_t mat = -1;
+
+				for (std::size_t i = 0; i < _nx; i++) {
+					gen->sampleZYSlice(i, _nx, _ny, _nz, pdata, mat, FiberGenerator<T, DIM>::SampleDataTypes::ORIENTATION, 0, fast);
+
+					int kk = i*_nyzp;
+					for (std::size_t j = 0; j < _ny; j++) {
+						for (std::size_t k = 0; k < _nz; k++) {
+							std::size_t ii = 3*(j*_nz + k);
+							(*pfield)[0][kk] = data[ii + 0];
+							(*pfield)[1][kk] = data[ii + 1];
+							(*pfield)[2][kk] = data[ii + 2];
+							kk++;
+						}
+						kk += (_nzp - _nz);
+					}
+					PB_UPDATE;
+				}
+
+				components.push_back((*pfield)[0]);
+				components.push_back((*pfield)[1]);
+				components.push_back((*pfield)[2]);
+
+				return pfield;
+			}
+
 		}
 		else if (field == "normals")
 		{
@@ -14063,6 +14106,37 @@ public:
 				for (std::size_t i = 0; i < _normals->dim; i++) {
 					components.push_back((*_normals)[i]);
 				}
+			}
+			else {
+				RealTensor* pfield = new RealTensor(*_epsilon, 3);
+				std::vector<T> data(_ny*_nz*3);
+				T* pdata = &(data[0]);
+
+				bool fast = false;
+				std::size_t mat = -1;
+
+				for (std::size_t i = 0; i < _nx; i++) {
+					gen->sampleZYSlice(i, _nx, _ny, _nz, pdata, mat, FiberGenerator<T, DIM>::SampleDataTypes::NORMALS, 0, fast);
+
+					int kk = i*_nyzp;
+					for (std::size_t j = 0; j < _ny; j++) {
+						for (std::size_t k = 0; k < _nz; k++) {
+							std::size_t ii = 3*(j*_nz + k);
+							(*pfield)[0][kk] = data[ii + 0];
+							(*pfield)[1][kk] = data[ii + 1];
+							(*pfield)[2][kk] = data[ii + 2];
+							kk++;
+						}
+						kk += (_nzp - _nz);
+					}
+					PB_UPDATE;
+				}
+
+				components.push_back((*pfield)[0]);
+				components.push_back((*pfield)[1]);
+				components.push_back((*pfield)[2]);
+
+				return pfield;
 			}
 		}
 		else if (field == "sigma")
@@ -14154,12 +14228,50 @@ public:
 			for (std::size_t i = 0; i < _nx; i++) {
 				int kk = i*_nyzp;
 				gen->sampleZYSlice(i, _nx, _ny, _nzp, pdata + kk, mat, FiberGenerator<T, DIM>::SampleDataTypes::FIBER_ID, 0, fast);
+				PB_UPDATE;
 			}
 
 			components.push_back(pdata);
 
 			return pfield;
 		}
+		else if (field == "distance")
+		{
+			RealTensor* pfield = new RealTensor(*_epsilon, 1);
+			T* pdata = (*pfield)[0];
+
+			bool fast = false;
+			std::size_t mat = -1;
+
+			for (std::size_t i = 0; i < _nx; i++) {
+				int kk = i*_nyzp;
+				gen->sampleZYSlice(i, _nx, _ny, _nzp, pdata + kk, mat, FiberGenerator<T, DIM>::SampleDataTypes::DISTANCE, 0, fast);
+				PB_UPDATE;
+			}
+
+			components.push_back(pdata);
+
+			return pfield;
+		}
+		else if (field == "material_id")
+		{
+			RealTensor* pfield = new RealTensor(*_epsilon, 1);
+			T* pdata = (*pfield)[0];
+
+			bool fast = false;
+			std::size_t mat = -1;
+
+			for (std::size_t i = 0; i < _nx; i++) {
+				int kk = i*_nyzp;
+				gen->sampleZYSlice(i, _nx, _ny, _nzp, pdata + kk, mat, FiberGenerator<T, DIM>::SampleDataTypes::MATERIAL_ID, 0, fast);
+				PB_UPDATE;
+			}
+
+			components.push_back(pdata);
+
+			return pfield;
+		}
+
 		else if (field == "fiber_translation")
 		{
 			RealTensor* pfield = new RealTensor(*_epsilon, 3);
@@ -14183,6 +14295,7 @@ public:
 					}
 					kk += (_nzp - _nz);
 				}
+				PB_UPDATE;
 			}
 
 			components.push_back((*pfield)[0]);

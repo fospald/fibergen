@@ -420,6 +420,7 @@
 		<zoom_xmax type="float" help="relative zoom rect maximum x-coordinate">1.0</zoom_xmax>
 		<zoom_ymin type="float" help="relative zoom rect minimum y-coordinate">0.0</zoom_ymin>
 		<zoom_ymax type="float" help="relative zoom rect maximum y-coordinate">1.0</zoom_ymax>
+		<extra_fields type="str" help="specifies a list of additional fields to be loaded" values="fiber_id,fiber_translation,normals,orientation,distance,material_id"></extra_fields>
 	</view>
 
 </settings>

@@ -248,11 +248,12 @@ class PlotField(object):
 
 class PlotWidget(QtWidgets.QWidget):
 
-	def __init__(self, field_groups, xml, resultText, other = None, parent = None):
+	def __init__(self, field_groups, extra_fields, xml, xml_root, resultText, other = None, parent = None):
 
 		app = QtWidgets.QApplication.instance()
 		pal = app.palette()
 
+		self.view_extra_fields = extra_fields
 		self.replotSuspended = True
 		self.changeFieldSuspended = False
 		self.replot_reset_limits = False
@@ -289,6 +290,8 @@ class PlotWidget(QtWidgets.QWidget):
 				button = QtWidgets.QToolButton()
 				field.button = button
 				button.setText(field.label)
+				if len(field.description):
+					button.setToolTip(field.description)
 				button.setCheckable(True)
 				index = len(self.fields)
 				button.toggled.connect(makeChangeFieldCallback(index))
@@ -574,9 +577,8 @@ class PlotWidget(QtWidgets.QWidget):
 			self.fields[self.currentFieldIndex].button.setChecked(True)
 	
 		try:
-			root = ET.fromstring(xml)
-			if not root is None:
-				view = root.find('view')
+			if not xml_root is None:
+				view = xml_root.find('view')
 				if not view is None:
 					self.setViewXML(view)
 		except:
@@ -650,6 +652,10 @@ class PlotWidget(QtWidgets.QWidget):
 				for i, key in enumerate(["zoom_xmin", "zoom_xmax", "zoom_ymin", "zoom_ymax"]):
 					vi = ET.SubElement(view, key)
 					vi.text = str(values[i])
+
+		if len(self.view_extra_fields):
+			extra_fields = ET.SubElement(view, 'extra_fields')
+			extra_fields.text = ",".join(self.view_extra_fields)
 
 		# indent XML
 		indent = "\t"
@@ -2040,25 +2046,45 @@ class MainWindow(QtWidgets.QMainWindow):
 			xml = fg.get_xml()
 			self.textEdit.setPlainText(xml)
 		
+		try:
+			xml_root = ET.fromstring(xml)
+		except:
+			xml_root = None
+			print(traceback.format_exc())
+
 		coord_names1 = ["x", "y", "z"]
 		coord_names2 = ["xx", "yy", "zz", "yz", "xz", "xy", "zy", "zx", "yx"]
 
-		field_labels = {"phi": lambda i: u"φ_%d" % i,
-			"epsilon": lambda i: u"ε_%s" % coord_names2[i],
-			"sigma": lambda i: u"σ_%s" % coord_names2[i],
-			"u": lambda i: "u_%s" % coord_names1[i],
-			"normals": lambda i: "n_%s" % coord_names1[i],
-			"orientation": lambda i: "d_%s" % coord_names1[i],
-			"fiber_translation": lambda i: "t_%s" % coord_names1[i],
-			"fiber_id": lambda i: "id",
-			"p": lambda i: "p",
+		field_labels = {"phi": lambda i: (u"φ_%d" % i, "phase %d" % i),
+			"epsilon": lambda i: (u"ε_%s" % coord_names2[i], "strain %s" % coord_names2[i]),
+			"sigma": lambda i: (u"σ_%s" % coord_names2[i], "stress %s" % coord_names2[i]),
+			"u": lambda i: ("u_%s" % coord_names1[i], "displacement %s" % coord_names1[i]),
+			"normals": lambda i: ("n_%s" % coord_names1[i], "normal %s" % coord_names1[i]),
+			"orientation": lambda i: ("o_%s" % coord_names1[i], "orientation %s" % coord_names1[i]),
+			"fiber_translation": lambda i: ("t_%s" % coord_names1[i], "fiber_translation %s" % coord_names1[i]),
+			"fiber_id": lambda i: ("fid", "fiber id"),
+			"p": lambda i: ("p", "pressure"),
+			"distance": lambda i: ("d", "normal distance"),
+			"material_id": lambda i: ("mid", "material id"),
 		}
+
+		extra_fields_list = ["fiber_id", "fiber_translation", "normals", "orientation", "distance", "material_id"]
+		extra_fields = []
+
+		if not xml_root is None:
+			view = xml_root.find("view")
+			if not view is None:
+				ef = view.find("extra_fields")
+				if not ef is None:
+					ef = ef.text.split(",")
+					for f in ef:
+						if f in extra_fields_list:
+							extra_fields.append(f)
 
 		phase_fields = ["phi"]
 		run_fields = ["epsilon", "sigma", "u"]
-		const_fields = ["phi", "fiber_id", "fiber_translation", "normals", "orientation"]
-
-		field_names = phase_fields + run_fields
+		const_fields = phase_fields + extra_fields
+		field_names = run_fields + const_fields
 
 		try:
 			mode = fg.get("solver.mode".encode('utf8'))
@@ -2066,14 +2092,14 @@ class MainWindow(QtWidgets.QMainWindow):
 			mode = "elasticity"
 
 		if (mode == "viscosity"):
-			field_labels["epsilon"] = lambda i: "σ_%s" % coord_names2[i]
-			field_labels["sigma"] = lambda i: "ɣ_%s" % coord_names2[i]
+			field_labels["epsilon"] = lambda i: ("σ_%s" % coord_names2[i], "fluid stress %s" % coord_names2[i])
+			field_labels["sigma"] = lambda i: ("ɣ_%s" % coord_names2[i], "shear rate %s" % coord_names2[i])
 			run_fields.append("p")
 
 		if (mode == "heat"):
-			field_labels["u"] = lambda i: "T"
-			field_labels["epsilon"] = lambda i: "∇T_%s" % coord_names1[i]
-			field_labels["sigma"] = lambda i: "q_%s" % coord_names1[i]
+			field_labels["u"] = lambda i: ("T", "temperature")
+			field_labels["epsilon"] = lambda i: ("∇T_%s" % coord_names1[i], "temperature gradient %s" % coord_names1[i])
+			field_labels["sigma"] = lambda i: ("q_%s" % coord_names1[i], "heat flux %s" % coord_names1[i])
 
 		field_groups = []
 		mean_strains = []
@@ -2100,17 +2126,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
 			if len(loadstep_called) == 1:
 				phase_names = fg.get_phase_names()
-				field_labels['phi'] = lambda i: phase_names[i]
+				field_labels['phi'] = lambda i: (phase_names[i], "%s material" % phase_names[i])
 
 			if len(field_groups) == 0:
 				for name in field_names:
 					data = fg.get_field(name.encode('utf8'))
 					shape = data.shape
 					fields = []
+					#print(name, shape)
 					for i in range(shape[0]):
 						field = PlotField()
 						field.data = [data]
-						field.label = field_labels[name](i)
+						field.label, field.description = field_labels[name](i)
 						field.name = name
 						field.key = name if shape[0] == 1 else (name + str(i))
 						field.component = i
@@ -2152,7 +2179,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			fg.init_phase()
 
 			if len(loadstep_called) == 0:
-				field_names = phase_fields
+				field_names = const_fields
 				loadstep_callback()
 
 			if progress.wasCanceled():
@@ -2322,7 +2349,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		self.runCount += 1
 
-		tab = PlotWidget(field_groups, xml, resultText, other)
+		tab = PlotWidget(field_groups, extra_fields, xml, xml_root, resultText, other)
 		tab.file_id = self.file_id
 		if len(tab.fields) > 0:
 			i = self.addTab(tab, "Run_%d" % self.runCount)
