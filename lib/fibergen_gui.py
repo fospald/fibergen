@@ -907,15 +907,16 @@ class PlotWidget(QtWidgets.QWidget):
 
 		zoom = np.zeros(4)
 		data = self.getCurrentSlice()
-		numcols, numrows = data.shape
-		norm = [numcols, numcols, numrows, numrows]
-		for i, key in enumerate(["zoom_xmin", "zoom_xmax", "zoom_ymin", "zoom_ymax"]):
-			val = view.find(key)
-			if not val is None:
-				zoom[i] = float(val.text)*norm[i] - 0.5
-			else:
-				zoom = None
-				break
+		if not data is None:
+			numcols, numrows = data.shape
+			norm = [numcols, numcols, numrows, numrows]
+			for i, key in enumerate(["zoom_xmin", "zoom_xmax", "zoom_ymin", "zoom_ymax"]):
+				val = view.find(key)
+				if not val is None:
+					zoom[i] = float(val.text)*norm[i] - 0.5
+				else:
+					zoom = None
+					break
 
 		self.initialView = zoom
 
@@ -1062,6 +1063,8 @@ class PlotWidget(QtWidgets.QWidget):
 		return 0.4999*(self.alphaSlider.value()/self.alphaSlider.maximum())**3
 	
 	def getCurrentSlice(self):
+		if self.currentFieldIndex is None:
+			return None
 		field = self.fields[self.currentFieldIndex]
 		s_index = self.sliceSlider.value()
 		ls_index = self.loadstepSlider.value()
@@ -2271,10 +2274,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		extra_fields_list = ["fiber_id", "fiber_translation", "normals", "orientation", "distance", "material_id"]
 		extra_fields = []
+		record_loadstep = -1
 
 		if not xml_root is None:
 			view = xml_root.find("view")
 			if not view is None:
+				rl = view.find("record_loadstep")
+				if not rl is None:
+					record_loadstep = int(rl.text)
 				ef = view.find("extra_fields")
 				if not ef is None:
 					ef = ef.text.split(",")
@@ -2325,11 +2332,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
 			loadstep_called.append(1)
 
-			if len(loadstep_called) == 1:
-				phase_names = fg.get_phase_names()
-				field_labels['phi'] = lambda i: (phase_names[i], "%s material" % phase_names[i])
+			if record_loadstep >= 1 and record_loadstep != len(loadstep_called):
+				return progress.wasCanceled()
 
 			if len(field_groups) == 0:
+				phase_names = fg.get_phase_names()
+				field_labels['phi'] = lambda i: (phase_names[i], "%s material" % phase_names[i])
 				for name in field_names:
 					data = fg.get_field(name.encode('utf8'))
 					shape = data.shape
@@ -2346,6 +2354,7 @@ class MainWindow(QtWidgets.QMainWindow):
 						#field.amax = np.amax(data[i])
 						fields.append(field)
 					field_groups.append(fields)
+					process_events()
 			else:
 				for field_group in field_groups:
 					for field in field_group:
@@ -2354,8 +2363,10 @@ class MainWindow(QtWidgets.QMainWindow):
 						else:
 							data = fg.get_field(field.name.encode('utf8'))
 						field.data.append(data)
+						process_events()
 
-			process_events()
+			return progress.wasCanceled()
+
 
 		def convergence_callback():
 			#residual = fg.get_residuals()[-1]
@@ -2363,6 +2374,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			# progress.setValue(100)
 			process_events()
 			mean_strains.append(fg.get_mean_strain())
+			process_events()
 			mean_stresses.append(fg.get_mean_stress())
 			process_events()
 			return progress.wasCanceled()
@@ -2520,8 +2532,6 @@ class MainWindow(QtWidgets.QMainWindow):
 				], dtype=np.double)
 			return a
 
-		print(fg.get_effective_property())
-
 		resultText += section('Mean quantities')
 		resultText += table(collections.OrderedDict([
 			('mean_stress', matrix(mat(fg.get_mean_stress()))),
@@ -2556,6 +2566,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		tab = PlotWidget(rve_dims, field_groups, extra_fields, xml, xml_root, resultText, other)
 		tab.file_id = self.file_id
+
 		if len(tab.fields) > 0:
 			i = self.addTab(tab, "Run_%d" % self.runCount)
 

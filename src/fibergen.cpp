@@ -19597,7 +19597,7 @@ public:
 		return false;
 	}
 
-	void run()
+	bool run()
 	{
 		Timer __t("running solver");
 
@@ -19732,7 +19732,7 @@ public:
 		_epsilon->check("epsilon");
 
 		// run solver
-		runLoadsteppingSolver(_E, _S);
+		bool ret = runLoadsteppingSolver(_E, _S);
 
 		_solve_time += dt_solve;
 
@@ -19743,6 +19743,8 @@ public:
 
 		// delete multigrid level
 		_mg_level.reset();
+
+		return ret;
 	}
 
 	void runSolver(const ublas::vector<T>& E, const ublas::vector<T>& S)
@@ -19925,7 +19927,7 @@ public:
 	}
 
 	// solver with loadstepping
-	void runLoadsteppingSolver(const ublas::vector<T>& Emax, const ublas::vector<T>& Smax)
+	bool runLoadsteppingSolver(const ublas::vector<T>& Emax, const ublas::vector<T>& Smax)
 	{
 		std::list<loadstep_data> last_loadsteps;
 
@@ -20012,13 +20014,15 @@ public:
 
 			if (_except) {
 				LOG_CERR << "Loadsteps canceled because of previous error!" << std::endl;
-				break;
+				return true;
 			}
 
 			if (performLoadstepActions(istep)) {
-				break;
+				return true;
 			}
 		}
+
+		return false;
 	}
 
 	// compute sum over a:b
@@ -24052,9 +24056,9 @@ public:
 						ublas::vector<T> Ep = ublas::column(E, i);
 
 						lss->setStrain(Ep);
-						lss->run();
+						bool ret = lss->run();
 
-						if (_except) return EXIT_FAILURE;
+						if (_except || ret) return EXIT_FAILURE;
 
 						ublas::vector<T> Smean = lss->calcMeanStress();
 
@@ -24129,9 +24133,9 @@ public:
 						ublas::vector<T> Ep = ublas::column(E, i);
 
 						lss->setStrain(Ep);
-						lss->run();
+						bool ret = lss->run();
 
-						if (_except) return EXIT_FAILURE;
+						if (_except || ret) return EXIT_FAILURE;
 
 						ublas::vector<T> Smean = lss->calcMeanStress();
 
@@ -24182,9 +24186,9 @@ public:
 						LOG_COUT << "prescribed elastic strain: " << Ep << std::endl;
 
 						lss->setStrain(Ep);
-						lss->run();
+						bool ret = lss->run();
 
-						if (_except) return EXIT_FAILURE;
+						if (_except || ret) return EXIT_FAILURE;
 
 						ublas::vector<T> Smean = lss->calcMeanStress();
 						LOG_COUT << "average elastic strain: " << lss->averageValue() << std::endl;
@@ -24268,9 +24272,9 @@ public:
 						ublas::vector<T> Ep = ublas::column(E, i);
 
 						lss->setStrain(Ep);
-						lss->run();
+						bool ret = lss->run();
 
-						if (_except) return EXIT_FAILURE;
+						if (_except || ret) return EXIT_FAILURE;
 
 						ublas::vector<T> Smean = lss->calcMeanStress();
 
@@ -24356,15 +24360,16 @@ public:
 					// we compute every possible combination 
 					std::vector<T> alphas;
 					std::vector<T> betas;
-					double mu0 = 1/(4*lss->mu_matrix());
-					double two_mu0 = 2*mu0;
+					T mu0 = 0.5/lss->mu_matrix();	// Note: the internal fluidity was scaled by 0.5, so we need to undo this scaling
 
 					for (std::size_t i = 0; i < 3; i++) {
 						for (std::size_t j = 0; j < 3; j++) {
 							if (i == j) continue;
 							// scale coefficients by 0.5 since Ceff is 2*mu
-							alphas.push_back((Ceff_voigt(v[i][i],v[i][i]) - Ceff_voigt(v[i][i],v[j][j]) - two_mu0)/two_mu0);
-							betas.push_back((2*Ceff_voigt(v[i][j],v[i][j]) - two_mu0)/(two_mu0));
+							T alpha = 0.75*Ceff_voigt(v[i][i],v[i][i])/mu0 - 1.0;
+							T beta = 2.0*Ceff_voigt(v[i][j],v[i][j])/mu0 - 1.0;
+							alphas.push_back(alpha);
+							betas.push_back(beta);
 						}
 					}
 
