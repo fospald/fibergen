@@ -13582,6 +13582,18 @@ public:
 		return (_gamma_scheme == "half_staggered") || (_gamma_scheme == "full_staggered");
 	}
 
+	std::vector<double> get_rve_dims()
+	{
+		std::vector<double> dims;
+		dims.push_back(_x0[0]);
+		dims.push_back(_x0[1]);
+		dims.push_back(_x0[2]);
+		dims.push_back(_dx);
+		dims.push_back(_dy);
+		dims.push_back(_dz);
+		return dims;
+	}
+
 	pRealTensor get_orientation()
 	{
 		if (!_orientation) {
@@ -22900,6 +22912,7 @@ public:
 	virtual double get_solve_time() = 0;
 	virtual std::size_t get_distance_evals() = 0;
 	virtual std::vector< std::vector<double> > get_effective_property() = 0;
+	virtual std::vector<double> get_rve_dims() = 0;
 	virtual std::vector< std::vector<double> > get_A2() = 0;
 	virtual std::vector< std::vector< std::vector< std::vector<double> > > > get_A4() = 0;
 	virtual std::vector<double> get_mean_strain() = 0;
@@ -23250,6 +23263,12 @@ public:
 	virtual std::vector<std::vector<double> > get_effective_property()
 	{
 		return c_matrix_to_vector(Ceff_voigt);
+	}
+
+	virtual std::vector<double> get_rve_dims()
+	{
+		init_lss();
+		return lss->get_rve_dims();
 	}
 
 	void cancel()
@@ -24556,6 +24575,7 @@ public:
 	std::vector<double> get_mean_cauchy_stress() { return fg()->get_mean_cauchy_stress(); }
 	double get_mean_energy() { return fg()->get_mean_energy(); }
 	std::vector<std::vector<double> > get_effective_property() { return fg()->get_effective_property(); }
+	std::vector<double> get_rve_dims() { return fg()->get_rve_dims(); }
 	std::vector<std::vector<double> > get_A2() { return fg()->get_A2(); }
 	std::vector<std::vector<std::vector<std::vector<double> > > > get_A4() { return fg()->get_A4(); }
 	void set_pyfg_instance(py::object instance) { pyfg_instance = instance.ptr(); }
@@ -25125,6 +25145,7 @@ public:
 			.def("get_distance_evals", &PyFG::get_distance_evals)
 			.def("get_residuals", &PyFG::get_residuals)
 			.def("get_effective_property", &PyFG::get_effective_property)
+			.def("get_rve_dims", &PyFG::get_rve_dims)
 			.def("get_A2", &PyFG::get_A2)
 			.def("get_A4", &PyFG::get_A4)
 			.def("get_error", &PyFG::get_error)

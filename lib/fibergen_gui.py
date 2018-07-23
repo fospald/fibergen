@@ -39,6 +39,163 @@ from matplotlib import rcParams
 import matplotlib.ticker as mtick
 import matplotlib.cm as mcmap
 
+class WriteVTKWidget(QtWidgets.QDialog):
+
+	def __init__(self, filename, rve_dims, field_groups, parent=None):
+		super(WriteVTKWidget, self).__init__(parent)
+
+		self.setWindowTitle("Write VTK")
+		
+		self.rve_dims = rve_dims
+		self.field_groups = field_groups
+		self.filename = filename
+
+		grid = QtWidgets.QGridLayout()
+		vbox = QtWidgets.QVBoxLayout()
+		grid.addLayout(vbox, 0, 0)
+
+		vbox.addWidget(QtWidgets.QLabel("Fields to export:"))
+
+		for j, field_group in enumerate(field_groups):
+			gbox = QtWidgets.QHBoxLayout()
+			for i, field in enumerate(field_group):
+				field.check = QtWidgets.QCheckBox(field.label)
+				field.check.setToolTip(field.description)
+				field.check.setChecked(True)
+				gbox.addWidget(field.check)
+			gbox.addStretch(1)
+			vbox.addLayout(gbox)
+
+		hline = QtWidgets.QFrame()
+		hline.setFrameShape(QtWidgets.QFrame.HLine)
+		hline.setFrameShadow(QtWidgets.QFrame.Sunken)
+		vbox.addWidget(hline)
+
+		gbox = QtWidgets.QVBoxLayout()
+		self.runParaviewCheck = QtWidgets.QCheckBox("Open with ParaView after save")
+		gbox.addWidget(self.runParaviewCheck)
+		vbox.addLayout(gbox)
+
+		hbox = QtWidgets.QHBoxLayout()
+		okButton = QtWidgets.QPushButton("&Save")
+		okButton.clicked.connect(self.writeVTK)
+		cancelButton = QtWidgets.QPushButton("&Cancel")
+		cancelButton.clicked.connect(self.close)
+
+		hbox.addStretch(1)
+		hbox.addWidget(cancelButton)
+		hbox.addWidget(okButton)
+		grid.addLayout(hbox, 1, 0)
+
+		self.setLayout(grid)
+
+	def writeVTK(self):
+
+		# https://bitbucket.org/pauloh/pyevtk
+
+		binary = True
+		loadstep = 0
+		dtype = "float"
+		
+		with open(self.filename, "wb+") as f:
+
+			def write(s):
+				f.write(s.encode("ascii"))
+
+			write("# vtk DataFile Version 2.0\nfibergen\n")
+
+			if binary:
+				write("BINARY\n")
+			else:
+				write("ASCII\n")
+
+			dummy, nx, ny, nz = self.field_groups[0][0].data[loadstep].shape
+			x0, y0, z0, dx, dy, dz = self.rve_dims
+			sx, sy, sz = [dx/nx, dy/ny, dz/nz]
+			
+			write("DATASET STRUCTURED_POINTS\n")
+			write("DIMENSIONS " + str(nx+1) + " " + str(ny+1) + " " + str(nz+1) + "\n")
+			write("ORIGIN " + str(x0) + " " + str(y0) + " " + str(z0) + "\n")
+			write("SPACING " + str(sx) + " " + str(sy) + " " + str(sz) + "\n")
+
+			write("CELL_DATA " + str(nx*ny*nz) + "\n")
+
+			for j, field_group in enumerate(self.field_groups):
+
+				write_componentwise = False
+				field_names = []
+				for i, field in enumerate(field_group):
+					write_componentwise = write_componentwise or not field.check.isChecked()
+					field_names.append(field.name)
+
+				for i, field in enumerate(field_group):
+
+					if not field.check.isChecked():
+						continue
+
+					if sys.byteorder == "little":
+						data = field.data[loadstep].byteswap()
+					else:
+						data = field.data[loadstep]
+
+					write("\n")
+
+					ncomp = len(field_group)
+
+					if ncomp == 1 or field.name in ["phi"] or write_componentwise:
+						write("SCALARS")
+						ncomp = 1
+					elif ncomp == 3 and field.name in ["n"]:
+						write("NORMALS")
+					elif ncomp == 3:
+						write("VECTORS")
+					elif ncomp == 6:
+						ncomp = 9
+						data = data[[0, 5, 4, 5, 1, 3, 4, 3, 2]]
+						write("TENSORS")
+						# TODO: check if TENSOR6 is supported by paraview version xxx
+						#data = data[[0, 5, 4, 1, 3, 2]]
+						#write("TENSORS6")
+					elif ncomp == 9:
+						data = data[[0, 5, 4, 8, 1, 3, 7, 6, 2]]
+						write("TENSORS")
+					else:
+						raise "problem"
+
+					npdtype = field_group[0].data[loadstep].dtype
+
+					if npdtype == np.float32:
+						dtype = "float"
+					elif npdtype == np.float64:
+						dtype = "double"
+					else:
+						raise "problem"
+
+					if field.name in ["phi"]:
+						label = field.label if not field.label in field_names else field.key
+					else:
+						label = field.key if write_componentwise else field.name
+
+					write(" " + label + " " + dtype + "\n")
+
+					if ncomp == 1:
+						write("LOOKUP_TABLE default\n")
+
+					data = data[(i*ncomp):(i*ncomp + ncomp)].tobytes(order='F')
+
+					#print(label, len(data), ncomp)
+					f.write(data)
+
+					del data
+
+					if ncomp > 1:
+						break
+
+		self.close()
+
+		if self.runParaviewCheck.isChecked():
+			subprocess.call(["paraview", self.filename], cwd=os.path.dirname(self.filename))
+
 
 class FlowLayout(QtWidgets.QLayout):
 	def __init__(self, parent=None, margin=0):
@@ -114,7 +271,10 @@ class FlowLayout(QtWidgets.QLayout):
 		x = rect.x()
 		y = rect.y()
 		lineHeight = 0
-		spaceX = self.spacing()
+
+		app = QtWidgets.QApplication.instance()
+		spaceY = self.spacing() # app.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Vertical)
+		spaceX = 0 # 2*app.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Horizontal)
 
 		for item in self.itemList:
 
@@ -122,8 +282,6 @@ class FlowLayout(QtWidgets.QLayout):
 				x += item.sizeHint().width()
 				continue
 
-			spaceX = self.spacing() #+ wid.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Horizontal)
-			spaceY = self.spacing() #+ wid.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Vertical)
 			nextX = x + item.sizeHint().width()
 
 			if nextX > rect.right():
@@ -181,11 +339,11 @@ class MyWebPage(QtWebKitWidgets.QWebPage):
 		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
 
 		html = """
-a, html, body, div, span, p, h1, h2, h3, tr, td, th {
-	font-family: \"""" + font.family() + """\";
+body, table {
 	font-size: """ + str(font.pointSize()) + """pt;
 }
 body {
+	font-family: \"""" + font.family() + """\";
 	background-color: """ + pal.base().color().name() + """;
 	color: """ + pal.text().color().name() + """;
 }
@@ -248,11 +406,13 @@ class PlotField(object):
 
 class PlotWidget(QtWidgets.QWidget):
 
-	def __init__(self, field_groups, extra_fields, xml, xml_root, resultText, other = None, parent = None):
+	def __init__(self, rve_dims, field_groups, extra_fields, xml, xml_root, resultText, other = None, parent = None):
 
 		app = QtWidgets.QApplication.instance()
 		pal = app.palette()
 
+		self.field_groups = field_groups
+		self.rve_dims = rve_dims
 		self.view_extra_fields = extra_fields
 		self.replotSuspended = True
 		self.changeFieldSuspended = False
@@ -309,6 +469,11 @@ class PlotWidget(QtWidgets.QWidget):
 		hbox.addLayout(flow)
 		hbox.addSpacing(4*spacing)
 
+		self.writeVTKButton = QtWidgets.QToolButton()
+		self.writeVTKButton.setText("Write VTK")
+		self.writeVTKButton.clicked.connect(self.writeVTK)
+		hbox.addWidget(self.writeVTKButton)
+	
 		self.writePNGButton = QtWidgets.QToolButton()
 		self.writePNGButton.setText("Write PNG")
 		self.writePNGButton.clicked.connect(self.writePNG)
@@ -753,6 +918,16 @@ class PlotWidget(QtWidgets.QWidget):
 				break
 
 		self.initialView = zoom
+
+	def writeVTK(self):
+		
+		filename, _filter = QtWidgets.QFileDialog.getSaveFileName(self, "Save VTK", os.getcwd(), "VTK Files (*.vtk)")
+		if (filename == ""):
+			return
+		
+		w = WriteVTKWidget(filename, self.rve_dims, self.field_groups, parent=self)
+		w.exec_()
+
 
 	def writePNG(self):
 		
@@ -1236,7 +1411,10 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 			# start new line
 			indent = "\n" + indent
 
-		if url[1] == "add":
+		if url[1] == "help":
+			self.updateHelpPath([(p, None) for p in url[2:]])
+			return
+		elif url[1] == "add":
 			if url[3] == "empty":
 				c.insertText(indent + "<" + url[2] + " />")
 				c.movePosition(QtGui.QTextCursor.Left, QtGui.QTextCursor.MoveAnchor, 3)
@@ -1317,6 +1495,9 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 
 			items.append((item, m))
 
+		self.updateHelpPath(items, inside)
+
+	def updateHelpPath(self, items, inside=False):
 
 		#if len(items):
 		#	self.scrollToAnchor(items[-1])
@@ -1352,8 +1533,16 @@ p ~ p {
 </style>
 """
 
-		path = ".".join(i[0] for i in items)
-		html += "<h2>" + path + "</h2>"
+		html += "<h2>"
+		for i, item in enumerate(items):
+			if i > 0:
+				html += "."
+			path = [items[j][0] for j in range(i+1)]
+			if i < len(items)-1:
+				html += '<a href="http://x#help#' + '#'.join(path) + '">' + item[0] + '</a>'
+			else:
+				html += item[0]
+		html += "</h2>"
 
 		
 		if en is None:
@@ -1380,7 +1569,10 @@ p ~ p {
 				for i, v in enumerate(values):
 					if i > 0:
 						html += " | "
-					html += '<a href="http://x#ins#' + v + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + v + '</a>'
+					if not item[1] is None:
+						html += '<a href="http://x#ins#' + v + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + v + '</a>'
+					else:
+						html += v
 				html += "</p>"
 
 			if not e.text is None and len(e.text.strip()) > 0:
@@ -1393,7 +1585,12 @@ p ~ p {
 				for a in attribs:
 					default = ("" if a.text is None else a.text.strip())
 					attr += "<tr>"
-					attr += '<td><b><a href="http://x#set#' + a.get("name") + '#' + default + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + a.get("name") + "</a></b></td>"
+					if not item[1] is None:
+						attr += '<td><b><a href="http://x#set#' + a.get("name") + '#' + default + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + a.get("name") + "</a></b></td>"
+					else:
+						#apath = path + [a.get("name")]
+						#attr += '<td><b><a href="http://x#help#' + '#'.join(apath) + '">' + a.get("name") + "</a></b></td>"
+						attr += '<td><b>' + a.get("name") + "</b></td>"
 					attr += "<td>" + a.get("type") + "</td>"
 					attr += "<td>" + default + "</td>"
 					attr += "<td>" + a.get("help") + "</td>"
@@ -1419,7 +1616,11 @@ p ~ p {
 				typ = a.get("type")
 				default = ("" if a.text is None else a.text.strip())
 				tags += "<tr>"
-				tags += '<td><b><a href="http://x#add#' + a.tag + '#' + typ + '#' + default + '">' + a.tag + "</a></b></td>"
+				if not item[1] is None:
+					tags += '<td><b><a href="http://x#add#' + a.tag + '#' + typ + '#' + default + '">' + a.tag + "</a></b></td>"
+				else:
+					apath = path + [a.tag]
+					tags += '<td><b><a href="http://x#help#' + '#'.join(apath) + '">' + a.tag + "</a></b></td>"
 				tags += "<td>" + typ + "</td>"
 				tags += "<td>" + default + "</td>"
 				tags += "<td>" + a.get("help") + "</td>"
@@ -2084,7 +2285,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		phase_fields = ["phi"]
 		run_fields = ["epsilon", "sigma", "u"]
 		const_fields = phase_fields + extra_fields
-		field_names = run_fields + const_fields
+		field_names = phase_fields + run_fields + extra_fields
 
 		try:
 			mode = fg.get("solver.mode".encode('utf8'))
@@ -2319,13 +2520,15 @@ class MainWindow(QtWidgets.QMainWindow):
 				], dtype=np.double)
 			return a
 
+		print(fg.get_effective_property())
+
 		resultText += section('Mean quantities')
 		resultText += table(collections.OrderedDict([
 			('mean_stress', matrix(mat(fg.get_mean_stress()))),
 			('mean_strain', matrix(mat(fg.get_mean_strain()))),
 			#('mean_cauchy_stress', matrix(mat(fg.get_mean_cauchy_stress()))),
 			#('mean_energy', safe_call(fg.get_mean_energy)),
-			('effective_property', matrix(mat(fg.get_effective_property()))),
+			('effective_property', matrix(fg.get_effective_property())),
 		]))
 
 		if len(residuals) > 0:
@@ -2349,7 +2552,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		self.runCount += 1
 
-		tab = PlotWidget(field_groups, extra_fields, xml, xml_root, resultText, other)
+		rve_dims = fg.get_rve_dims()
+
+		tab = PlotWidget(rve_dims, field_groups, extra_fields, xml, xml_root, resultText, other)
 		tab.file_id = self.file_id
 		if len(tab.fields) > 0:
 			i = self.addTab(tab, "Run_%d" % self.runCount)
