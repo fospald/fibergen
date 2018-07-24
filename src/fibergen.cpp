@@ -24360,14 +24360,26 @@ public:
 					// we compute every possible combination 
 					std::vector<T> alphas;
 					std::vector<T> betas;
-					T mu0 = 0.5/lss->mu_matrix();	// Note: the internal fluidity was scaled by 0.5, so we need to undo this scaling
+					T mu0 = 0.5/lss->mu_matrix();	// need to scale because we scaled mu initially by 0.5 to get the correct fluidity
+
+					// mu_ijkl = mu*(1+beta)/2*(delta_ik*delta_jl + delta_il*delta_jk - 3/2*delta_ij*delta_kl)
+					//		+ mu*(alpha-beta)*(delta_ijkl - 1/3*delta_ij*delta_kl)
+					//
+					// mu_ijij/mu = (1+beta)/2
+					// beta = 2*mu_ijij/mu - 1
+					// 2*mu_ijij = Ceff_voigt(v[i][j],v[i][j])
+					// 
+					// we need to substract two entries to get rid of ambiguity
+					// mu_iijj = mu*(1+beta)/2*(- 3/2) + mu*(alpha-beta)*(-1/3)
+					// mu_iiii = mu*(1+beta)/2*(1/2) + mu*(alpha-beta)*(2/3)
+					// alpha = (mu_iiii - mu_iijj)/mu - 1
 
 					for (std::size_t i = 0; i < 3; i++) {
 						for (std::size_t j = 0; j < 3; j++) {
 							if (i == j) continue;
-							// scale coefficients by 0.5 since Ceff is 2*mu
-							T alpha = 0.75*Ceff_voigt(v[i][i],v[i][i])/mu0 - 1.0;
-							T beta = 2.0*Ceff_voigt(v[i][j],v[i][j])/mu0 - 1.0;
+							// Ceff_voigt(v[i][j],v[i][j]) is scaled by
+							T beta = Ceff_voigt(v[i][j],v[i][j])/mu0 - 1.0;
+							T alpha = 0.5*Ceff_voigt(v[i][i],v[i][i])/mu0 - 0.5*Ceff_voigt(v[i][i],v[j][j])/mu0 - 1.0;
 							alphas.push_back(alpha);
 							betas.push_back(beta);
 						}
