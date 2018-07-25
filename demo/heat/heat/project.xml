@@ -5,7 +5,7 @@
 	<image>thumbnail.png</image>
   
 	<variables>
-		<res type="int" value="512" />
+		<res type="int" value="256" />
 		<scale type="float" value="2.0" />
 	</variables>
 
@@ -54,14 +54,9 @@
 			<fiber  mu="1" />
 		</materials>
 
-		<method>cg</method>
-		<method>basic</method>
-		<gamma_scheme>collocated</gamma_scheme>
-		<gamma_scheme>staggered</gamma_scheme>
-		<mixing_rule>voigt</mixing_rule>
-		<mixing_rule>laminate</mixing_rule>
 		<mode>heat</mode>
-		<debug>0</debug>
+		<gamma_scheme>collocated</gamma_scheme>
+		<mixing_rule>laminate</mixing_rule>
 
 	</solver>
 

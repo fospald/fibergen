@@ -418,6 +418,7 @@ class PlotWidget(QtWidgets.QWidget):
 		self.changeFieldSuspended = False
 		self.replot_reset_limits = False
 		self.initialView = None
+		self.lastSliceIndices = [0, 0, 0] if other is None else list(other.lastSliceIndices)
 
 		QtWidgets.QWidget.__init__(self, parent)
 		
@@ -512,6 +513,7 @@ class PlotWidget(QtWidgets.QWidget):
 				if data_shape[sliceIndex] >= data_shape[i]:
 					sliceIndex = i
 
+		self.sliceCombo.lastIndex = sliceIndex
 		self.sliceCombo.setCurrentIndex(sliceIndex)
 		self.sliceCombo.currentIndexChanged.connect(self.sliceComboChanged)
 
@@ -585,12 +587,18 @@ class PlotWidget(QtWidgets.QWidget):
 		self.alphaLabel = QtWidgets.QLabel()
 		self.alphaLabel.setText("alpha=%4f" % self.getAlpha())
 
+		self.depthModeCheck = QtWidgets.QCheckBox("depth mode")
+		if (other != None):
+			self.depthModeCheck.setCheckState(other.depthModeCheck.checkState())
+		self.depthModeCheck.stateChanged.connect(self.depthModeCheckChanged)
+
 		hbox = QtWidgets.QHBoxLayout()
 		hbox.addWidget(QtWidgets.QLabel("Colormap:"))
 		hbox.addWidget(self.colormapCombo)
 		hbox.addWidget(QtWidgets.QLabel("Contrast:"))
 		hbox.addWidget(self.alphaSlider)
 		hbox.addWidget(self.alphaLabel)
+		hbox.addWidget(self.depthModeCheck)
 		vbox.addLayout(hbox)
 
 		self.customBoundsCheck = QtWidgets.QCheckBox("custom")
@@ -796,6 +804,11 @@ class PlotWidget(QtWidgets.QWidget):
 			alpha = ET.SubElement(view, 'alpha')
 			alpha.text = str(valpha)
 
+		vdepth_mode = 1 if self.depthModeCheck.checkState() else 0
+		if vdepth_mode != 0:
+			depth_mode = ET.SubElement(view, 'depth_mode')
+			depth_mode.text = str(vdepth_mode)
+
 		vcustom_bounds = 1 if self.customBoundsCheck.checkState() else 0
 		if vcustom_bounds != 0:
 			custom_bounds = ET.SubElement(view, 'custom_bounds')
@@ -891,6 +904,11 @@ class PlotWidget(QtWidgets.QWidget):
 		alpha = view.find('alpha')
 		if not alpha is None:
 			self.setAlpha(float(alpha.text))
+
+		depth_mode = view.find('depth_mode')
+		if not depth_mode is None:
+			vdepth_mode = int(depth_mode.text) != 0
+			self.depthModeCheck.setChecked(vdepth_mode)
 
 		custom_bounds = view.find('custom_bounds')
 		if not custom_bounds is None:
@@ -1038,13 +1056,20 @@ class PlotWidget(QtWidgets.QWidget):
 		self.loadstepLabel.setText("%04d" % self.loadstepSlider.value())
 
 	def sliceComboChanged(self, index):
+		rs = self.replotSuspended
+		self.replotSuspended = True
+		self.lastSliceIndices[self.sliceCombo.lastIndex] = self.sliceSlider.value()
+		self.sliceCombo.lastIndex = index
+
 		self.replot_reset_limits = True
-		if self.sliceSlider.value() == 0:
-			self.sliceSliderChanged()
-		else:
-			self.sliceSlider.setValue(0)
 		data_shape = self.fields[0].data[0].shape[1:4]
 		self.sliceSlider.setMaximum(data_shape[index]-1)
+		self.sliceSlider.setValue(self.lastSliceIndices[index])
+		self.replotSuspended = rs
+		self.sliceSliderChanged()
+
+	def depthModeCheckChanged(self, state):
+		self.replot()
 
 	def customBoundsCheckChanged(self, state):
 		enable = (state != 0)
@@ -1069,12 +1094,29 @@ class PlotWidget(QtWidgets.QWidget):
 		s_index = self.sliceSlider.value()
 		ls_index = self.loadstepSlider.value()
 		sliceIndex = self.sliceCombo.currentIndex()
+		depth = 1
+		depth_max = self.sliceSlider.maximum() - s_index + 1
+
+		if field.name == "phi" and self.depthModeCheck.isChecked():
+			depth = 1 + self.sliceSlider.maximum()
+
+		s_index_end = s_index + min(depth, depth_max)
+
 		if (sliceIndex == 0):
-			data = field.data[ls_index][field.component,s_index,:,:]
+			data = field.data[ls_index][field.component,s_index:s_index_end,:,:]
 		elif (sliceIndex == 1):
-			data = field.data[ls_index][field.component,:,s_index,:]
+			data = field.data[ls_index][field.component,:,s_index:s_index_end,:]
 		else:
-			data = field.data[ls_index][field.component,:,:,s_index]
+			data = field.data[ls_index][field.component,:,:,s_index:s_index_end]
+
+		if depth >= 1:
+			z = np.indices(data.shape)[sliceIndex]
+			data = np.max(data*np.exp((-3.0/depth)*z), axis=sliceIndex)
+		#else:
+		#	data = np.squeeze(data, axis=sliceIndex)
+
+		#print(data.shape)
+
 		return data
 
 	def resetBounds(self):
@@ -1143,6 +1185,8 @@ class PlotWidget(QtWidgets.QWidget):
 
 		if self.replotSuspended:
 			return
+
+		print("replot")
 
 		self.axes.clear()
 
@@ -1223,8 +1267,8 @@ class PlotWidget(QtWidgets.QWidget):
 		if (ylim != None):
 			self.axes.set_ylim(ylim)
 
-		self.axes.xaxis.set_major_formatter(mtick.FormatStrFormatter('%04d'))
-		self.axes.yaxis.set_major_formatter(mtick.FormatStrFormatter('%04d'))
+		self.axes.xaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
+		self.axes.yaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
 
 		self.figcanvas.draw()
 
@@ -1260,7 +1304,7 @@ class XMLHighlighter(QtGui.QSyntaxHighlighter):
 		xmlElementFormat = QtGui.QTextCharFormat()
 		xmlElementFormat.setFontWeight(QtGui.QFont.Bold)
 		xmlElementFormat.setForeground(QtCore.Qt.darkGreen)
-		self.highlightingRules.append((QtCore.QRegExp("<[/\s]*[A-Za-z0-9_]+[\s/>]+"), xmlElementFormat))
+		self.highlightingRules.append((QtCore.QRegExp("<[/\s]*[A-Za-z0-9_-]+[\s/>]+"), xmlElementFormat))
  
 		keywordFormat = QtGui.QTextCharFormat()
 		keywordFormat.setFontWeight(QtGui.QFont.Bold)
@@ -1273,7 +1317,7 @@ class XMLHighlighter(QtGui.QSyntaxHighlighter):
 		xmlAttributeFormat.setFontWeight(QtGui.QFont.Bold)
 		#xmlAttributeFormat.setFontItalic(True)
 		xmlAttributeFormat.setForeground(pal.link().color())
-		self.highlightingRules.append((QtCore.QRegExp("\\b[A-Za-z0-9_]+(?=\\=)"), xmlAttributeFormat))
+		self.highlightingRules.append((QtCore.QRegExp("\\b[A-Za-z0-9_-]+(?=\\=)"), xmlAttributeFormat))
  
 		valueFormat = QtGui.QTextCharFormat()
 		valueFormat.setForeground(pal.windowText().color())
@@ -1343,6 +1387,65 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 
 		# add syntax highlighting
 		self.highlighter = XMLHighlighter(self.document())
+
+	def keyPressEvent(self, e):
+
+		if e.key() == QtCore.Qt.Key_Tab:
+			if self.increaseSelectionIndent():
+				return
+
+		QtWidgets.QTextEdit.keyPressEvent(self, e)
+
+	def increaseSelectionIndent(self):
+
+		curs = self.textCursor()
+
+		# Do nothing if we don't have a selection.
+		if not curs.hasSelection():
+			return False
+
+		# Get the first and count of lines to indent.
+
+		spos = curs.anchor()
+		epos = curs.position()
+
+		if spos > epos:
+			hold = spos
+			spos = epos
+			epos = hold
+
+		curs.setPosition(spos, QtGui.QTextCursor.MoveAnchor)
+		sblock = curs.block().blockNumber()
+
+		curs.setPosition(epos, QtGui.QTextCursor.MoveAnchor)
+		eblock = curs.block().blockNumber()
+
+		# Do the indent.
+
+		curs.setPosition(spos, QtGui.QTextCursor.MoveAnchor)
+		curs.beginEditBlock()
+
+		for i in range(eblock - sblock + 1):
+			curs.movePosition(QtGui.QTextCursor.StartOfBlock, QtGui.QTextCursor.MoveAnchor)
+			curs.insertText("\t")
+			curs.movePosition(QtGui.QTextCursor.NextBlock, QtGui.QTextCursor.MoveAnchor)
+
+		curs.endEditBlock()
+
+		# Set our cursor's selection to span all of the involved lines.
+
+		curs.setPosition(spos, QtGui.QTextCursor.MoveAnchor)
+		curs.movePosition(QtGui.QTextCursor.StartOfBlock, QtGui.QTextCursor.MoveAnchor)
+
+		while (curs.block().blockNumber() < eblock):
+			curs.movePosition(QtGui.QTextCursor.NextBlock, QtGui.QTextCursor.KeepAnchor)
+
+		curs.movePosition(QtGui.QTextCursor.EndOfBlock, QtGui.QTextCursor.KeepAnchor)
+
+		# Done!
+		self.setTextCursor(curs)
+
+		return True
 
 
 class HelpWidget(QtWebKitWidgets.QWebView):
@@ -1479,6 +1582,7 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 			a.append(m)
 
 		items = []
+		inside = False
 		for i,m in enumerate(a):
 			
 			inside = (pos >= m.start()) and (pos < m.end())
@@ -1516,7 +1620,10 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 					break
 				en = e.find(item[0])
 				if en is None:
-					break
+					# try to recover
+					en = e.find("actions")
+					if en is None:
+						break
 				e = en
 
 		typ = e.get("type")
@@ -1596,7 +1703,11 @@ p ~ p {
 						attr += '<td><b>' + a.get("name") + "</b></td>"
 					attr += "<td>" + a.get("type") + "</td>"
 					attr += "<td>" + default + "</td>"
-					attr += "<td>" + a.get("help") + "</td>"
+					help = a.get("help")
+					values = a.get("values")
+					if not values is None:
+						help += " (%s)" % values
+					attr += "<td>" + help + "</td>"
 					attr += "</tr>"
 				if attr != "":
 					html += "<h3>Available attributes:</h3>"
@@ -2300,13 +2411,13 @@ class MainWindow(QtWidgets.QMainWindow):
 			mode = "elasticity"
 
 		if (mode == "viscosity"):
-			field_labels["epsilon"] = lambda i: ("σ_%s" % coord_names2[i], "fluid stress %s" % coord_names2[i])
-			field_labels["sigma"] = lambda i: ("ɣ_%s" % coord_names2[i], "shear rate %s" % coord_names2[i])
+			field_labels["epsilon"] = lambda i: (u"σ_%s" % coord_names2[i], "fluid stress %s" % coord_names2[i])
+			field_labels["sigma"] = lambda i: (u"ɣ_%s" % coord_names2[i], "shear rate %s" % coord_names2[i])
 			run_fields.append("p")
 
 		if (mode == "heat"):
 			field_labels["u"] = lambda i: ("T", "temperature")
-			field_labels["epsilon"] = lambda i: ("∇T_%s" % coord_names1[i], "temperature gradient %s" % coord_names1[i])
+			field_labels["epsilon"] = lambda i: (u"∇T_%s" % coord_names1[i], "temperature gradient %s" % coord_names1[i])
 			field_labels["sigma"] = lambda i: ("q_%s" % coord_names1[i], "heat flux %s" % coord_names1[i])
 
 		field_groups = []
@@ -2332,7 +2443,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 			loadstep_called.append(1)
 
-			if record_loadstep >= 1 and record_loadstep != len(loadstep_called):
+			if record_loadstep >= 0 and record_loadstep != len(loadstep_called):
 				return progress.wasCanceled()
 
 			if len(field_groups) == 0:
@@ -2389,9 +2500,11 @@ class MainWindow(QtWidgets.QMainWindow):
 			process_events()
 			
 			fg.run()
-			fg.init_phase()
 
-			if len(loadstep_called) == 0:
+			if record_loadstep != 0:
+				fg.init_phase()
+
+			if len(loadstep_called) == 0 and record_loadstep != 0:
 				field_names = const_fields
 				loadstep_callback()
 
@@ -2406,6 +2519,12 @@ class MainWindow(QtWidgets.QMainWindow):
 		progress.close()
 		process_events()
 		
+		self.runCount += 1
+
+		if len(field_groups) == 0:
+			del fg
+			return
+
 		volume_fractions = collections.OrderedDict()
 		phase_names = fg.get_phase_names()
 		for key in phase_names:
@@ -2560,8 +2679,6 @@ class MainWindow(QtWidgets.QMainWindow):
 		elif other.file_id != self.file_id:
 			other = None
 
-		self.runCount += 1
-
 		rve_dims = fg.get_rve_dims()
 
 		tab = PlotWidget(rve_dims, field_groups, extra_fields, xml, xml_root, resultText, other)
@@ -2581,13 +2698,17 @@ class App(QtWidgets.QApplication):
 
 		# set matplotlib defaults
 		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
+		mono = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
+		
 		pal = self.palette()
 		text_color = pal.text().color().name()
 		bg_color = pal.base().color().name()
 		rcParams.update({
 			'figure.autolayout': True,
 			'font.size': font.pointSize(),
-			'font.family': font.family(),
+			'font.family': "monospace",
+			'font.monospace': [mono.family()] + rcParams['font.monospace'],
+			'font.sans-serif': [font.family()] + rcParams['font.sans-serif'],
 			'text.color': text_color,
 			'axes.labelcolor': text_color,
 			'xtick.color': text_color,
@@ -2597,6 +2718,7 @@ class App(QtWidgets.QApplication):
 			#'axes.facecolor': bg_color,
 			'backend': 'Qt5Agg',
 		})
+		#print(rcParams)
 
 		self.settings = QtCore.QSettings("NumaPDE", "FIBERGEN")
 		self.window = MainWindow()

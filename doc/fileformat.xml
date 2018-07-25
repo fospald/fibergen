@@ -87,7 +87,7 @@
 		<loadstep_extrapolation_method help="loadstep extrapolation method" type="str" values="polynomial,transformation">polynomial</loadstep_extrapolation_method>
 		<write_loadsteps help="write results after each loadstep" type="bool">0</write_loadsteps>
 
-		<gamma_scheme help="scheme for Gamma operator" type="str" values="collocated,staggered,full_staggered,half_staggered,willot">staggered</gamma_scheme>
+		<gamma_scheme help="scheme for Gamma operator" type="str" values="auto,collocated,staggered,full_staggered,half_staggered,willot">auto</gamma_scheme>
 
 		<ref_scale help="scaling of reference stiffness" type="float">1.0</ref_scale>
 		<update_ref help="reference media update interval" type="str" values="always,loadstep">loadstep</update_ref>
@@ -421,7 +421,7 @@
 		<zoom_ymin type="float" help="relative zoom rect minimum y-coordinate">0.0</zoom_ymin>
 		<zoom_ymax type="float" help="relative zoom rect maximum y-coordinate">1.0</zoom_ymax>
 		<extra_fields type="str" help="specifies a list of additional fields to be loaded" values="fiber_id,fiber_translation,normals,orientation,distance,material_id"></extra_fields>
-		<record_loadstep type="int" help="specifies the loadstep index for which the data is collected, if less than 1 the data of all loadsteps is collected">-1</record_loadstep>
+		<record_loadstep type="int" help="specifies the loadstep index for which the data is collected, if less than 0 the data of all loadsteps is collected, if zero no data is collected">-1</record_loadstep>
 	</view>
 
 </settings>

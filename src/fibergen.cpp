@@ -10574,26 +10574,27 @@ public:
 	// direction of anisotropy field
 	boost::shared_ptr< TensorField<T> > orientation;
 	ublas::c_vector<T, DIM> a;
+	bool have_a;
 
 	// read settings from ptree
 	void readSettings(const ptree::ptree& pt)
 	{
 		const ptree::ptree& attr = pt.get_child("<xmlattr>", empty_ptree);
-		T E, E_a, G, G_a, nu_ab;
+		T E, E_a, nu, G_a, nu_ab;
 		try {
 			E     = pt_get<T>(attr, "E");
+			nu    = pt_get<T>(attr, "nu");
 			E_a   = pt_get<T>(attr, "E_a");
-			G     = pt_get<T>(attr, "G");
 			G_a   = pt_get<T>(attr, "G_a");
-			nu_ab = pt_get<T>(attr, "nu_ab");
+			nu_ab = pt_get<T>(attr, "nu_a");
 			read_vector(attr, a, "ax", "ay", "az", (T)0, (T)0, (T)0);
 		}
 		catch (boost::exception& e) {
 			BOOST_THROW_EXCEPTION(std::runtime_error(
-				"A transversal isotropic material requires the parameters E, E_a, G, G_a and nu_ab."));
+				"A transversal isotropic material requires the parameters E, nu, E_a, G_a and nu_a."));
 		}
 
-		T nu = E/(2*G)-1;
+		T G = E/(2*(nu + 1));
 		T nu_ba = E/E_a*nu_ab;
 		T D = (1 + nu)*(1 - nu - 2*nu_ab*nu_ba);
 		
@@ -10602,6 +10603,7 @@ public:
 		lambda = E*(nu + nu_ab*nu_ba)/D;
 		two_mu = 2*G;
 		two_dmu = 2*(G_a - G);
+		have_a = ublas::norm_2(a) != 0;
 	}
 
 	LinearTransverselyIsotropicMaterialLaw(boost::shared_ptr< TensorField<T> > orientation)
@@ -10620,13 +10622,19 @@ public:
 	{
 		// compute stress S
 		// set S = 2*mu*E + lambda*tr(E)*I
-		const T two_mu = alpha*this->two_mu;
 		const T tr_E = E[0] + E[1] + E[2];
 
 		T a[3]; // direction of anisotropy
-		a[0] = (*this->orientation)[0][i];
-		a[1] = (*this->orientation)[1][i];
-		a[2] = (*this->orientation)[2][i];
+		if (have_a) {
+			a[0] = this->a[0];
+			a[1] = this->a[1];
+			a[2] = this->a[2];
+		}
+		else {
+			a[0] = (*this->orientation)[0][i];
+			a[1] = (*this->orientation)[1][i];
+			a[2] = (*this->orientation)[2][i];
+		}
 
 		SymTensor3x3<T> A;
 		SymTensor3x3<T> AE_EA;
@@ -13503,7 +13511,7 @@ public:
 		_nl_cg_alpha = 1.0;
 		_bc_relax = 1.0;
 		_mode = "elasticity";
-		_gamma_scheme = "staggered";
+		_gamma_scheme = "auto";
 		_freq_hack = false;
 		_parallel_fft = false;
 		_debug = false;
@@ -13743,10 +13751,14 @@ public:
 		_nl_cg_tau = pt_get<T>(pt, "nl_cg_tau", _nl_cg_tau);
 		_nl_cg_alpha = pt_get<T>(pt, "nl_cg_alpha", _nl_cg_alpha);
 		_gamma_scheme = pt_get(pt, "gamma_scheme", _gamma_scheme);
-		if (_gamma_scheme == "full-staggered") _gamma_scheme = "full_staggered";
-		if (_gamma_scheme == "half-staggered") _gamma_scheme = "half_staggered";
-		else if (_gamma_scheme == "Willot-R") _gamma_scheme = "willot";
 		_mode = pt_get(pt, "mode", _mode);
+		if (_gamma_scheme == "full-staggered") _gamma_scheme = "full_staggered";
+		else if (_gamma_scheme == "half-staggered") _gamma_scheme = "half_staggered";
+		else if (_gamma_scheme == "Willot-R") _gamma_scheme = "willot";
+		else if (_gamma_scheme == "auto") {
+			_gamma_scheme = "staggered";
+			if (_mode == "heat") _gamma_scheme = "collocated";
+		}
 		_bc_relax = pt_get<T>(pt, "bc_relax", _bc_relax);
 		_freq_hack = pt_get(pt, "freq_hack", _freq_hack);
 		_debug = pt_get(pt, "debug", _debug);
@@ -17439,6 +17451,77 @@ public:
 		const T hy = _ny/_dy;
 		const T hz = _nz/_dz;
 		
+		#pragma omp parallel
+		{
+			// compute D_x^-(x[xx]) + D_y^+(x[xy]) + D_z^+(x[xz]) => y[0]
+			#pragma omp for schedule (static) collapse(2)
+			for (std::size_t kk = 0; kk < _nz; kk++) {
+				for (std::size_t jj = 0; jj < _ny; jj++) {
+					int k = jj*_nzp + kk;
+					T x0 = x[0][k + (_nx-1)*_nyzp];
+					for (std::size_t ii = 0; ii < _nx; ii++) {
+						T x1 = x[0][k];
+						y[0][k] = (x1 - x0)*hx;
+						x0 = x1;
+						k += _nyzp;
+					}
+				}
+			}
+
+			// compute D_x^+(x[xy]) + D_y^-(x[yy]) + D_z^+(x[yz]) => y[1]
+			#pragma omp for schedule (static) collapse(2)
+			for (std::size_t kk = 0; kk < _nz; kk++) {
+				for (std::size_t ii = 0; ii < _nx; ii++) {
+					int k = ii*_nyzp + kk;
+					T x0 = x[1][k + (_ny-1)*_nzp];
+					for (std::size_t jj = 0; jj < _ny; jj++) {
+						T x1 = x[1][k];
+						y[0][k] += (x1 - x0)*hy;
+						x0 = x1;
+						k += _nzp;
+					}
+				}
+			}
+
+			// compute D_x^+(x[xz]) + D_y^+(x[yz]) + D_z^-(x[zz]) => y[2]
+			#pragma omp for schedule (static) collapse(2)
+			for (std::size_t jj = 0; jj < _ny; jj++) {
+				for (std::size_t ii = 0; ii < _nx; ii++) {
+					int k = ii*_nyzp + jj*_nzp;
+					T x0 = x[2][k + (_nz-1)];
+					for (std::size_t kk = 0; kk < _nz; kk++) {
+						T x1 = x[2][k];
+						y[0][k] += (x1 - x0)*hz;
+						x0 = x1;
+						k ++;
+					}
+				}
+			}
+		}
+
+/*
+
+		const T hx = _nx/_dx;
+		const T hy = _ny/_dy;
+		const T hz = _nz/_dz;
+		
+#if 1
+		// compute D_x^+(x[xx]) + D_y^+(x[xy]) + D_z^+(x[xz]) => y[0]
+		#pragma omp parallel for schedule (static) collapse(2)
+		for (std::size_t kk = 0; kk < _nz; kk++) {
+			for (std::size_t jj = 0; jj < _ny; jj++) {
+				int k = jj*_nzp + kk;
+				T x1 = x[0][k];
+				k += _nyzp*_nx;
+				for (std::size_t ii = 0; ii < _nx; ii++) {
+					k -= _nyzp;
+					T x0 = x[0][k];
+					y[0][k] = (x1 - x0)*hx + (x[1][k + _ffd_y[jj]] - x[1][k])*hy + (x[2][k + _ffd_z[kk]] - x[2][k])*hz;
+					x1 = x0;
+				}
+			}
+		}
+#else
 		// compute D_x^-(x[xx]) + D_y^+(x[xy]) + D_z^+(x[xz]) => y[0]
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t kk = 0; kk < _nz; kk++) {
@@ -17453,6 +17536,8 @@ public:
 				}
 			}
 		}
+#endif
+*/
 	}
 
 
@@ -22904,7 +22989,7 @@ public:
 	typedef boost::function<bool()> LoadstepCallback;
 
 	virtual void reset() = 0;
-	virtual int run() = 0;
+	virtual int run(const std::string& actions_path) = 0;
 	virtual void cancel() = 0;
 	virtual void init_lss() = 0;
 	virtual void init_fibers() = 0;
@@ -23280,7 +23365,7 @@ public:
 		set_exception("fibergen canceled");
 	}
 
-	int run()
+	int run(const std::string& actions_path)
 	{
 		reset();
 
@@ -23358,7 +23443,7 @@ public:
 			std::endl;
 	
 		// perform actions
-		int ret = run_actions(settings, "actions");
+		int ret = run_actions(settings, actions_path);
 
 		// save fft wisdom
 		fftw_export_wisdom_to_filename(fft_wisdom.c_str());
@@ -24575,7 +24660,8 @@ public:
 		return fgi;
 	}
 
-	int run() { return fg()->run(); }
+	int run() { return fg()->run("actions"); }
+	int run_path(const std::string& actions_path) { return fg()->run(actions_path); }
 	void cancel() { return fg()->cancel(); }
 	void init_lss() { fg()->init_lss(); }
 	void init_fibers() { fg()->init_fibers(); }
@@ -24766,6 +24852,7 @@ public:
 		desc.add_options()
 		    ("help", "produce help message")
 		    ("input-file", po::value< std::string >()->default_value("project.xml"), "input file")
+		    ("actions-path", po::value< std::string >()->default_value("actions"), "actions xpath to run in input file")
 		;
 
 		po::positional_options_description p;
@@ -24783,11 +24870,12 @@ public:
 		}
 
 		std::string filename = vm["input-file"].as<std::string>();
+		std::string actions_path = vm["actions-path"].as<std::string>();
 
 		// read settings
 		load_xml(filename);
 
-		return run();
+		return run_path(actions_path);
 	}
 };
 
@@ -25141,6 +25229,7 @@ public:
 			.def("init_fibers", &PyFG::init_fibers)
 			.def("init_phase", &PyFG::init_phase)
 			.def("run", &PyFG::run)
+			.def("run", &PyFG::run_path)
 			.def("cancel", &PyFG::cancel)
 			.def("reset", &PyFG::reset)
 			.def("get_xml", &PyFG::get_xml)
