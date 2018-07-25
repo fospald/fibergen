@@ -20,7 +20,7 @@
 	<solver nx="1" n="256" >
 		
 		<materials>
-			<matrix law="iso" mu="1"  />
+			<matrix law="iso" mu="1" />
 			<fiber  law="iso" mu="0.001" />
 		</materials>
 		

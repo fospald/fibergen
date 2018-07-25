@@ -14,10 +14,10 @@
 			<core law="iso" E="10" nu="0.3"/>
 		</materials>
 		<method>cg</method>
-		<gamma_scheme>collocated</gamma_scheme>
-		<mixing_rule>voigt</mixing_rule>
+		<gamma_scheme>staggered</gamma_scheme>
+		<mixing_rule>laminate</mixing_rule>
 		<mode>elasticity</mode>
-		<smooth_levels>1</smooth_levels>
+		<smooth_levels>2</smooth_levels>
 	</solver>
 	<actions>
 		<select_material name="core"/>

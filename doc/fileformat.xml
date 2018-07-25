@@ -422,6 +422,8 @@
 		<zoom_ymax type="float" help="relative zoom rect maximum y-coordinate">1.0</zoom_ymax>
 		<extra_fields type="str" help="specifies a list of additional fields to be loaded" values="fiber_id,fiber_translation,normals,orientation,distance,material_id"></extra_fields>
 		<record_loadstep type="int" help="specifies the loadstep index for which the data is collected, if less than 0 the data of all loadsteps is collected, if zero no data is collected">-1</record_loadstep>
+		<depth_view type="bool" help="enable depth view for phase fields in plots">0</depth_view>
+		<interpolate type="bool" help="enable bicubic interpolation in plots">0</interpolate>
 	</view>
 
 </settings>

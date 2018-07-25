@@ -17,19 +17,19 @@
 		<mode>heat</mode>
 	</solver>
 	<actions>
-<python>
-for j in range(m):
-	r = 0.5*(j+1)/m - 2*R
-	L = 2*r*sin(pi/n) + R
-	for i in range(n):
-		phi0 = 2*pi*i/n - pi/2
-		phi1 = phi0 - pi/n
-		phi2 = phi0 + pi/n
-		fg.set("magic.group-fibers.place_fiber[%d]." % (j*n+i), R=R, L=L,
-			cx=0.5 + 0.5*r*(cos(phi1)+cos(phi2)), cy=0.5 + 0.5*r*(sin(phi1)+sin(phi2)), cz=0.5/res,
-			ax=-sin(phi0), ay=cos(phi0), az=0.0, type="capsule")
-fg.run("magic")
-</python>
+		<python>
+			for j in range(m):
+				r = 0.5*(j+1)/m - 2*R
+				L = 2*r*sin(pi/n) + R
+				for i in range(n):
+					phi0 = 2*pi*i/n - pi/2
+					phi1 = phi0 - pi/n
+					phi2 = phi0 + pi/n
+					fg.set("magic.group-fibers.place_fiber[%d]." % (j*n+i), R=R, L=L,
+						cx=0.5 + 0.5*r*(cos(phi1)+cos(phi2)), cy=0.5 + 0.5*r*(sin(phi1)+sin(phi2)), cz=0.5/res,
+						ax=-sin(phi0), ay=cos(phi0), az=0.0, type="capsule")
+			fg.run("magic")
+		</python>
 	</actions>
 	<!-- note: the name "magic" for the element is arbitrary an does not have any special meaning, it is just used to specify a list of actions -->
 	<magic>

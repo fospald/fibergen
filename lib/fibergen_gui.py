@@ -414,6 +414,7 @@ class PlotWidget(QtWidgets.QWidget):
 		self.field_groups = field_groups
 		self.rve_dims = rve_dims
 		self.view_extra_fields = extra_fields
+		self.replotCount = 0
 		self.replotSuspended = True
 		self.changeFieldSuspended = False
 		self.replot_reset_limits = False
@@ -563,7 +564,7 @@ class PlotWidget(QtWidgets.QWidget):
 		hbox.addLayout(hbox2)
 		vbox.addLayout(hbox)
 
-		self.defaultColormap = "jet"
+		self.defaultColormap = "coolwarm" if 0 else "jet"
 		self.colormapCombo = QtWidgets.QComboBox()
 		self.colormapCombo.setEditable(False)
 		colormaps = sorted(mcmap.datad, key=lambda s: s.lower())
@@ -587,10 +588,15 @@ class PlotWidget(QtWidgets.QWidget):
 		self.alphaLabel = QtWidgets.QLabel()
 		self.alphaLabel.setText("alpha=%4f" % self.getAlpha())
 
-		self.depthModeCheck = QtWidgets.QCheckBox("depth mode")
+		self.depthViewCheck = QtWidgets.QCheckBox("depth mode")
 		if (other != None):
-			self.depthModeCheck.setCheckState(other.depthModeCheck.checkState())
-		self.depthModeCheck.stateChanged.connect(self.depthModeCheckChanged)
+			self.depthViewCheck.setCheckState(other.depthViewCheck.checkState())
+		self.depthViewCheck.stateChanged.connect(self.depthViewCheckChanged)
+
+		self.interpolateCheck = QtWidgets.QCheckBox("interpolate")
+		if (other != None):
+			self.interpolateCheck.setCheckState(other.interpolateCheck.checkState())
+		self.interpolateCheck.stateChanged.connect(self.interpolateCheckChanged)
 
 		hbox = QtWidgets.QHBoxLayout()
 		hbox.addWidget(QtWidgets.QLabel("Colormap:"))
@@ -598,7 +604,8 @@ class PlotWidget(QtWidgets.QWidget):
 		hbox.addWidget(QtWidgets.QLabel("Contrast:"))
 		hbox.addWidget(self.alphaSlider)
 		hbox.addWidget(self.alphaLabel)
-		hbox.addWidget(self.depthModeCheck)
+		hbox.addWidget(self.depthViewCheck)
+		hbox.addWidget(self.interpolateCheck)
 		vbox.addLayout(hbox)
 
 		self.customBoundsCheck = QtWidgets.QCheckBox("custom")
@@ -804,10 +811,15 @@ class PlotWidget(QtWidgets.QWidget):
 			alpha = ET.SubElement(view, 'alpha')
 			alpha.text = str(valpha)
 
-		vdepth_mode = 1 if self.depthModeCheck.checkState() else 0
-		if vdepth_mode != 0:
-			depth_mode = ET.SubElement(view, 'depth_mode')
-			depth_mode.text = str(vdepth_mode)
+		vinterpolate = 1 if self.interpolateCheck.checkState() else 0
+		if vinterpolate != 0:
+			interpolate = ET.SubElement(view, 'interpolate')
+			interpolate.text = str(vinterpolate)
+
+		vdepth_view = 1 if self.depthViewCheck.checkState() else 0
+		if vdepth_view != 0:
+			depth_view = ET.SubElement(view, 'depth_view')
+			depth_view.text = str(vdepth_view)
 
 		vcustom_bounds = 1 if self.customBoundsCheck.checkState() else 0
 		if vcustom_bounds != 0:
@@ -905,10 +917,15 @@ class PlotWidget(QtWidgets.QWidget):
 		if not alpha is None:
 			self.setAlpha(float(alpha.text))
 
-		depth_mode = view.find('depth_mode')
-		if not depth_mode is None:
-			vdepth_mode = int(depth_mode.text) != 0
-			self.depthModeCheck.setChecked(vdepth_mode)
+		interpolate = view.find('interpolate')
+		if not interpolate is None:
+			vinterpolate = int(interpolate.text) != 0
+			self.interpolateCheck.setChecked(vinterpolate)
+
+		depth_view = view.find('depth_view')
+		if not depth_view is None:
+			vdepth_view = int(depth_view.text) != 0
+			self.depthViewCheck.setChecked(vdepth_view)
 
 		custom_bounds = view.find('custom_bounds')
 		if not custom_bounds is None:
@@ -1068,7 +1085,10 @@ class PlotWidget(QtWidgets.QWidget):
 		self.replotSuspended = rs
 		self.sliceSliderChanged()
 
-	def depthModeCheckChanged(self, state):
+	def depthViewCheckChanged(self, state):
+		self.replot()
+
+	def interpolateCheckChanged(self, state):
 		self.replot()
 
 	def customBoundsCheckChanged(self, state):
@@ -1097,7 +1117,7 @@ class PlotWidget(QtWidgets.QWidget):
 		depth = 1
 		depth_max = self.sliceSlider.maximum() - s_index + 1
 
-		if field.name == "phi" and self.depthModeCheck.isChecked():
+		if field.name == "phi" and self.depthViewCheck.isChecked():
 			depth = 1 + self.sliceSlider.maximum()
 
 		s_index_end = s_index + min(depth, depth_max)
@@ -1186,7 +1206,8 @@ class PlotWidget(QtWidgets.QWidget):
 		if self.replotSuspended:
 			return
 
-		print("replot")
+		#print("replot")
+		self.replotCount += 1
 
 		self.axes.clear()
 
@@ -1220,7 +1241,11 @@ class PlotWidget(QtWidgets.QWidget):
 			#color_norm = matplotlib.colors.SymLogNorm(linthresh=1e-2, linscale=1)
 			cm = mcmap.get_cmap(self.colormapCombo.currentText(), 2**11)
 
-			p = self.axes.imshow(data.T, interpolation="nearest", origin="lower", norm=None, cmap=cm, vmin=vmin, vmax=vmax)
+			#methods = ['bilinear', 'bicubic', 'spline16', 'spline36', 'hanning', 'hamming', 'hermite', 'kaiser', 'quadric', 'catrom', 'gaussian', 'bessel', 'mitchell', 'sinc', 'lanczos']
+			interpolation = "bicubic" if self.interpolateCheck.isChecked() else "nearest"
+
+			p = self.axes.imshow(data.T, interpolation=interpolation, origin="lower",
+				norm=None, cmap=cm, vmin=vmin, vmax=vmax)
 
 			if (cbax != None):
 				self.cb = self.fig.colorbar(p, cax=cbax)
@@ -1373,6 +1398,13 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 
 	def __init__(self, parent = None):
 		QtWidgets.QTextEdit.__init__(self, parent)
+
+		doc = QtGui.QTextDocument()
+		option = QtGui.QTextOption()
+		option.setFlags(QtGui.QTextOption.ShowLineAndParagraphSeparators | QtGui.QTextOption.ShowTabsAndSpaces)
+		#doc.setDefaultTextOption(option)
+		self.setDocument(doc)
+
 		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
 		#font = QtGui.QFont()
 		#font.setFamily("Monospace")
@@ -1393,8 +1425,36 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 		if e.key() == QtCore.Qt.Key_Tab:
 			if self.increaseSelectionIndent():
 				return
+		if e.key() in [QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter]:
+			if self.insertNewLine():
+				return
 
 		QtWidgets.QTextEdit.keyPressEvent(self, e)
+
+	def insertNewLine(self):
+
+		curs = self.textCursor()
+
+		if curs.hasSelection() or not curs.atBlockEnd():
+			return False
+
+		line = curs.block().text().rstrip()
+		indent = line[0:(len(line) - len(line.lstrip()))]
+
+		if len(line) > 2:
+			if line[-1] == ">":
+				for i in range(2, len(line)):
+					if line[-i] == "<":
+						indent += "\t"
+						break
+					if line[-i] == "/":
+						break
+			if line[-1] == ":":
+				indent += "\t"
+
+		curs.insertText("\n" + indent)
+		self.setTextCursor(curs)
+		return True
 
 	def increaseSelectionIndent(self):
 

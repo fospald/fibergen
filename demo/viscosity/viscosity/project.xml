@@ -4,47 +4,6 @@
 	<description>This demo shows the flow around a periodic suspension of spheres.</description>
 	<image>thumbnail.png</image>
 
-	<!-- Fiber length -->
-	<length>0.3</length>
-
-	<!-- Fiber radius -->
-	<radius>0.025</radius>
-
-	<!-- Number of fibers -->
-	<n>1000</n>
-
-	<!-- Maximum number of tries to generate n non intersecing fibers -->
-	<m>1000000</m>
-
-	<!-- Minimum fiber distance -->
-	<dmin>0.01</dmin>
-
-	<!-- Maximum cluster size (number of fibers, affects performance only) -->
-	<mcs>8</mcs>
-
-	<!-- Space dimensions (2 or 3) -->
-	<dim>3</dim>
-
-	<!-- Computational precision (double or float) -->
-	<datatype>double</datatype>
-	<datatype>float</datatype>
-
-	<!-- Result file precision (double or float) -->
-	<restype>float</restype>
-
-	<!-- Result file format (ascii or binary) -->
-	<resformat>binary</resformat>
-
-	<!-- Random seed -->
-	<seed>0</seed>
-
-	<!-- Create periodic structure -->
-	<!-- If fast=1, distance maps may be not correctly in the far field -->
-	<periodic fast="0">0</periodic>
-
-	<!-- Allow intersecting structure -->
-	<intersecting>0</intersecting>
-
 	<!-- Number of threads used -->
 	<num_threads>8</num_threads>
 
@@ -53,11 +12,6 @@
 		<!-- Solver tolerance -->
 		<tol>1e-4</tol>
 		
-		<!-- smooth phase/interface transitions by n voxels -->
-		<smooth>0</smooth>
-		<smooth_balance>0.5</smooth_balance>
-		<smooth_levels>0</smooth_levels>
-
 		<!-- maximum iterations -->
 		<maxiter>1000</maxiter>
 
@@ -66,51 +20,17 @@
 			<matrix mu="1" />
 			<fiber  mu="0.001" />
 		</materials>
-			<xref mu="1" lambda="0" />
-
-		<freq_hack>0</freq_hack>
-		<debug>0</debug>
 
 		<method>cg</method>
 		<gamma_scheme>full_staggered</gamma_scheme>
-
-		<multigrid>
-			<residual_checking>1</residual_checking>
-			<tol>1e-9</tol>
-			<maxiter>100</maxiter>
-		</multigrid>
-
 		<mode>viscosity</mode>
-<!--
-		<gamma_scheme>staggered</gamma_scheme>
-		<G0_solver>multigrid</G0_solver>
-		<multigrid_levels>0</multigrid_levels>
-		<method>basic</method>
-		<convergence_check>quick</convergence_check>
--->
+
 	</solver>
 
 	<actions>
-
 		<select_material name="fiber" />
 		<place_fiber R="0.2" />
-
-		<run_load_case e11="1" e22="-1" outfile="" />
-<!--
-c = 0.24 alpha = 1.5228, beta = 0.61306
-
-		<place_fiber cx="-100000" cy="0.5" cz="0.5" ax="0" ay="1" az="0" R="100000.5" L="100000.0" />
-		<place_fiber cx="0.5" cy="0.5" cz="0.5" ax="0" ay="0" az="1" R="0.25" L="2.0" />
-		<calc_effective_properties outdir="" mask="0" />
-
-		<write_png
-			filename="distancemap.png" fast="0"
-			w="1000" h="1000" scale="1" exponent="1" 
-			a0x="0" a0y="0" a0z="0" 
-			a1x="1" a1y="0" a1z="0"
-			a2x="0" a2y="1" a2z="0" />
--->
-
+		<run_load_case e11="1" e22="-1" />
 	</actions>
 
 </settings>

@@ -18,28 +18,31 @@
 	</solver>
 	<actions>
 		<python>
-alpha_beta_theory = {
-		0.01: (0.025941, 0.024813),
-		0.02: (0.053804, 0.049320),
-		0.04: (0.11567,  0.097696),
-		0.08: (0.26755,  0.19337),
-		0.12: (0.46580,  0.28995),
-		0.16: (0.72502,  0.39009),
-		0.20: (1.0666,   0.49665),
-		0.24: (1.5228,   0.61306),
-		0.28: (2.1459,   0.74379),
-}
-V = 0.28
-fg.set("solver..n", 32)
-fg.set("magic.place_fiber..V", V)
-fg.run("magic")
-mu_eff = fg.get_effective_property()
-alpha = 0.5*(mu_eff[0][0] - mu_eff[0][1]) - 1
-beta = mu_eff[3][3] - 1
-print("alpha:", alpha)
-print("alpha theory:", alpha_beta_theory[V][0])
-print("beta:", beta)
-print("beta theory:", alpha_beta_theory[V][1])
+			alpha_beta_theory = {
+					0.01: (0.025941, 0.024813),
+					0.02: (0.053804, 0.049320),
+					0.04: (0.11567,  0.097696),
+					0.08: (0.26755,  0.19337),
+					0.12: (0.46580,  0.28995),
+					0.16: (0.72502,  0.39009),
+					0.20: (1.0666,   0.49665),
+					0.24: (1.5228,   0.61306),
+					0.28: (2.1459,   0.74379),
+			}
+			V = 0.28
+			
+			fg.set("solver..n", 32)
+			fg.set("magic.place_fiber..V", V)
+			fg.run("magic")
+			
+			mu_eff = fg.get_effective_property()
+			alpha = 0.5*(mu_eff[0][0] - mu_eff[0][1]) - 1
+			beta = mu_eff[3][3] - 1
+			
+			print("alpha:", alpha)
+			print("alpha theory:", alpha_beta_theory[V][0])
+			print("beta:", beta)
+			print("beta theory:", alpha_beta_theory[V][1])
 		</python>
 	</actions>
 	<!-- note: the name "magic" for the element is arbitrary an does not have any special meaning, it is just used to specify a list of actions -->

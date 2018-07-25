@@ -564,6 +564,43 @@ cross_prod(const V1& lhs, const V2& rhs)
 }
 
 
+std::string dedent(const std::string& s)
+{
+	std::vector<std::string> lines;
+	std::string indent;
+	bool have_indent = false;
+
+	boost::split(lines, s, boost::is_any_of("\n"));
+
+	for (std::size_t i = 0; i < lines.size(); i++)
+	{
+		boost::algorithm::trim_right_if(lines[i], boost::is_any_of(" \t\v\f\r"));
+
+		if (lines[i].size() == 0) continue;
+
+		if (!have_indent)
+		{
+			std::string trimmed_line = boost::algorithm::trim_left_copy_if(lines[i], boost::is_any_of(" \t\v\f\r"));
+			indent = lines[i].substr(0, lines[i].size() - trimmed_line.size());
+			have_indent = true;
+			continue;
+		}
+		
+		for (std::size_t j = 0; j < std::max(lines[i].size(), indent.size()); j++) {
+			if (lines[i][j] != indent[j]) {
+				indent = indent.substr(0, j);
+				break;
+			}
+		}
+	}
+
+	for (std::size_t i = 0; i < lines.size(); i++) {
+		if (lines[i].size() == 0) continue;
+		lines[i] = lines[i].substr(indent.size());
+	}
+
+	return boost::join(lines, "\n");
+}
 
 
 // Class for evaluating python code
@@ -595,8 +632,7 @@ public:
 	py::object exec(const std::string& code)
 	{
 		if (enabled) {
-			std::string c = code;
-			boost::trim(c);
+			std::string c = dedent(code);
 			return py::exec(c.c_str(), main_namespace, locals);
 		}
 

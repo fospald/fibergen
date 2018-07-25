@@ -20,12 +20,12 @@
 			nu_a: Poisson ratio in transverse direction a
 			ax, ay, az: transverse direction a (if not set will be determined from local fiber orientation)
 			The isotropic limit for the example is:
-			<fiber law="tiso" E="910" nu="0.3" E_a="910" G_a="350" nu_a="0.3"  />
+			<fiber law="tiso" E="910" nu="0.3" E_a="910" G_a="350" nu_a="0.3" />
 		-->
 
 		<materials>
 			<matrix law="iso" E="910" nu="0.3" />
-			<fiber law="iso" E="3860" nu="0.2" E_a="5390" G_a="390" nu_a="0.031"  />
+			<fiber law="iso" E="3860" nu="0.2" E_a="5390" G_a="390" nu_a="0.031" />
 		</materials>
 
 		<mode>elasticity</mode>
@@ -40,7 +40,7 @@
 		<set_fiber_distribution>
 			<acg axx="1" ayy="0.5" azz="0.5" />
 		</set_fiber_distribution>
-		<run_load_case e11="1" e22="1" e33="1"  />
+		<run_load_case e11="1" e22="1" e33="1" />
 	</actions>
 
 	<view>
