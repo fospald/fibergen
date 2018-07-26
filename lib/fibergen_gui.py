@@ -28,6 +28,7 @@ except:
 	QtWebKitWidgets.QWebView = QtWebKitWidgets.QWebEngineView
 	QtWebKitWidgets.QWebPage = QtWebKitWidgets.QWebEnginePage
 
+import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 try:
 	from matplotlib.backends.backend_qt5agg import NavigationToolbar2QTAgg as NavigationToolbar
@@ -2892,6 +2893,8 @@ class App(QtWidgets.QApplication):
 	def __init__(self, args):
 
 		QtWidgets.QApplication.__init__(self, list(args) + ["--disable-web-security"])
+
+		print("matplotlib:", matplotlib.__version__, "numpy:", np.__version__)
 
 		#self.setStyle('windows')
 
