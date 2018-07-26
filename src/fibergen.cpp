@@ -2229,6 +2229,7 @@ class DiracDistribution : public DiscreteDistribution<T, DIM>
 {
 public:
 	DiracDistribution() { }
+	DiracDistribution(const ublas::c_vector<T, DIM>& x) : _x(x) { }
 	
 	void drawSample(ublas::c_vector<T, DIM>& x, std::size_t index)
 	{
@@ -2240,57 +2241,36 @@ public:
 		DiscreteDistribution<T, DIM>::readSettings(pt);
 
 		const ptree::ptree& attr = pt.get_child("<xmlattr>", empty_ptree);
+		const char* names[3] = {"x", "y", "z"};
 
-		_x(0) = pt_get<T>(attr, "x", (T)0);
-		_x(1) = pt_get<T>(attr, "y", (T)0);
-		_x(2) = pt_get<T>(attr, "z", (T)0);
-		_x /= ublas::norm_2(_x);
+		for (std::size_t i = 0; i < DIM; i++) {
+			_x(i) = pt_get<T>(attr, names[i], (T)0);
+		}
 	}
-	
+
 protected:
 	ublas::c_vector<T, DIM> _x;
 };
 
 
-// Dirac Distribution specialized for DIM = 2
-template<typename T>
-class DiracDistribution<T, 2> : public DiscreteDistribution<T, 2>
+// Normal Distribution
+template<typename T, int DIM>
+class NormalDistribution : public DiscreteDistribution<T, DIM>
 {
-public:
-	DiracDistribution() { }
-	
-	void drawSample(ublas::c_vector<T, 2>& x, std::size_t index)
-	{
-		x = _x;
-	}
-	
-	void readSettings(const ptree::ptree& pt)
-	{
-		DiscreteDistribution<T, 2>::readSettings(pt);
-
-		const ptree::ptree& attr = pt.get_child("<xmlattr>", empty_ptree);
-
-		_x(0) = pt_get<T>(attr, "x", (T)0);
-		_x(1) = pt_get<T>(attr, "y", (T)0);
-		_x /= ublas::norm_2(_x);
-	}
-	
-protected:
-	ublas::c_vector<T, 2> _x;
 };
 
 
 // Normal Distribution (on sphere)
-template<typename T, int DIM>
-class NormalDistribution : public DiscreteDistribution<T, DIM>
+template<typename T>
+class NormalDistribution<T, 3> : public DiscreteDistribution<T, 3>
 {
 public:
 	NormalDistribution() : _sigma(1) { }
 	
-	void drawSample(ublas::c_vector<T, DIM>& x, std::size_t index)
+	void drawSample(ublas::c_vector<T, 3>& x, std::size_t index)
 	{
 		T theta = ((T)2*M_PI)*RandomUniform01<T>::instance().rnd();
-		ublas::c_vector<T, DIM> v = _u*cos(theta) + _w*sin(theta);
+		ublas::c_vector<T, 3> v = _u*cos(theta) + _w*sin(theta);
 		T rnd = RandomUniform01<T>::instance().rnd();
 		T phi = atan(boost::math::erfc_inv(2*rnd)*_sigma*sqrt(2));
 		x = _x*cos(phi) + v*sin(phi);
@@ -2298,7 +2278,7 @@ public:
 	
 	void readSettings(const ptree::ptree& pt)
 	{
-		DiscreteDistribution<T, DIM>::readSettings(pt);
+		DiscreteDistribution<T, 3>::readSettings(pt);
 
 		const ptree::ptree& attr = pt.get_child("<xmlattr>", empty_ptree);
 
@@ -2312,9 +2292,9 @@ public:
 	
 protected:
 	T _sigma;
-	ublas::c_vector<T, DIM> _x;
-	ublas::c_vector<T, DIM> _u;
-	ublas::c_vector<T, DIM> _w;
+	ublas::c_vector<T, 3> _x;
+	ublas::c_vector<T, 3> _u;
+	ublas::c_vector<T, 3> _w;
 	
 	void calcOrtho()
 	{
@@ -2355,7 +2335,6 @@ public:
 		_sigma = pt_get<T>(attr, "sigma", (T)1);
 		_x(0) = pt_get<T>(attr, "x", (T)0);
 		_x(1) = pt_get<T>(attr, "y", (T)0);
-		_x /= ublas::norm_2(_x);
 	}
 	
 protected:
@@ -2364,14 +2343,49 @@ protected:
 };
 
 
-// Uniform Distribution (on sphere)
+// Normal Distribution specialized for DIM = 1
+template<typename T>
+class NormalDistribution<T, 1> : public DiscreteDistribution<T, 1>
+{
+public:
+	NormalDistribution() : _mu(0), _sigma(1) { }
+	
+	void drawSample(ublas::c_vector<T, 1>& x, std::size_t index)
+	{
+		T rnd = RandomNormal01<T>::instance().rnd();
+		x(0) = _sigma*rnd + _mu;
+	}
+	
+	void readSettings(const ptree::ptree& pt)
+	{
+		DiscreteDistribution<T, 1>::readSettings(pt);
+
+		const ptree::ptree& attr = pt.get_child("<xmlattr>", empty_ptree);
+
+		_sigma = pt_get<T>(attr, "sigma", (T)1);
+		_mu = pt_get<T>(attr, "mu", (T)1);
+	}
+	
+protected:
+	T _mu, _sigma;
+};
+
+
+// Uniform Distribution
 template<typename T, int DIM>
 class UniformDistribution : public DiscreteDistribution<T, DIM>
+{
+};
+
+
+// Uniform Distribution (on sphere)
+template<typename T>
+class UniformDistribution<T, 3> : public DiscreteDistribution<T, 3>
 {
 public:
 	UniformDistribution() { }
 	
-	void drawSample(ublas::c_vector<T, DIM>& x, std::size_t index)
+	void drawSample(ublas::c_vector<T, 3>& x, std::size_t index)
 	{
 		T theta = ((T)2*M_PI)*RandomUniform01<T>::instance().rnd();
 		T u = RandomUniform01<T>::instance().rnd();
@@ -2398,18 +2412,65 @@ public:
 };
 
 
+// Uniform Distribution specialized for DIM = 1 (interval)
+template<typename T>
+class UniformDistribution<T, 1> : public DiscreteDistribution<T, 1>
+{
+public:
+	UniformDistribution()  { }
+	
+	void drawSample(ublas::c_vector<T, 1>& x, std::size_t index)
+	{
+		x(0) = _a + (_b - _a)*RandomUniform01<T>::instance().rnd();
+	}
+
+	void readSettings(const ptree::ptree& pt)
+	{
+		DiscreteDistribution<T, 1>::readSettings(pt);
+
+		const ptree::ptree& attr = pt.get_child("<xmlattr>", empty_ptree);
+
+		_a = pt_get<T>(attr, "a", (T)0);
+		_b = pt_get<T>(attr, "b", (T)1);
+	}
+	
+protected:
+	T _a, _b;
+};
+
+
+
 // Angular Central Gaussian Distribution
 template<typename T, int DIM>
 class AngularCentralGaussianDistribution : public DiscreteDistribution<T, DIM>
 {
 public:
-	AngularCentralGaussianDistribution()  { }
-	
+	AngularCentralGaussianDistribution() {
+		if (DIM != 3) {
+			BOOST_THROW_EXCEPTION(std::runtime_error("ACG only implemented for DIM=3"));
+		}
+	}
+
 	void drawSample(ublas::c_vector<T, DIM>& x, std::size_t index)
+	{
+		BOOST_THROW_EXCEPTION(std::runtime_error("not implemented"));
+	}
+};
+
+
+// Angular Central Gaussian Distribution
+template<typename T>
+class AngularCentralGaussianDistribution<T, 3> : public DiscreteDistribution<T, 3>
+{
+public:
+	AngularCentralGaussianDistribution() {
+	}
+	
+	void drawSample(ublas::c_vector<T, 3>& x, std::size_t index)
 	{
 		// draw standard normal distributed values
 		// and scale values by singular values
-		for (int i = 0; i < DIM; i++) {
+		for (int i = 0; i < 3; i++) {
 			x(i) = _bi(i)*RandomNormal01<T>::instance().rnd();
 		}
 
@@ -2427,25 +2488,22 @@ public:
 	
 	void readSettings(const ptree::ptree& pt)
 	{
-		DiscreteDistribution<T, DIM>::readSettings(pt);
+		DiscreteDistribution<T, 3>::readSettings(pt);
 
 		const ptree::ptree& attr = pt.get_child("<xmlattr>", empty_ptree);
 
 		// read covariance matrix
-		_A(0,0) = pt_get<T>(attr, "axx", (T)1);
-		_A(1,1) = pt_get<T>(attr, "ayy", (T)1);
+		_A(0,0) = pt_get<T>(attr, "axx", (T)1/(T)3);
+		_A(1,1) = pt_get<T>(attr, "ayy", (T)1/(T)3);
+		_A(2,2) = pt_get<T>(attr, "azz", (T)1/(T)3);
 		_A(1,0) = _A(0,1) = pt_get<T>(attr, "axy", (T)0);
-
-		if (DIM > 2) {
-			_A(2,2) = pt_get<T>(attr, "azz", (T)1);
-			_A(2,0) = _A(0,2) = pt_get<T>(attr, "axz", (T)0);
-			_A(2,1) = _A(1,2) = pt_get<T>(attr, "ayz", (T)0);
-		}
+		_A(2,0) = _A(0,2) = pt_get<T>(attr, "axz", (T)0);
+		_A(2,1) = _A(1,2) = pt_get<T>(attr, "ayz", (T)0);
 
 		// check Cauchy-Schwartz bounds
 		const T eps = 10*std::numeric_limits<T>::epsilon();
-		for (int i = 0; i < DIM; i++) {
-			for (int j = 0; j < DIM; j++) {
+		for (int i = 0; i < 3; i++) {
+			for (int j = 0; j < 3; j++) {
 				T Aij2_bound = _A(i,i)*_A(j,j);
 				T Aij2 = _A(i,j)*_A(i,j);
 				if ((Aij2 - Aij2_bound) > eps) {
@@ -2456,7 +2514,7 @@ public:
 
 		// normalize A
 		T trace = 0;
-		for (int i = 0; i < DIM; i++) {
+		for (int i = 0; i < 3; i++) {
 			trace += _A(i,i);
 		}
 		_A /= trace;
@@ -2467,15 +2525,15 @@ public:
 	
 protected:
 	// second order FO moment
-	ublas::c_matrix<T, DIM, DIM> _A;
+	ublas::c_matrix<T, 3, 3> _A;
 	// matrix of singular vectors
-	ublas::c_matrix<T, DIM, DIM> _U;
+	ublas::c_matrix<T, 3, 3> _U;
 	// singular values of A
-	ublas::c_vector<T, DIM> _a;
+	ublas::c_vector<T, 3> _a;
 	// singular values of B
-	ublas::c_vector<T, DIM> _b;
+	ublas::c_vector<T, 3> _b;
 	// square root of singular values of B^{-1}
-	ublas::c_vector<T, DIM> _bi;
+	ublas::c_vector<T, 3> _bi;
 
 	// compute distribution covariance matrix B from A
 	void compute_B_from_A()
@@ -2483,9 +2541,9 @@ protected:
 		Timer __t("angular central gaussian initialization");
 
 		// compute SVD of A
-		ublas::c_matrix<T, DIM, DIM> VT;
+		ublas::c_matrix<T, 3, 3> VT;
 		{
-			ublas::c_matrix<T, DIM, DIM> A = _A;
+			ublas::c_matrix<T, 3, 3> A = _A;
 //			lapack::gesvd(A, _a, _U, VT);
 			lapack::gesvd(A, _a, VT, _U);
 			
@@ -2501,16 +2559,16 @@ protected:
 		// compute b from a
 		T tol = std::pow(std::numeric_limits<T>::epsilon(), 2/(T)3);
 		_b[0] = _b[1] = _b[2] = (T)1;
-		std::size_t iter = ::compute_B_from_A<T, DIM>(_a, _b, tol);
+		std::size_t iter = ::compute_B_from_A<T, 3>(_a, _b, tol);
 		LOG_COUT << GREEN_TEXT << "Carlson RD elliptic integral inversion finished in " << iter << " iterations (tol = " << tol << ")" << std::endl;
 
 		// compute square root of singular values
-		for (int i = 0; i < DIM; i++) {
+		for (int i = 0; i < 3; i++) {
 			_bi(i) = 1/sqrt(_b(i));
 		}
 	
 		// print covariance 	
-		ublas::c_matrix<T, DIM, DIM> Binv = ublas::zero_matrix<T>(DIM);
+		ublas::c_matrix<T, 3, 3> Binv = ublas::zero_matrix<T>(3);
 		Binv(0,0) = 1/_b(0);
 		Binv(1,1) = 1/_b(1);
 		Binv(2,2) = 1/_b(2);
@@ -2554,14 +2612,10 @@ public:
 			if (v.first == "vec") {
 				ublas::c_vector<T, DIM> x;
 				const ptree::ptree& attr = v.second.get_child("<xmlattr>", empty_ptree);
-				x[0] = pt_get<T>(attr, "x", (T)0);
-				x[1] = pt_get<T>(attr, "y", (T)0);
-				x[2] = pt_get<T>(attr, "z", (T)0);
-				T norm_x = ublas::norm_2(x);
-				if (norm_x == 0) {
-					BOOST_THROW_EXCEPTION(std::runtime_error("ListDistribution: vector of length zero!"));
+				const char* names[3] = {"x", "y", "z"};
+				for (std::size_t i = 0; i < DIM; i++) {
+					x(i) = pt_get<T>(attr, names[i], (T)0);
 				}
-				x /= norm_x;
 				_list.push_back(x);
 			}
 			else {
@@ -5687,7 +5741,9 @@ protected:
 	boost::shared_ptr< FiberCluster<T, DIM> > _cluster;
 	
 	// fiber distribution
-	boost::shared_ptr< DiscreteDistribution<T, DIM> > _fiber_distribution;
+	boost::shared_ptr< DiscreteDistribution<T, DIM> > _orientation_distribution;
+	boost::shared_ptr< DiscreteDistribution<T, 1> > _length_distribution;
+	boost::shared_ptr< DiscreteDistribution<T, 1> > _radius_distribution;
 
 	// FO moments of the generated distribution	
 	ublas::c_matrix<T, DIM, DIM> _A2;
@@ -5794,9 +5850,19 @@ public:
 	// inline T dmin() const { return _intersecting ? -std::numeric_limits<T>::infinity() : _dmin; }
 	inline T dmin() const { return _dmin; }
 
-	void setFiberDistribution(const boost::shared_ptr< DiscreteDistribution<T, DIM> >& dist)
+	void setLengthDistribution(const boost::shared_ptr< DiscreteDistribution<T, 1> >& dist)
 	{
-		_fiber_distribution = dist;
+		_length_distribution = dist;
+	}
+
+	void setRadiusDistribution(const boost::shared_ptr< DiscreteDistribution<T, 1> >& dist)
+	{
+		_radius_distribution = dist;
+	}
+
+	void setOrientationDistribution(const boost::shared_ptr< DiscreteDistribution<T, DIM> >& dist)
+	{
+		_orientation_distribution = dist;
 	}
 
 	void selectMaterial(std::size_t id)
@@ -5840,11 +5906,19 @@ public:
 	}
 
 	// run the fiber generator
-	void run()
+	void run(T V = 0, std::size_t N = 0, std::size_t M = 0, T dmin = -STD_INFINITY(T), int intersecting = -1, int intersecting_material_id = -1)
 	{
 		Timer __t("generating fiber distribution");
 
-		FiberCluster<T, DIM>* cluster = NULL;
+		#if 0
+		// clear existing cluster
+		_cluster.reset();
+		// init FO moments
+		initMoments();
+		#endif
+
+		FiberCluster<T, DIM>* cluster = _cluster.get();
+		bool cluster_created = false;
 		ublas::c_vector<T, DIM> x_i;
 		ublas::c_vector<T, DIM> xf_i;
 		boost::shared_ptr< const Fiber<T, DIM> > fiber;
@@ -5854,9 +5928,6 @@ public:
 		// init random number generator seeds
 		RandomUniform01<T>::instance().seed(_seed);
 		RandomNormal01<T>::instance().seed(_seed);
-
-		// clear existing cluster
-		_cluster.reset();
 
 		// stuff for periodic fiber generation
 		
@@ -5893,9 +5964,6 @@ public:
 		std::vector< boost::shared_ptr< Fiber<T, DIM> > > clones;
 		boost::shared_ptr< Fiber<T, DIM> > clone;
 
-		// init FO moments
-		initMoments();
-
 		// create non intersecting fiber distribution
 		std::size_t i = 0;
 		std::size_t n = 0;
@@ -5904,18 +5972,24 @@ public:
 		T V_RVE = _dim(0)*_dim(1)*((DIM > 2) ? _dim(2) : 1);
 		T v = 0;
 
+		if (V <= 0) V = _V;
+		if (N <= 0) N = _N;
+		if (M <= 0) M = _M;
+		if (dmin <= STD_INFINITY(T)) dmin = _dmin;
+		if (intersecting < 0) intersecting = _intersecting;
+
 		// TODO: parallelize fiber generation
 		for (;;)
 		{
 			// calculate and report progress
 			progress = 0;
-			if (!_intersecting) progress = std::max(progress, i/(T)_M);
-			progress = std::max(progress, n/(T)_N);
-			progress = std::max(progress, v/(T)_V);
+			if (!intersecting) progress = std::max(progress, i/(T)M);
+			progress = std::max(progress, n/(T)N);
+			progress = std::max(progress, v/(T)V);
 			progress = std::min(progress, (T)1);
 			progress *= 100;
 
-			//LOG_COUT << "n/(T)_N: " << (n/(T)_N) << " v/(T)_V): " << (v/(T)_V) << " i/(T)_M: " << (i/(T)_M) << std::endl;
+			//LOG_COUT << "n/(T)N: " << (n/(T)N) << " v/(T)V): " << (v/(T)V) << " i/(T)M: " << (i/(T)M) << std::endl;
 
 			if (pb.update(progress)) {
 				pb.message() << "iterations = " << i << ", fibers = " << n << ", volume fraction = " << v << pb.end();
@@ -5928,17 +6002,18 @@ public:
 
 			// create next random fiber
 			fiber = randomFiber(n);
-			fiber->set_id(n+1);
+			fiber->set_id(_stats_n + n + 1);
 			fiber->set_material(_material);
 			fiber->set_parent(const_cast< Fiber<T,DIM>* >(fiber.get()));
 			i++;
 
-			if (n == 0) {
+			if (cluster == NULL || (n == 0 && cluster_created)) {
 				// init fiber cluster
-				_cluster.reset(new FiberCluster<T, DIM>(fiber, _mcs));
-				cluster = _cluster.get();
+				cluster = new FiberCluster<T, DIM>(fiber, _mcs);
+				_cluster.reset(cluster);
+				cluster_created = true;
 			}
-			else if (!_intersecting && cluster->intersects(*fiber, _dmin, -1, fiber_i, x_i, xf_i, d_i)) {
+			else if (!intersecting && cluster->intersects(*fiber, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i)) {
 				// fiber intersects existing fiber
 				continue;
 			}
@@ -5964,11 +6039,11 @@ public:
 								if (q == 0 && p == 0 && k == 0) continue;
 								clone = fiber->clone();
 								clone->translate(tr);
-								if (!_intersecting) {
-									valid = valid && !cluster->intersects(*clone, _dmin, -1, fiber_i, x_i, xf_i, d_i);
+								if (!intersecting) {
+									valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
 									if (!valid) break;
 									for (std::size_t h = 0; h < clones.size(); h++) {
-										valid = valid && (clones[h]->distanceTo(*clone, x_i, xf_i) >= _dmin);
+										valid = valid && (clones[h]->distanceTo(*clone, x_i, xf_i) >= dmin);
 										if (!valid) break;
 									}
 								}
@@ -5997,8 +6072,8 @@ public:
 							// intersects box
 							clone = fiber->clone();
 							clone->translate(*check_t[k]);
-							if (!_intersecting) {
-								valid = valid && !cluster->intersects(*clone, _dmin, -1, fiber_i, x_i, xf_i, d_i);
+							if (!intersecting) {
+								valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
 								if (!valid) break;
 							}
 							inersects[nintersects] = k;
@@ -6013,8 +6088,8 @@ public:
 						// add clone fiber accross the diagonal of the intersection
 						clone = fiber->clone();
 						clone->translate(*check_t[inersects[0]] + *check_t[inersects[1]]);
-						if (!_intersecting) {
-							valid = valid && !cluster->intersects(*clone, _dmin, -1, fiber_i, x_i, xf_i, d_i);
+						if (!intersecting) {
+							valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
@@ -6024,22 +6099,22 @@ public:
 						// add clone fibers accross all possible diagonals
 						clone = fiber->clone();
 						clone->translate(*check_t[inersects[0]] + *check_t[inersects[2]]);
-						if (!_intersecting) {
-							valid = valid && !cluster->intersects(*clone, _dmin, -1, fiber_i, x_i, xf_i, d_i);
+						if (!intersecting) {
+							valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
 						clone = fiber->clone();
 						clone->translate(*check_t[inersects[1]] + *check_t[inersects[2]]);
-						if (!_intersecting) {
-							valid = valid && !cluster->intersects(*clone, _dmin, -1, fiber_i, x_i, xf_i, d_i);
+						if (!intersecting) {
+							valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
 						clone = fiber->clone();
 						clone->translate(*check_t[inersects[0]] + *check_t[inersects[1]] + *check_t[inersects[2]]);
-						if (!_intersecting) {
-							valid = valid && !cluster->intersects(*clone, _dmin, -1, fiber_i, x_i, xf_i, d_i);
+						if (!intersecting) {
+							valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
@@ -6057,7 +6132,7 @@ public:
 			}
 
 			// add fiber to cluster
-			if (n > 0) cluster->add(fiber);
+			if (n > 0 || !cluster_created) cluster->add(fiber);
 			n++;
 
 			// update fiber volume
@@ -6071,9 +6146,9 @@ public:
 		// LOG_COUT << "Fiber volume fraction = " << v << std::endl;
 
 		_stats_v.resize(std::max(_stats_v.size(), _material+1));
-		_stats_v[_material] = v;
-		_stats_n = n;
-		_stats_i = i;
+		_stats_v[_material] += v;
+		_stats_n += n;
+		_stats_i += i;
 	}
 
 	double getVolumeFraction(std::size_t material_id) { return _stats_v[material_id]; }
@@ -6086,11 +6161,23 @@ public:
 		ublas::c_vector<T, DIM> x;
 		ublas::c_vector<T, DIM> a;
 		boost::shared_ptr< const Fiber<T, DIM> > fiber;
+		ublas::c_vector<T, 1> vec1;
 
-		if (!_fiber_distribution) {
-			BOOST_THROW_EXCEPTION(std::runtime_error("FiberGenerator: no fiber distribution set"));
+		if (!_orientation_distribution) {
+			//BOOST_THROW_EXCEPTION(std::runtime_error("FiberGenerator: no fiber distribution set"));
+			_orientation_distribution.reset(new UniformDistribution<T, DIM>());
 		}
-	
+
+		if (!_length_distribution) {
+			vec1[0] = _L;
+			_length_distribution.reset(new DiracDistribution<T, 1>(vec1));
+		}
+
+		if (!_radius_distribution) {
+			vec1[0] = _R;
+			_radius_distribution.reset(new DiracDistribution<T, 1>(vec1));
+		}
+
 		ublas::c_vector<T, DIM> npx, nnx;
 		ublas::c_vector<T, DIM> npy, nny;
 		ublas::c_vector<T, DIM> npz, nnz;
@@ -6117,14 +6204,26 @@ public:
 		for (;;)
 		{
 			// draw orientation vector a from distribution
-			_fiber_distribution->drawSample(a, index);
+			_orientation_distribution->drawSample(a, index);
+
+			T norm_a = ublas::norm_2(a);
+			if (norm_a == 0) {
+				BOOST_THROW_EXCEPTION(std::runtime_error("randomFiber: orientation vector of length zero!"));
+			}
+			a /= norm_a;
+
+			// draw length and radius
+			_length_distribution->drawSample(vec1, index);
+			T L = vec1[0];
+			_radius_distribution->drawSample(vec1, index);
+			T R = vec1[0];
 
 			for (int i = 0; i < DIM; i++) {
 				if (planar[i]) {
 					x[i] = _x0(i) + 0.5*_dim(i);
 				}
 				else {
-					T m = ((0.5*_L + _R)*std::abs(a[i]) + std::sqrt(1 - a[i]*a[i])*_R)*1.001;
+					T m = ((0.5*L + R)*std::abs(a[i]) + std::sqrt(1 - a[i]*a[i])*R)*1.001;
 					x[i] = _x0(i) - m + (_dim(i) + 2*m)*RandomUniform01<T>::instance().rnd();
 				}
 			}
@@ -6133,7 +6232,7 @@ public:
 			// move center to fiber boundary to create a more realistic distribution near the walls
 			// TODO: what about the radial direction? However this makes 2d stuff more difficult
 			T t = 2*RandomUniform01<T>::instance().rnd() - 1;
-			x += a*(0.5*t*(_L + 2*_R));
+			x += a*(0.5*t*(L + 2*R));
 
 			// NOTE: this was a bad idea, because it changes the distribution near the walls
 			// flip sign of a such that angle with other vectors is always <= pi/2
@@ -6151,11 +6250,14 @@ public:
 #endif
 
 			if (_type == "capsule") {
-				fiber.reset(new CapsuleFiber<T, DIM>(x, a, _L, _R));
+				fiber.reset(new CapsuleFiber<T, DIM>(x, a, L, R));
 			}
 			else if (_type == "cylinder") {
-				fiber.reset(new CylindricalFiber<T, DIM>(x, a, _L, _R));
+				fiber.reset(new CylindricalFiber<T, DIM>(x, a, L, R));
 			}
+			//else if (_type == "halfspace") {
+			//	fiber.reset(new HalfSpaceFiber<T, DIM>(x, a));
+			//}
 			else {
 				BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Unknown fiber type '%s'") % _type).str()));
 			}
@@ -13427,7 +13529,7 @@ protected:
 	std::size_t _loadstep_extrapolation_order;	// 0 = none, 1 = linear, ...
 	std::string _loadstep_extrapolation_method;	// polynomial, transformation
 	std::string _gamma_scheme;	// scheme for gamma "collocated" or "staggered" or "full_staggered", "half_staggered" or "willot"
-	std::string _mode;		// operation mode "elasticity", "hyperelasticity", "viscosity" or "heat"
+	std::string _mode;		// operation mode "elasticity", "hyperelasticity", "viscosity", "porous" or "heat"
 	bool _parallel_fft;		// perform fft in parallel for loop (the fft itself is also parallelized)
 	bool _freq_hack;		// 
 	bool _debug;			// debug mode
@@ -13712,7 +13814,7 @@ public:
 				setters; \
 				ret = mr; \
 			} \
-			else if (_mode == "heat") { \
+			else if (_mode == "heat" || _mode == "porous") { \
 				cls<T, P, 3>* mr = new cls<T, P, 3>(args); \
 				setters; \
 				ret = mr; \
@@ -13793,7 +13895,7 @@ public:
 		else if (_gamma_scheme == "Willot-R") _gamma_scheme = "willot";
 		else if (_gamma_scheme == "auto") {
 			_gamma_scheme = "staggered";
-			if (_mode == "heat") _gamma_scheme = "collocated";
+			if (_mode == "heat" || _mode == "porous") _gamma_scheme = "collocated";
 		}
 		_bc_relax = pt_get<T>(pt, "bc_relax", _bc_relax);
 		_freq_hack = pt_get(pt, "freq_hack", _freq_hack);
@@ -13847,7 +13949,7 @@ public:
 			BOOST_THROW_EXCEPTION(std::runtime_error("Selected mixing rule does not make any sense for viscosity mode! Use Voigt mixing rule!"));
 		}
 
-		if (_mode == "heat" && _material_mixing_rule == "laminate") {
+		if ((_mode == "heat" || _mode == "porous") && _material_mixing_rule == "laminate") {
 			BOOST_THROW_EXCEPTION(std::runtime_error("Selected mixing rule does not make any sense for heat mode! Use Reuss mixing rule!"));
 		}
 #endif
@@ -13929,12 +14031,12 @@ public:
 					p->law.reset(new LinearTransverselyIsotropicMaterialLaw<T, DIM>(get_orientation()));
 					p->law->readSettings(v.second);
 				}
-				else if (_mode == "heat" && p->law_name == "iso") {
+				else if ((_mode == "heat" || _mode == "porous") && p->law_name == "iso") {
 					ScalarLinearIsotropicMaterialLaw<T>* law = new ScalarLinearIsotropicMaterialLaw<T>(3);
 					law->readSettings(v.second);
 					p->law.reset(law);
 				}
-				else if (_mode == "heat" && p->law_name == "aniso") {
+				else if ((_mode == "heat" || _mode == "porous") && p->law_name == "aniso") {
 					MatrixLinearAnisotropicMaterialLaw<T>* law = new MatrixLinearAnisotropicMaterialLaw<T>();
 					law->readSettings(v.second);
 					p->law.reset(law);
@@ -14239,7 +14341,7 @@ public:
 				divOperatorStaggered(sigma, sigma);
 				G0OperatorStaggered(1/(4*_mu_0), STD_INFINITY(T), sigma, sigma_hat, sigma_hat, sigma, 1/(2*_mu_0));
 			}
-			else if (_mode == "heat")
+			else if (_mode == "heat" || _mode == "porous")
 			{
 				calcStressConst(_mu_0, _lambda_0, *_epsilon, sigma);
 				divOperatorStaggeredHeat(sigma, sigma);
@@ -19019,7 +19121,7 @@ public:
 				return;
 			}
 		}
-		else if (_mode == "heat") {
+		else if (_mode == "heat" || _mode == "porous") {
 			if (_gamma_scheme == "collocated") {
 				GammaOperatorCollocatedHeat(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
 				return;
@@ -19589,6 +19691,11 @@ public:
 			strain  = "temperture gradient";
 			stress = "heat flux";
 		}
+		else if (_mode == "porous")
+		{
+			strain  = "pressure gradient";
+			stress = "volumetric flux";
+		}
 
 		ublas::vector<T> Emean = _epsilon->average();
 		ublas::vector<T> Smean = calcMeanStress();
@@ -19750,6 +19857,11 @@ public:
 		{
 			LOG_COUT << "prescribed temperature gradient: " << _E << std::endl;
 			LOG_COUT << "prescribed heat flux: " << _S << std::endl;
+		}
+		else if (_mode == "porous")
+		{
+			LOG_COUT << "prescribed pressure gradient: " << _E << std::endl;
+			LOG_COUT << "prescribed volumetric flux: " << _S << std::endl;
 		}
 
 		// print some general information
@@ -20091,6 +20203,11 @@ public:
 			{
 				LOG_COUT << "prescribed temperature gradient : " << E << std::endl;
 				LOG_COUT << "prescribed heat flux: " << S << std::endl;
+			}
+			else if (_mode == "porous")
+			{
+				LOG_COUT << "prescribed pressure gradient: " << E << std::endl;
+				LOG_COUT << "prescribed volumetric flux: " << S << std::endl;
 			}
 
 			if (_loadstep_extrapolation_order > 0 && istep > first_loadstep)
@@ -21853,7 +21970,7 @@ public:
 			poisson_solve(f, p);
 			writeScalarVTK<R>(cw, p, "p");
 		}
-		else if (_mode == "heat")
+		else if (_mode == "heat" || _mode == "porous")
 		{
 			// write temperature gradient
 			writeTensorVTK<R>(cw, epsilon, 3, epsilon_names);
@@ -21866,7 +21983,7 @@ public:
 			calcStressConst(_mu_0, _lambda_0, epsilon, sigma);
 			divOperatorStaggeredHeat(sigma, sigma);
 			G0OperatorStaggeredHeat(_mu_0, _lambda_0, sigma, sigma_hat, sigma_hat, sigma, 1.0);
-			writeScalarVTK<R>(cw, sigma[0], "T");
+			writeScalarVTK<R>(cw, sigma[0], _mode == "heat" ? "T" : "p");
 		}
 	}
 
@@ -23772,6 +23889,25 @@ public:
 				if (orientations) lss->get_orientation();
 				init_phase();
 			}
+			else if (v.first == "generate_fibers")
+			{
+				std::string intersecting_material = pt_get<std::string>(attr, "intersecting_material", "");
+				int intersecting_material_id = -1;
+
+				if (intersecting_material != "") {
+					init_lss();
+					intersecting_material_id = lss->getMaterialId(intersecting_material);
+				}
+
+				T dmin = pt_get<T>(attr, "dmin", -STD_INFINITY(T));
+				int intersecting = pt_get<int>(attr, "intersecting", -1);
+				std::size_t m = pt_get<std::size_t>(attr, "m", 0);
+				std::size_t n = pt_get<std::size_t>(attr, "n", 0);
+				T v = pt_get<T>(attr, "v", 0);
+
+				gen->run(v, n, m, dmin, intersecting, intersecting_material_id);
+				fibers_valid = true;
+			}
 			else if (v.first == "init_fibers")
 			{
 				init_fibers();
@@ -23911,12 +24047,26 @@ public:
 				ublas::c_matrix<T, DIM, DIM> A2 = gen->getA2();
 				LOG_COUT << "A2:\n" << format(A2) << std::endl;
 			}
-			else if (v.first == "set_fiber_distribution")
+			else if (v.first == "set_radius_distribution")
+			{
+				boost::shared_ptr< DiscreteDistribution<T, 1> > dist(new CompositeDistribution<T, 1>());
+				dist->readSettings(v.second);
+				gen->setRadiusDistribution(dist);
+				//phase_valid = fibers_valid = false;
+			}
+			else if (v.first == "set_length_distribution")
+			{
+				boost::shared_ptr< DiscreteDistribution<T, 1> > dist(new CompositeDistribution<T, 1>());
+				dist->readSettings(v.second);
+				gen->setLengthDistribution(dist);
+				//phase_valid = fibers_valid = false;
+			}
+			else if (v.first == "set_fiber_distribution" || v.first == "set_orientation_distribution")
 			{
 				boost::shared_ptr< DiscreteDistribution<T, DIM> > dist(new CompositeDistribution<T, DIM>());
 				dist->readSettings(v.second);
-				gen->setFiberDistribution(dist);
-				phase_valid = fibers_valid = false;
+				gen->setOrientationDistribution(dist);
+				//phase_valid = fibers_valid = false;
 			}
 			else if (v.first == "tune_num_threads")
 			{
@@ -24128,7 +24278,7 @@ public:
 						lss->template writeVTK<R>(outfile, binary);
 					}
 				}
-				else if (lss->mode() == "heat")
+				else if (lss->mode() == "heat" || lss->mode() == "porous")
 				{
 					Ep.resize(3);
 					read_voigt_vector(attr, Ep, "e");
@@ -24241,7 +24391,7 @@ public:
 					LOG_COUT << "  lambda_eff = " << lambda_eff << std::endl;
 					LOG_COUT << "  relative error of fit = " << rel_err << std::endl;
 				}
-				else if (lss->mode() == "heat")
+				else if (lss->mode() == "heat" || lss->mode() == "porous")
 				{
 					ublas::c_matrix<T,3,3> E = ublas::identity_matrix<T>(3);	// matrix of experiments
 					ublas::c_matrix<T,3,3> S;	// matrix of responses
@@ -24287,7 +24437,11 @@ public:
 
 					Ceff_voigt = Ceff;
 
-					LOG_COUT << "Effective conductivity matrix:" << format(Ceff) << std::endl;
+					if (lss->mode() == "heat") {
+						LOG_COUT << "Effective conductivity matrix:" << format(Ceff) << std::endl;
+					} else {
+						LOG_COUT << "Effective permeability matrix:" << format(Ceff) << std::endl;
+					}
 				}
 				else if (lss->mode() == "hyperelasticity")
 				{
@@ -24675,13 +24829,13 @@ public:
 		else if (#T == type && #R == rtype && DIM == dim) fgi.reset(new FG<T, R, DIM>(xml_root))
 
 		if (false) {}
-		RUN_TYPE_AND_DIM(double, double, 2);
-		RUN_TYPE_AND_DIM(double, float, 2);
-		RUN_TYPE_AND_DIM(double, double, 3);
+		//RUN_TYPE_AND_DIM(double, double, 2);
+		//RUN_TYPE_AND_DIM(double, float, 2);
+		//RUN_TYPE_AND_DIM(double, double, 3);
 		RUN_TYPE_AND_DIM(double, float, 3);
 #ifdef FFTWF_ENABLED
-		RUN_TYPE_AND_DIM(float, float, 2);
-		RUN_TYPE_AND_DIM(float, float, 3);
+		//RUN_TYPE_AND_DIM(float, float, 2);
+		//RUN_TYPE_AND_DIM(float, float, 3);
 #endif
 		else {
 			BOOST_THROW_EXCEPTION(std::runtime_error("dimension/datatype not supported"));

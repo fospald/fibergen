@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import unicode_literals, division
+import builtins
 
 import fibergen
 import sys, os, re
@@ -16,6 +17,8 @@ import subprocess
 import xml.etree.ElementTree as ET
 import numpy as np
 import scipy.misc
+import keyword
+import textwrap
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 try:
@@ -194,7 +197,7 @@ class WriteVTKWidget(QtWidgets.QDialog):
 		self.close()
 
 		if self.runParaviewCheck.isChecked():
-			subprocess.call(["paraview", self.filename], cwd=os.path.dirname(self.filename))
+			subprocess.Popen(["paraview", self.filename], cwd=os.path.dirname(self.filename))
 
 
 class FlowLayout(QtWidgets.QLayout):
@@ -1317,10 +1320,10 @@ class PlotWidget(QtWidgets.QWidget):
 
 
 class XMLHighlighter(QtGui.QSyntaxHighlighter):
- 
+
 	def __init__(self, parent=None):
 		super(XMLHighlighter, self).__init__(parent)
- 
+
 		self.highlightingRules = []
 
 		app = QtWidgets.QApplication.instance()
@@ -1330,20 +1333,20 @@ class XMLHighlighter(QtGui.QSyntaxHighlighter):
 		xmlElementFormat.setFontWeight(QtGui.QFont.Bold)
 		xmlElementFormat.setForeground(QtCore.Qt.darkGreen)
 		self.highlightingRules.append((QtCore.QRegExp("<[/\s]*[A-Za-z0-9_-]+[\s/>]+"), xmlElementFormat))
- 
+
 		keywordFormat = QtGui.QTextCharFormat()
 		keywordFormat.setFontWeight(QtGui.QFont.Bold)
 		keywordFormat.setForeground(QtCore.Qt.gray)
 		keywordPatterns = ["[/?]*>", "<([?]xml)?", "=", "['\"]"]
 		self.highlightingRules += [(QtCore.QRegExp(pattern), keywordFormat)
 				for pattern in keywordPatterns]
- 
+
 		xmlAttributeFormat = QtGui.QTextCharFormat()
 		xmlAttributeFormat.setFontWeight(QtGui.QFont.Bold)
 		#xmlAttributeFormat.setFontItalic(True)
 		xmlAttributeFormat.setForeground(pal.link().color())
 		self.highlightingRules.append((QtCore.QRegExp("\\b[A-Za-z0-9_-]+(?=\\=)"), xmlAttributeFormat))
- 
+
 		valueFormat = QtGui.QTextCharFormat()
 		valueFormat.setForeground(pal.windowText().color())
 		self.highlightingRules.append((QtCore.QRegExp("['\"][^'\"]*['\"]"), valueFormat))
@@ -1353,44 +1356,114 @@ class XMLHighlighter(QtGui.QSyntaxHighlighter):
 		self.commentStartExpression = QtCore.QRegExp("<!--")
 		self.commentEndExpression = QtCore.QRegExp("-->")
 
+		self.pythonStartExpression = QtCore.QRegExp("<python>")
+		self.pythonEndExpression = QtCore.QRegExp("</python>")
+		self.highlightingRulesPython = []
+
+		self.pythonDefaultFormat = QtGui.QTextCharFormat()
+
+		keywordFormat = QtGui.QTextCharFormat()
+		keywordFormat.setFontWeight(QtGui.QFont.Bold)
+		keywordFormat.setForeground(QtCore.Qt.darkYellow)
+		#keywordFormat.setTextOutline(QtGui.QPen(QtCore.Qt.white))
+		self.highlightingRulesPython.append((QtCore.QRegExp(
+			"\\b(" + "|".join(keyword.kwlist) + ")\\b"), keywordFormat, 0))
+		self.highlightingRulesPython.append((QtCore.QRegExp(
+			"(^|\s+|[^\w.]+)(" + "|".join(list(globals()['__builtins__'])) + ")\\s*\("), keywordFormat, 2))
+
+		keywordFormat = QtGui.QTextCharFormat()
+		keywordFormat.setFontWeight(QtGui.QFont.Bold)
+		keywordFormat.setForeground(QtCore.Qt.gray)
+		self.highlightingRulesPython.append((QtCore.QRegExp("[+-*/=%<>!,()\\[\\]{}.\"']+"), keywordFormat, 0))
+
+		commentFormat = QtGui.QTextCharFormat()
+		commentFormat.setForeground(QtCore.Qt.gray)
+		self.highlightingRulesPython.append((QtCore.QRegExp("#.*"), commentFormat, 0))
+
 	def highlightBlock(self, text):
 		
 		#for every pattern
 		for pattern, format in self.highlightingRules:
- 
-			#Create a regular expression from the retrieved pattern
-			expression = QtCore.QRegExp(pattern)
- 
+
 			#Check what index that expression occurs at with the ENTIRE text
-			index = expression.indexIn(text)
- 
+			index = pattern.indexIn(text)
+
 			#While the index is greater than 0
 			while index >= 0:
- 
+
 				#Get the length of how long the expression is true, set the format from the start to the length with the text format
-				length = expression.matchedLength()
+				length = pattern.matchedLength()
 				self.setFormat(index, length, format)
- 
+
 				#Set index to where the expression ends in the text
-				index = expression.indexIn(text, index + length)
- 
-		# handle comments
-		self.setCurrentBlockState(0)
- 
+				index = pattern.indexIn(text, index + length)
+
+		Flag_Comment = 1
+		Flag_Python = 2
+		state = 0
+
+		# handle python
+
 		startIndex = 0
-		if self.previousBlockState() != 1:
+		if max(self.previousBlockState(), 0) & Flag_Python == 0:
+			# means we are not in a comment
+			startIndex = self.pythonStartExpression.indexIn(text)
+			if startIndex >= 0:
+				startIndex += 8
+		
+		while startIndex >= 0:
+			endIndex = self.pythonEndExpression.indexIn(text, startIndex)
+			pythonLength = 0
+			if endIndex == -1:
+				# means block is python code
+				state = state | Flag_Python
+				endIndex = len(text)
+			
+			# format python
+			self.setFormat(startIndex, endIndex-startIndex, self.pythonDefaultFormat)
+
+			#for every pattern
+			for pattern, format, matchIndex in self.highlightingRulesPython:
+	 
+				#Check what index that expression occurs at with the ENTIRE text
+				index = pattern.indexIn(text, startIndex)
+
+				while index >= startIndex and index <= endIndex:
+
+					texts = pattern.capturedTexts()
+					for i in range(1, matchIndex):
+						index += len(texts[i])
+
+					length = len(texts[matchIndex])
+					self.setFormat(index, length, format)
+	 
+					#Set index to where the expression ends in the text
+					index = pattern.indexIn(text, index + length)
+
+			startIndex = self.pythonStartExpression.indexIn(text, endIndex + 9)
+			if startIndex >= 0:
+				startIndex += 8
+
+		# handle comments
+
+		startIndex = 0
+		if max(self.previousBlockState(), 0) & Flag_Comment == 0:
+			# means we are not in a comment
 			startIndex = self.commentStartExpression.indexIn(text)
 		
 		while startIndex >= 0:
 			endIndex = self.commentEndExpression.indexIn(text, startIndex)
 			commentLength = 0
 			if endIndex == -1:
-				self.setCurrentBlockState(1)
+				# means block is a comment
+				state = state | Flag_Comment
 				commentLength = len(text) - startIndex
 			else:
 				commentLength = endIndex - startIndex + self.commentEndExpression.matchedLength()
 			self.setFormat(startIndex, commentLength, self.commentFormat)
 			startIndex = self.commentStartExpression.indexIn(text, startIndex + commentLength)
+
+		self.setCurrentBlockState(state)
 
 
 
@@ -1423,6 +1496,8 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 	def keyPressEvent(self, e):
 
 		if e.key() == QtCore.Qt.Key_Tab:
+			if (e.modifiers() == QtCore.Qt.ShiftModifier) and self.decreaseSelectionIndent():
+				return
 			if self.increaseSelectionIndent():
 				return
 		if e.key() in [QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter]:
@@ -1435,8 +1510,8 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 
 		curs = self.textCursor()
 
-		if curs.hasSelection() or not curs.atBlockEnd():
-			return False
+		#if curs.hasSelection() or not curs.atBlockEnd():
+		#	return False
 
 		line = curs.block().text().rstrip()
 		indent = line[0:(len(line) - len(line.lstrip()))]
@@ -1454,6 +1529,24 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 
 		curs.insertText("\n" + indent)
 		self.setTextCursor(curs)
+		return True
+
+	def decreaseSelectionIndent(self):
+		
+		curs = self.textCursor()
+
+		# Do nothing if we don't have a selection.
+		if not curs.hasSelection():
+			return False
+
+		text = curs.block().text()
+		text = textwrap.dedent("\t\n" + text)
+		pos = text.find("\n")
+		text = text[(pos+1):]
+
+		curs.insertText(text)
+		self.setTextCursor(curs)
+
 		return True
 
 	def increaseSelectionIndent(self):
@@ -1714,6 +1807,9 @@ p ~ p {
 				html += item[0]
 		html += "</h2>"
 
+		def help_link(tag):
+			apath = path + [tag]
+			return '<a href="http://x#help#' + '#'.join(apath) + '">' + tag + "</a>"
 		
 		if en is None:
 			help = "Unknown element"
@@ -1758,8 +1854,7 @@ p ~ p {
 					if not item[1] is None:
 						attr += '<td><b><a href="http://x#set#' + a.get("name") + '#' + default + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + a.get("name") + "</a></b></td>"
 					else:
-						#apath = path + [a.get("name")]
-						#attr += '<td><b><a href="http://x#help#' + '#'.join(apath) + '">' + a.get("name") + "</a></b></td>"
+						#attr += '<td><b>' + help_link(a.get("name")) + '</b></td>'
 						attr += '<td><b>' + a.get("name") + "</b></td>"
 					attr += "<td>" + a.get("type") + "</td>"
 					attr += "<td>" + default + "</td>"
@@ -1793,11 +1888,13 @@ p ~ p {
 				if not item[1] is None:
 					tags += '<td><b><a href="http://x#add#' + a.tag + '#' + typ + '#' + default + '">' + a.tag + "</a></b></td>"
 				else:
-					apath = path + [a.tag]
-					tags += '<td><b><a href="http://x#help#' + '#'.join(apath) + '">' + a.tag + "</a></b></td>"
+					tags += '<td><b>' + help_link(a.tag) + '</b></td>'
 				tags += "<td>" + typ + "</td>"
 				tags += "<td>" + default + "</td>"
-				tags += "<td>" + a.get("help") + "</td>"
+				help = a.get("help")
+				help = re.sub('\[(.*?)\]', lambda m: help_link(m.group(1)), help)
+				tags += "<td>" + help + "</td>"
+
 				tags += "</tr>"
 			if tags != "":
 				html += "<h3>Available elements:</h3>"
@@ -2094,14 +2191,14 @@ class TabDoubleClickEventFilter(QtCore.QObject):
 
 
 class MainWindow(QtWidgets.QMainWindow):
- 
+
 	def __init__(self, parent = None):
 		
 		app = QtWidgets.QApplication.instance()
 		pal = app.palette()
 
 		QtWidgets.QMainWindow.__init__(self, parent)
- 
+
 		#self.setMinimumSize(1000, 800)
 		dir_path = os.path.dirname(os.path.realpath(__file__))
 		self.setWindowTitle("FFT Homogenization Tool")
@@ -2479,6 +2576,10 @@ class MainWindow(QtWidgets.QMainWindow):
 			field_labels["u"] = lambda i: ("T", "temperature")
 			field_labels["epsilon"] = lambda i: (u"∇T_%s" % coord_names1[i], "temperature gradient %s" % coord_names1[i])
 			field_labels["sigma"] = lambda i: ("q_%s" % coord_names1[i], "heat flux %s" % coord_names1[i])
+		if (mode == "porous"):
+			field_labels["u"] = lambda i: ("p", "pressure")
+			field_labels["epsilon"] = lambda i: (u"∇p_%s" % coord_names1[i], "pressure gradient %s" % coord_names1[i])
+			field_labels["sigma"] = lambda i: ("v_%s" % coord_names1[i], "volumetric flux %s" % coord_names1[i])
 
 		field_groups = []
 		mean_strains = []
@@ -2756,6 +2857,8 @@ class App(QtWidgets.QApplication):
 
 		QtWidgets.QApplication.__init__(self, list(args) + ["--disable-web-security"])
 
+		#self.setStyle('windows')
+
 		# set matplotlib defaults
 		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
 		mono = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
@@ -2809,7 +2912,7 @@ class App(QtWidgets.QApplication):
 		if (isinstance(win, QtWidgets.QMainWindow)):
 			self.settings.setValue(prefix + "_windowState", win.saveState())
 
- 
+
 if __name__ == "__main__":
 	app = App(sys.argv)
 	ret = app.exec_()

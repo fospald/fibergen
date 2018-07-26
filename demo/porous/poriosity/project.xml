@@ -1,0 +1,88 @@
+<settings>
+  
+	<title>Effective permeability</title>
+	<description>Example for computing the effective permeability of porous medium.</description>
+	<image>thumbnail.png</image>
+  
+	<variables>
+		<res type="int" value="256" help="resolution" />
+		<scale type="float" value="1.0" help="geometry scaling factor" />
+	</variables>
+
+	<!-- Minimum fiber distance -->
+	<dmin>0.005</dmin>
+
+	<!-- Random seed -->
+	<seed>0</seed>
+
+	<!-- Create 2d periodic structure -->
+	<periodic>1</periodic>
+	<planar z="1" />
+	<dz>1.0/res</dz>
+
+	<!-- Allow intersecting structure -->
+	<intersecting>0</intersecting>
+
+	<!-- Number of threads to use -->
+	<num_threads>4</num_threads>
+
+	<solver nx="res" ny="res" nz="1">
+
+		<!-- Solver tolerance -->
+		<tol>1e-5</tol>
+
+		<!-- Permeability coefficients -->
+		<materials>
+			<void mu="1" />
+			<stone  mu="0.001" />
+		</materials>
+
+		<mode>porous</mode>
+		
+	</solver>
+
+	<!-- List of actions to perform -->
+	<actions>
+		<select_material name="stone" />
+
+		<set_orientation_distribution>
+			<acg azz="0" />
+		</set_orientation_distribution>
+		
+		<set_length_distribution>
+			<dirac x="0.0*scale"  />
+		</set_length_distribution>
+		
+		<set_radius_distribution>
+			<dirac x="0.1*scale" />
+		</set_radius_distribution>
+		
+		<generate_fibers n="10" />
+		
+		<set_length_distribution>
+			<uniform a="0.01*scale" b="0.05*scale"  />
+		</set_length_distribution>
+
+		<set_radius_distribution>
+			<uniform a="0.01*scale" b="0.05*scale"  />
+		</set_radius_distribution>
+
+		<generate_fibers n="280" />
+		
+		<calc_effective_properties />
+
+	</actions>
+
+	<view>
+		<field>sigma0</field>
+		<slice_dim>z</slice_dim>
+		<loadstep>0</loadstep>
+		<interpolate>1</interpolate>
+		<custom_bounds>1</custom_bounds>
+		<vmin>0</vmin>
+		<vmax>1</vmax>
+		<extra_fields>normals</extra_fields>
+	</view>
+
+</settings>
+

@@ -96,7 +96,7 @@
 		<basic_relax help="Basic scheme relaxation factor" type="float">1.0</basic_relax>
 		<bc_relax help="relaxation of boundary condition mean value adjustment" type="float">1.0</bc_relax>
 
-		<mode help="problem type to solve" type="str" values="elasticity,hyperelasticity,viscosity,heat">elasticity</mode>
+		<mode help="problem type to solve" type="str" values="elasticity,hyperelasticity,viscosity,heat,porous">elasticity</mode>
 		<method help="solver method" type="str" values="basic,cg,nesterov,basic+el">cg</method>
 		
 		<cg_inner_product help="inner product for CG" type="str" values="l2,energy">l2</cg_inner_product>
@@ -243,6 +243,12 @@
 		<init_fibers type="empty" help="initializes/generates the fiber distribution">
 		</init_fibers>
 
+		<generate_fibers type="empty" help="runs the fiber generator for the current distribution settings and adds the fibers to the geometry">
+			<attrib name="n" help="overrides the maximum number of fibers to generate" type="int"></attrib>
+			<attrib name="m" help="overrides the maximum number of fiber generation loops" type="int"></attrib>
+			<attrib name="v" help="overrides the maximum volume of fibers to generate" type="float"></attrib>
+		</generate_fibers>
+
 		<detect_fibers type="empty" help="an experimental fiber detection algorithm">
 			<attrib name="threshold" type="float" help="">0.5</attrib>
 			<attrib name="convexity_threshold_high" type="float" help="">1.0</attrib>
@@ -278,7 +284,11 @@
 			<attrib name="lambda2" type="float" help=""></attrib>
 		</calc_HS_bounds>
 
-		<set_fiber_distribution type="list" help="set the fiber distribution">
+		<set_orientation_distribution type="list" help="alias for [set_fiber_distribution], for list of distributions see [set_fiber_distribution]"></set_orientation_distribution>
+		<set_length_distribution type="list" help="set the fiber length distribution, for list of distributions see [set_fiber_distribution]"></set_length_distribution>
+		<set_radius_distribution type="list" help="set the fiber length distribution, for list of distributions see [set_fiber_distribution]"></set_radius_distribution>
+
+		<set_fiber_distribution type="list" help="set the fiber orientation distribution">
 
 			<dirac type="empty" help="dirac distribution">
 				<attrib name="weight" type="float" help="the weight of the distribution">1.0</attrib>
@@ -383,10 +393,10 @@
 		<run_load_case type="empty" help="run the solver with prescribed quantities">
 			<attrib name="eij" type="float" help="prescribed primary quantity (strains)">0.0</attrib>
 			<attrib name="sij" type="float" help="prescribed secondary quantity (stresses)">0.0</attrib>
-			<attrib name="pij" type="float" help="boundary condition projection 6x6 matrix in Voigt notation for strains, for hyperelasticity a 9x9 matrix, for heat a 3x3 matrix, default is the identity, which means all prescribed primary quantities are fixed and the secondary quantities are unconstrained"></attrib>
+			<attrib name="pij" type="float" help="boundary condition projection 6x6 matrix in Voigt notation for strains, for hyperelasticity a 9x9 matrix, for heat and porous a 3x3 matrix, default is the identity, which means all prescribed primary quantities are fixed and the secondary quantities are unconstrained"></attrib>
 		</run_load_case>
 
-		<calc_effective_properties type="empty" help="for elasticity compute and print effective stiffness, for heat compute and print effective conductivity, for viscosity compute and print effective viscosity">
+		<calc_effective_properties type="empty" help="for elasticity compute and print effective stiffness, for heat compute and print effective conductivity, for viscosity compute and print effective viscosity, for porous media compute and print the effective permeability">
 			<attrib name="outdir" type="str" help="write results of each load case as VTK file results_%d.vtk in this directory"></attrib>
 		</calc_effective_properties>
 
