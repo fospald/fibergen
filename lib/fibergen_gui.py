@@ -1496,7 +1496,7 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 	def keyPressEvent(self, e):
 
 		if e.key() == QtCore.Qt.Key_Tab:
-			if (e.modifiers() == QtCore.Qt.ShiftModifier) and self.decreaseSelectionIndent():
+			if (e.modifiers() == QtCore.Qt.ControlModifier) and self.decreaseSelectionIndent():
 				return
 			if self.increaseSelectionIndent():
 				return
@@ -1539,12 +1539,47 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 		if not curs.hasSelection():
 			return False
 
-		text = curs.block().text()
-		text = textwrap.dedent("\t\n" + text)
-		pos = text.find("\n")
-		text = text[(pos+1):]
+		# Get the first and count of lines to indent.
 
-		curs.insertText(text)
+		spos = curs.anchor()
+		epos = curs.position()
+
+		if spos > epos:
+			hold = spos
+			spos = epos
+			epos = hold
+
+		curs.setPosition(spos, QtGui.QTextCursor.MoveAnchor)
+		sblock = curs.block().blockNumber()
+
+		curs.setPosition(epos, QtGui.QTextCursor.MoveAnchor)
+		eblock = curs.block().blockNumber()
+
+		# Do the indent.
+
+		curs.setPosition(spos, QtGui.QTextCursor.MoveAnchor)
+		curs.beginEditBlock()
+
+		for i in range(eblock - sblock + 1):
+			curs.movePosition(QtGui.QTextCursor.StartOfBlock, QtGui.QTextCursor.MoveAnchor)
+			curs.movePosition(QtGui.QTextCursor.Right, QtGui.QTextCursor.KeepAnchor, 1)
+			if curs.selectedText() in ["\t", " "]:
+				curs.removeSelectedText()
+			curs.movePosition(QtGui.QTextCursor.NextBlock, QtGui.QTextCursor.MoveAnchor)
+
+		curs.endEditBlock()
+
+		# Set our cursor's selection to span all of the involved lines.
+
+		curs.setPosition(spos, QtGui.QTextCursor.MoveAnchor)
+		curs.movePosition(QtGui.QTextCursor.StartOfBlock, QtGui.QTextCursor.MoveAnchor)
+
+		while (curs.block().blockNumber() < eblock):
+			curs.movePosition(QtGui.QTextCursor.NextBlock, QtGui.QTextCursor.KeepAnchor)
+
+		curs.movePosition(QtGui.QTextCursor.EndOfBlock, QtGui.QTextCursor.KeepAnchor)
+
+		# Done!
 		self.setTextCursor(curs)
 
 		return True
@@ -2286,6 +2321,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			action = self.toolbar.addAction(QtGui.QIcon.fromTheme(icon), text)
 			action.triggered.connect(func)
 			action.setShortcut(key)
+			action.setToolTip("%s (%s)" % (text, str(QtGui.QKeySequence(key).toString())))
 			return action
 
 		self.toolbar = QtWidgets.QToolBar()
