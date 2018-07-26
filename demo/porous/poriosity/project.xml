@@ -1,11 +1,11 @@
 <settings>
   
 	<title>Effective permeability</title>
-	<description>Example for computing the effective permeability of porous medium.</description>
+	<description>Example for computing the effective permeability of a porous medium.</description>
 	<image>thumbnail.png</image>
   
 	<variables>
-		<res type="int" value="256" help="resolution" />
+		<res type="int" value="512" help="resolution" />
 		<scale type="float" value="1.0" help="geometry scaling factor" />
 	</variables>
 
@@ -13,7 +13,7 @@
 	<dmin>0.005</dmin>
 
 	<!-- Random seed -->
-	<seed>0</seed>
+	<seed>1</seed>
 
 	<!-- Create 2d periodic structure -->
 	<periodic>1</periodic>
