@@ -5733,6 +5733,7 @@ protected:
 	T _L;				// fiber length
 	T _R;				// fiber radius
 	T _dmin;			// minimum distance between fibers
+	T _dmax;			// maximum distance between fibers
 	ublas::c_vector<T, 3> _dim;	// RVE dimensions
 	ublas::c_vector<T, 3> _x0;	// RVE origin
 	bool _intersecting;		// allow intersecting structures
@@ -5790,6 +5791,7 @@ public:
 		_L = 0.1;
 		_R = 0.01;
 		_dmin = 0.0;
+		_dmax = STD_INFINITY(T);
 		set_vector(_dim, (T)1, (T)1, (T)1);
 		set_vector(_x0, (T)0, (T)0, (T)0);
 		_planar_x = false;
@@ -5830,6 +5832,7 @@ public:
 		_L = pt_get<T>(pt, "length", _L);
 		_R = pt_get<T>(pt, "radius", _R);
 		_dmin = pt_get<T>(pt, "dmin", _dmin);
+		_dmax = pt_get<T>(pt, "dmax", _dmax);
 		read_vector(pt, _dim, "dx", "dy", "dz", _dim(0), _dim(1), _dim(2));
 		read_vector(pt, _x0, "x0", "y0", "z0", _x0(0), _x0(1), _x0(2));
 		_periodic = pt_get(pt, "periodic", _periodic);
@@ -5865,6 +5868,7 @@ public:
 
 	// inline T dmin() const { return _intersecting ? -std::numeric_limits<T>::infinity() : _dmin; }
 	inline T dmin() const { return _dmin; }
+	inline T dmax() const { return _dmax; }
 
 	void setLengthDistribution(const boost::shared_ptr< DiscreteDistribution<T, 1> >& dist)
 	{
@@ -5922,7 +5926,7 @@ public:
 	}
 
 	// run the fiber generator
-	void run(T V = 0, std::size_t N = 0, std::size_t M = 0, T dmin = -STD_INFINITY(T), int intersecting = -1, int intersecting_materials = -1)
+	void run(T V = 0, std::size_t N = 0, std::size_t M = 0, T dmin = -STD_INFINITY(T), T dmax = STD_INFINITY(T), int intersecting = -1, int intersecting_materials = -1)
 	{
 		Timer __t("generating fiber distribution");
 
@@ -5992,6 +5996,7 @@ public:
 		if (N <= 0) N = _N;
 		if (M <= 0) M = _M;
 		if (dmin < 0 && std::isinf(dmin)) dmin = _dmin;
+		if (dmax > 0 && std::isinf(dmax)) dmax = _dmax;
 		if (intersecting < 0) intersecting = _intersecting;
 
 		// TODO: parallelize fiber generation
@@ -6029,9 +6034,10 @@ public:
 				_cluster.reset(cluster);
 				cluster_created = true;
 			}
-			else if (!intersecting && cluster->intersects(*fiber, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i)) {
-				// fiber intersects existing fiber
-				continue;
+			else if (!intersecting) {
+				bool valid = !cluster->intersects(*fiber, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
+				//valid = valid && (d_i <= dmax);
+				if (!valid) continue; // fiber intersects existing fiber
 			}
 
 			if (_periodic_x || _periodic_y || _periodic_z)
@@ -6057,9 +6063,11 @@ public:
 								clone->translate(tr);
 								if (!intersecting) {
 									valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
+									//valid = valid && (d_i <= dmax);
 									if (!valid) break;
 									for (std::size_t h = 0; h < clones.size(); h++) {
-										valid = valid && (clones[h]->distanceTo(*clone, x_i, xf_i) >= dmin);
+										T d = clones[h]->distanceTo(*clone, x_i, xf_i);
+										valid = valid && (d >= dmin);
 										if (!valid) break;
 									}
 								}
@@ -6090,6 +6098,7 @@ public:
 							clone->translate(*check_t[k]);
 							if (!intersecting) {
 								valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
+								//valid = valid && (d_i <= dmax);
 								if (!valid) break;
 							}
 							inersects[nintersects] = k;
@@ -6106,6 +6115,7 @@ public:
 						clone->translate(*check_t[inersects[0]] + *check_t[inersects[1]]);
 						if (!intersecting) {
 							valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
+							//valid = valid && (d_i <= dmax);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
@@ -6117,6 +6127,7 @@ public:
 						clone->translate(*check_t[inersects[0]] + *check_t[inersects[2]]);
 						if (!intersecting) {
 							valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
+							//valid = valid && (d_i <= dmax);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
@@ -6124,6 +6135,7 @@ public:
 						clone->translate(*check_t[inersects[1]] + *check_t[inersects[2]]);
 						if (!intersecting) {
 							valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
+							//valid = valid && (d_i <= dmax);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
@@ -6131,6 +6143,7 @@ public:
 						clone->translate(*check_t[inersects[0]] + *check_t[inersects[1]] + *check_t[inersects[2]]);
 						if (!intersecting) {
 							valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
+							//valid = valid && (d_i <= dmax);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
@@ -24036,12 +24049,13 @@ public:
 				}
 
 				T dmin = pt_get<T>(attr, "dmin", -STD_INFINITY(T));
+				T dmax = pt_get<T>(attr, "dmax", STD_INFINITY(T));
 				int intersecting = pt_get<int>(attr, "intersecting", -1);
 				std::size_t m = pt_get<std::size_t>(attr, "m", 0);
 				std::size_t n = pt_get<std::size_t>(attr, "n", 0);
 				T v = pt_get<T>(attr, "v", 0);
 
-				gen->run(v, n, m, dmin, intersecting, intersecting_materials);
+				gen->run(v, n, m, dmin, dmax, intersecting, intersecting_materials);
 				fibers_valid = true;
 			}
 			else if (v.first == "init_fibers")
