@@ -2,7 +2,6 @@
 
 	<title>SFRP homogenization</title>
 	<description>Homogenization for fibers of infinite length for variable volume fraction.</description>
-	<image>thumbnail.png</image>
 
 	<num_threads>2</num_threads>
 

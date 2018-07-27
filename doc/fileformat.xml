@@ -244,9 +244,12 @@
 		</init_fibers>
 
 		<generate_fibers type="empty" help="runs the fiber generator for the current distribution settings and adds the fibers to the geometry">
-			<attrib name="n" help="overrides the maximum number of fibers to generate" type="int"></attrib>
-			<attrib name="m" help="overrides the maximum number of fiber generation loops" type="int"></attrib>
-			<attrib name="v" help="overrides the maximum volume of fibers to generate" type="float"></attrib>
+			<attrib name="n" help="overrides the maximum number of fibers to generate" type="int">settings.n</attrib>
+			<attrib name="m" help="overrides the maximum number of fiber generation loops" type="int">settings.m</attrib>
+			<attrib name="v" help="overrides the maximum volume of fibers to generate" type="float">settings.v</attrib>
+			<attrib name="dmin" help="overrides the minimum fiber-fiber distance" type="float">settings.dmin</attrib>
+			<attrib name="intersecting" help="overrides the allow intersecting fibers property" type="bool">settings.intersecting</attrib>
+			<attrib name="intersecting_materials" help="comma separated list of material names which will be tested for intersection if intersectig is 0 (false), if empty all materials are tested" type="str"></attrib>
 		</generate_fibers>
 
 		<detect_fibers type="empty" help="an experimental fiber detection algorithm">

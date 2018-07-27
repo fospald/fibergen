@@ -13,9 +13,6 @@
 
 	<type>capsule</type>
 
-	<!-- Fiber volume fraction
-	<v>0.5</v> -->
-
 	<!-- Number of fibers -->
 	<n>30</n>
 

@@ -1242,11 +1242,26 @@ class PlotWidget(QtWidgets.QWidget):
 			vmin = float(self.vminText.text())
 			vmax = float(self.vmaxText.text())
 			
-			#color_norm = matplotlib.colors.SymLogNorm(linthresh=1e-2, linscale=1)
-			cm = mcmap.get_cmap(self.colormapCombo.currentText(), 2**11)
-
 			#methods = ['bilinear', 'bicubic', 'spline16', 'spline36', 'hanning', 'hamming', 'hermite', 'kaiser', 'quadric', 'catrom', 'gaussian', 'bessel', 'mitchell', 'sinc', 'lanczos']
 			interpolation = "bicubic" if self.interpolateCheck.isChecked() else "nearest"
+
+			field_name = self.fields[self.currentFieldIndex].name
+			num_colors = self.fields[self.currentFieldIndex].num_discrete_values
+			value_labels = self.fields[self.currentFieldIndex].value_labels
+			if np.isinf(num_colors):
+				num_colors = 2**11
+
+			if field_name == "phi":
+				vmin = 0.0
+				vmax = 1.0
+
+			if len(value_labels) > 0:
+				vmin = 0
+				vmax = len(value_labels)
+				interpolation = "nearest"
+
+			#color_norm = matplotlib.colors.SymLogNorm(linthresh=1e-2, linscale=1)
+			cm = mcmap.get_cmap(self.colormapCombo.currentText(), num_colors)
 
 			p = self.axes.imshow(data.T, interpolation=interpolation, origin="lower",
 				norm=None, cmap=cm, vmin=vmin, vmax=vmax)
@@ -1256,6 +1271,10 @@ class PlotWidget(QtWidgets.QWidget):
 			else:
 				self.cb = self.fig.colorbar(p, shrink=0.7, pad=0.05, fraction=0.1, use_gridspec=True)
 		
+			if len(value_labels) > 0:
+				self.cb.set_ticks(list(value_labels.keys()))
+				self.cb.set_ticklabels(list(value_labels.values()))
+
 			z_label = self.fields[self.currentFieldIndex].label
 			self.cb.ax.set_title(z_label, y=1.03)
 
@@ -2577,7 +2596,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			"material_id": lambda i: ("mid", "material id"),
 		}
 
-		extra_fields_list = ["fiber_id", "fiber_translation", "normals", "orientation", "distance", "material_id"]
+		extra_fields_list = ["fiber_id", "fiber_translation", "normals", "orientation", "distance"]
 		extra_fields = []
 		record_loadstep = -1
 
@@ -2594,7 +2613,7 @@ class MainWindow(QtWidgets.QMainWindow):
 						if f in extra_fields_list:
 							extra_fields.append(f)
 
-		phase_fields = ["phi"]
+		phase_fields = ["material_id", "phi"]
 		run_fields = ["epsilon", "sigma", "u"]
 		const_fields = phase_fields + extra_fields
 		field_names = phase_fields + run_fields + extra_fields
@@ -2647,8 +2666,19 @@ class MainWindow(QtWidgets.QMainWindow):
 			if len(field_groups) == 0:
 				phase_names = fg.get_phase_names()
 				field_labels['phi'] = lambda i: (phase_names[i], "%s material" % phase_names[i])
+				phi = fg.get_field("phi")
 				for name in field_names:
-					data = fg.get_field(name.encode('utf8'))
+					num_discrete_values = float('inf')
+					value_labels = {}
+					if name == "material_id":
+						ids = np.array(range(phi.shape[0]))
+						data = np.expand_dims(np.argmax(ids[:,np.newaxis,np.newaxis,np.newaxis]*phi, axis=0), axis=0)
+						num_discrete_values = len(ids)
+						value_labels = {i+0.5: field_labels['phi'](i)[0] for i in ids}
+					elif name == "phi":
+						data = phi
+					else:
+						data = fg.get_field(name.encode('utf8'))
 					shape = data.shape
 					fields = []
 					#print(name, shape)
@@ -2659,6 +2689,8 @@ class MainWindow(QtWidgets.QMainWindow):
 						field.name = name
 						field.key = name if shape[0] == 1 else (name + str(i))
 						field.component = i
+						field.num_discrete_values = num_discrete_values
+						field.value_labels = value_labels
 						#field.amin = np.amin(data[i])
 						#field.amax = np.amax(data[i])
 						fields.append(field)

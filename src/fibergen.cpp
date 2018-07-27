@@ -2795,12 +2795,19 @@ public:
 	// set the material id
 	inline void set_material(std::size_t id) const {
 		const_cast< Fiber<T,DIM>* >(this)->_material = id;
+		const_cast< Fiber<T,DIM>* >(this)->_material_bits = 1 << id;
 	}
 
 	// get the material id
 	inline std::size_t material() const {
 		return _material;
 	}
+
+	// get the material id bits
+	inline std::size_t material_bits() const {
+		return _material_bits;
+	}
+
 
 	// set the id
 	inline void set_id(std::size_t id) const {
@@ -2828,6 +2835,7 @@ public:
 protected:
 	std::size_t _id;	// the unique identifierer of the fiber
 	std::size_t _material;	// the material identifierer of the fiber
+	std::size_t _material_bits;	// 1 << _material
 	boost::shared_ptr< Fiber<T, DIM> > _parent;
 };
 
@@ -2889,7 +2897,8 @@ public:
 
 		// now check for matching fibers
 		for (typename fiber_ptr_list::const_iterator i = _fibers.begin(); i != _fibers.end(); i++) {
-			if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
+			//if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
+			if (((*i)->material_bits() & (std::size_t)mat) == 0) continue;
 			if ((*i)->bbDistanceMin(p) <= 0) {
 				if ((*i)->inside(p)) return true;
 			}
@@ -2922,6 +2931,7 @@ public:
 		// now shrink the radius to the minimum of the maximum bounding box distance
 		for (typename fiber_ptr_list::const_iterator i = _fibers.begin(); i != _fibers.end(); i++) {
 			//if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
+			//if (((*i)->material_bits() & (std::size_t)mat) == 0) continue;
 			r = std::min(r, (*i)->bbDistanceMax(p));
 		}
 		for (typename cluster_ptr_list::const_iterator i = _clusters.begin(); i != _clusters.end(); i++) {
@@ -2939,7 +2949,8 @@ public:
 		// unset the fiber if failed to avoid checking a second time
 		// FIXME: this actually does not check if fiber is part of the cluster
 		if (fiber) {
-			if (mat < 0 || fiber->material() == (std::size_t)mat) {
+			if (fiber->material_bits() & (std::size_t)mat) {
+			//if (mat < 0 || fiber->material() == (std::size_t)mat) {
 				T d = fiber->distanceTo(p, xMin);
 				if (d <= dMin) {
 					dMin = d;
@@ -2957,7 +2968,8 @@ public:
 
 		// now check for matching fibers
 		for (typename fiber_ptr_list::const_iterator i = _fibers.begin(); i != _fibers.end(); i++) {
-			if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
+			if (((*i)->material_bits() & (std::size_t)mat) == 0) continue;
+			//if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
 			if ((*i)->bbDistanceMin(p) <= dMin) {
 				T d = (*i)->distanceTo(p, x);
 				if (d < dMin) {
@@ -3027,7 +3039,8 @@ public:
 
 		// now check for matching fibers
 		for (typename fiber_ptr_list::const_iterator i = _fibers.begin(); i != _fibers.end(); i++) {
-			if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
+			if (((*i)->material_bits() & (std::size_t)mat) == 0) continue;
+			//if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
 			if ((*i)->bbDistanceMin(p) <= r) {
 				info.d = (*i)->distanceTo(p, info.x);
 				if (info.d <= r) {
@@ -3051,7 +3064,8 @@ public:
 		// unset the fiber if failed to avoid checking a second time
 		// FIXME: this actually does not check if fiber is part of the cluster
 		if (fiber) {
-			if (mat < 0 || fiber->material() == (std::size_t)mat) {
+			//if (mat < 0 || fiber->material() == (std::size_t)mat) {
+			if (fiber->material_bits() & (std::size_t)mat) {
 				d = fiber->distanceTo(p, xf);
 				if (d <= tol) {
 					return true;
@@ -3070,7 +3084,8 @@ public:
 		{
 			// now check every fiber
 			for (typename fiber_ptr_list::const_iterator i = _fibers.begin(); i != _fibers.end(); i++) {
-				if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
+				if (((*i)->material_bits() & (std::size_t)mat) == 0) continue;
+				//if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
 				if ((*i)->bbDistanceMin(p) <= tol) {
 					// now need to perform exact distance check
 					d = (*i)->distanceTo(p, xf);
@@ -3129,7 +3144,8 @@ public:
 		{
 			// now check every fiber
 			for (typename fiber_ptr_list::const_iterator i = _fibers.begin(); i != _fibers.end(); i++) {
-				if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
+				if (((*i)->material_bits() & (std::size_t)mat) == 0) continue;
+				//if (mat >= 0 && (*i)->material() != (std::size_t)mat) continue;
 				if ((*i)->bbIntersects(fiber, tol)) {
 					// now need to perform exact distance check
 					d = (*i)->distanceTo(fiber, x, xf);
@@ -5906,7 +5922,7 @@ public:
 	}
 
 	// run the fiber generator
-	void run(T V = 0, std::size_t N = 0, std::size_t M = 0, T dmin = -STD_INFINITY(T), int intersecting = -1, int intersecting_material_id = -1)
+	void run(T V = 0, std::size_t N = 0, std::size_t M = 0, T dmin = -STD_INFINITY(T), int intersecting = -1, int intersecting_materials = -1)
 	{
 		Timer __t("generating fiber distribution");
 
@@ -5975,7 +5991,7 @@ public:
 		if (V <= 0) V = _V;
 		if (N <= 0) N = _N;
 		if (M <= 0) M = _M;
-		if (dmin <= STD_INFINITY(T)) dmin = _dmin;
+		if (dmin < 0 && std::isinf(dmin)) dmin = _dmin;
 		if (intersecting < 0) intersecting = _intersecting;
 
 		// TODO: parallelize fiber generation
@@ -6013,7 +6029,7 @@ public:
 				_cluster.reset(cluster);
 				cluster_created = true;
 			}
-			else if (!intersecting && cluster->intersects(*fiber, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i)) {
+			else if (!intersecting && cluster->intersects(*fiber, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i)) {
 				// fiber intersects existing fiber
 				continue;
 			}
@@ -6040,7 +6056,7 @@ public:
 								clone = fiber->clone();
 								clone->translate(tr);
 								if (!intersecting) {
-									valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
+									valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
 									if (!valid) break;
 									for (std::size_t h = 0; h < clones.size(); h++) {
 										valid = valid && (clones[h]->distanceTo(*clone, x_i, xf_i) >= dmin);
@@ -6073,7 +6089,7 @@ public:
 							clone = fiber->clone();
 							clone->translate(*check_t[k]);
 							if (!intersecting) {
-								valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
+								valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
 								if (!valid) break;
 							}
 							inersects[nintersects] = k;
@@ -6089,7 +6105,7 @@ public:
 						clone = fiber->clone();
 						clone->translate(*check_t[inersects[0]] + *check_t[inersects[1]]);
 						if (!intersecting) {
-							valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
+							valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
@@ -6100,21 +6116,21 @@ public:
 						clone = fiber->clone();
 						clone->translate(*check_t[inersects[0]] + *check_t[inersects[2]]);
 						if (!intersecting) {
-							valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
+							valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
 						clone = fiber->clone();
 						clone->translate(*check_t[inersects[1]] + *check_t[inersects[2]]);
 						if (!intersecting) {
-							valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
+							valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
 						clone = fiber->clone();
 						clone->translate(*check_t[inersects[0]] + *check_t[inersects[1]] + *check_t[inersects[2]]);
 						if (!intersecting) {
-							valid = valid && !cluster->intersects(*clone, dmin, intersecting_material_id, fiber_i, x_i, xf_i, d_i);
+							valid = valid && !cluster->intersects(*clone, dmin, intersecting_materials, fiber_i, x_i, xf_i, d_i);
 							if (!valid) continue;
 						}
 						clones.push_back(clone);
@@ -6463,8 +6479,8 @@ public:
 					R* row = data + i*rowSize;
 					p = p0 + dy*i;
 					for (std::size_t j = 0; j < n1; j++) {
-						_cluster->closestFiber(p, STD_INFINITY(T), mat, x, fiber[j]);
-						*row = (R)fiber[j]->material();
+						d = _cluster->closestFiber(p, STD_INFINITY(T), mat, x, fiber[j]);
+						*row = (d <= 0) ? (R)fiber[j]->material() : (R)-1;
 						row++;
 						p += dx;
 					}
@@ -13895,7 +13911,7 @@ public:
 		else if (_gamma_scheme == "Willot-R") _gamma_scheme = "willot";
 		else if (_gamma_scheme == "auto") {
 			_gamma_scheme = "staggered";
-			if (_mode == "heat" || _mode == "porous") _gamma_scheme = "collocated";
+			//if (_mode == "heat" || _mode == "porous") _gamma_scheme = "collocated";
 		}
 		_bc_relax = pt_get<T>(pt, "bc_relax", _bc_relax);
 		_freq_hack = pt_get(pt, "freq_hack", _freq_hack);
@@ -14235,7 +14251,7 @@ public:
 				T* pdata = &(data[0]);
 
 				bool fast = false;
-				std::size_t mat = -1;
+				int mat = -1;
 
 				for (std::size_t i = 0; i < _nx; i++) {
 					gen->sampleZYSlice(i, _nx, _ny, _nz, pdata, mat, FiberGenerator<T, DIM>::SampleDataTypes::ORIENTATION, 0, fast);
@@ -14275,7 +14291,7 @@ public:
 				T* pdata = &(data[0]);
 
 				bool fast = false;
-				std::size_t mat = -1;
+				int mat = -1;
 
 				for (std::size_t i = 0; i < _nx; i++) {
 					gen->sampleZYSlice(i, _nx, _ny, _nz, pdata, mat, FiberGenerator<T, DIM>::SampleDataTypes::NORMALS, 0, fast);
@@ -14385,7 +14401,7 @@ public:
 			T* pdata = (*pfield)[0];
 
 			bool fast = false;
-			std::size_t mat = -1;
+			int mat = -1;
 
 			for (std::size_t i = 0; i < _nx; i++) {
 				int kk = i*_nyzp;
@@ -14403,7 +14419,7 @@ public:
 			T* pdata = (*pfield)[0];
 
 			bool fast = false;
-			std::size_t mat = -1;
+			int mat = -1;
 
 			for (std::size_t i = 0; i < _nx; i++) {
 				int kk = i*_nyzp;
@@ -14421,7 +14437,7 @@ public:
 			T* pdata = (*pfield)[0];
 
 			bool fast = false;
-			std::size_t mat = -1;
+			int mat = -1;
 
 			for (std::size_t i = 0; i < _nx; i++) {
 				int kk = i*_nyzp;
@@ -14441,7 +14457,7 @@ public:
 			T* pdata = &(data[0]);
 
 			bool fast = false;
-			std::size_t mat = -1;
+			int mat = -1;
 
 			for (std::size_t i = 0; i < _nx; i++) {
 				gen->sampleZYSlice(i, _nx, _ny, _nz, pdata, mat, FiberGenerator<T, DIM>::SampleDataTypes::FIBER_TRANSLATION, 0, fast);
@@ -16312,7 +16328,8 @@ public:
 		for (std::size_t m = 0; m < mat.size(); m++)
 		{
 			Phase& ph = *mat[m];
-			
+			std::size_t m_bits = 1 << m;
+
 			if (m == matrix_mat) {
 				// matrix material is always present (1)
 				ph.setOne();
@@ -16340,7 +16357,7 @@ public:
 						x0[2] = dz_voxel*(k + 0.5) + _x0[2];
 						
 						info_list.clear();
-						fg.closestFibers(x0, r_voxel, m, info_list);
+						fg.closestFibers(x0, r_voxel, m_bits, info_list);
 
 						if (info_list.size() > 0) {
 							ph.phi[kk] = integratePhiVoxel(fg, smooth_levels, smooth_tol, r_voxel, x0, dx_voxel, dy_voxel, dz_voxel, m, info_list)/V_voxel;
@@ -18413,7 +18430,7 @@ public:
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
 	void G0OperatorFourierStaggeredHeat(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T alpha = -1)
 	{
-		const T c10 = -alpha/(mu_0);
+		const T c10 = -alpha/(2*mu_0);
 
 		G0OperatorFourierStaggeredGeneralHeat(mu_0, lambda_0, tau_hat, eta_hat, c10);
 	}
@@ -22048,6 +22065,7 @@ public:
 #else
 			LOG_COUT << RED_TEXT << ((((boost::format("TEST FAILED: '%s' test exceeds tolerance (%g) by %g%% (residual=%g)") % test) % tol) % (100*(r-tol)/tol)) % r).str() << DEFAULT_TEXT << std::endl;
 #endif
+			return;
 		}
 
 		LOG_COUT << GREEN_TEXT << "TEST PASSED: " << test << " (residual=" << r << ")" << DEFAULT_TEXT << std::endl;
@@ -22182,6 +22200,8 @@ public:
 	// run test routines
 	void run_tests()
 	{
+		this->run_tests_heat();
+		return;
 		this->run_tests_math();
 		this->run_tests_elasticity();
 		this->run_tests_hyperelasticity();
@@ -22387,6 +22407,110 @@ public:
 	}
 
 	// run test routines
+	void run_tests_heat()
+	{
+		// TODO: perform separate tests for elastic and hyperelastic case
+		omp_set_num_threads(1);
+
+		_method = "cg";
+		_mode = "heat";
+		_gamma_scheme = "collocated";
+		_debug = true;
+		_G0_solver = "fft";
+
+		_mat.reset(new VoigtMixedMaterialLaw<T, P, 3>());
+		_temp_dfg_1.reset(new RealTensor(2*_nx, 2*_ny, 2*_nz, _mat->dim()));
+		_temp_dfg_2.reset(new RealTensor(2*_nx, 2*_ny, 2*_nz, _mat->dim()));
+		_epsilon.reset(new RealTensor(_nx, _ny, _nz, _mat->dim()));
+		init_fft();
+		_tau = _epsilon->complex_shadow();
+		_E = ublas::zero_vector<T>(_mat->dim());
+		_Id = ublas::zero_vector<T>(_mat->dim());
+		_Id(0) = _Id(1) = _Id(2) = 1;
+		_matrix_mat = 0;
+		_lambda_0 = 0;
+		_mu_0 = 1.0;
+		
+		pPhase p1(new Phase());
+
+		p1->name = "matrix";
+		p1->init(_nx, _ny, _nz, true);
+
+		ScalarLinearIsotropicMaterialLaw<T>* law1 = new ScalarLinearIsotropicMaterialLaw<T>(3);
+		law1->mu = 1.56*_mu_0;
+		p1->law.reset(law1);
+
+		_mat->add_phase(p1);
+
+
+		pPhase p2(new Phase());
+
+		p2->name = "fiber";
+		p2->init(_nx, _ny, _nz, true);
+
+		ScalarLinearIsotropicMaterialLaw<T>* law2 = new ScalarLinearIsotropicMaterialLaw<T>(3);
+		law2->mu = 1.56*_mu_0;
+		p2->law.reset(law2);
+
+		_mat->add_phase(p2);
+
+# if 1
+		boost::shared_ptr< FiberGenerator<T, DIM> > gen;
+		gen.reset(new FiberGenerator<T, DIM>());
+
+		boost::shared_ptr< const Fiber<T, DIM> > fiber;
+		ublas::c_vector<T, DIM> c;
+		ublas::c_vector<T, DIM> a;
+		c[0] = c[1] = c[2] = 0.5;
+		a[0] = a[1] = a[2] = 0.5;
+		fiber.reset(new CapsuleFiber<T, DIM>(c, a, 0.6, 0.3));
+		fiber->set_material(1);
+		gen->addFiber(fiber);
+
+		//get_normals();
+		initPhi(*gen);
+#else
+		p->_phi->random();
+		initRawPhi();
+		//printField("phi", p->phi);
+#endif
+
+		RealTensor& F = *_epsilon;
+
+		// checking staggered grid operators for heat
+		{
+			RealTensor tau(F, 3);
+			RealTensor tau_org(F, 3);
+			pComplexTensor ptau_hat = tau.complex_shadow();
+			ComplexTensor& tau_hat = *ptau_hat;
+
+			tau.random();
+			//printTensor("tau", tau, 1);
+			epsOperatorStaggeredHeat(ublas::zero_vector<T>(tau.dim), tau, tau);
+			tau.copyTo(tau_org);
+			//printTensor("eps", tau, 3);
+
+			calcStressConst(_mu_0, _lambda_0, tau, tau);
+			//printTensor("sigma", tau, 3);
+			divOperatorStaggeredHeat(tau, tau);
+			//printTensor("divsigma", tau, 1);
+			G0OperatorStaggeredHeat(_mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
+			//printTensor("G0divsigma", tau, 1);
+			epsOperatorStaggeredHeat(ublas::zero_vector<T>(tau.dim), tau, tau);
+			//printTensor("epsG0divsigma", tau, 3);
+
+			//printTensor("tau", tau, 3);
+			//printTensor("tau_org", tau_org, 3);
+
+			tau.xpay(tau, -1, tau_org);
+			tau.abs();
+			//printTensor("tau-tau_org", tau, 3);
+			check_tol("staggered epsG0div identity", ublas::norm_2(tau.max()));
+		}
+	}
+
+
+	// run test routines
 	void run_tests_elasticity()
 	{
 		// TODO: perform separate tests for elastic and hyperelastic case
@@ -22446,7 +22570,7 @@ public:
 		c[0] = c[1] = c[2] = 0.5;
 		a[0] = a[1] = a[2] = 0.5;
 		fiber.reset(new CapsuleFiber<T, DIM>(c, a, 0.6, 0.3));
-		fiber->set_material(0);
+		fiber->set_material(1);
 		gen->addFiber(fiber);
 
 		get_normals();
@@ -22649,7 +22773,7 @@ public:
 		c[0] = c[1] = c[2] = 0.5;
 		a[0] = a[1] = a[2] = 0.5;
 		fiber.reset(new CapsuleFiber<T, DIM>(c, a, 0.6, 0.3));
-		fiber->set_material(0);
+		fiber->set_material(1);
 		gen->addFiber(fiber);
 
 		get_normals();
@@ -23891,12 +24015,24 @@ public:
 			}
 			else if (v.first == "generate_fibers")
 			{
-				std::string intersecting_material = pt_get<std::string>(attr, "intersecting_material", "");
-				int intersecting_material_id = -1;
+				std::string intersecting_materials_str = pt_get<std::string>(attr, "intersecting_materials", "");
+				int intersecting_materials = -1; // check all materials for intersection if intersecting = 0
 
-				if (intersecting_material != "") {
+				if (intersecting_materials_str != "") {
+					std::vector<std::string> materials;
+					boost::split(materials, intersecting_materials_str, boost::is_any_of(","), boost::token_compress_on);
 					init_lss();
-					intersecting_material_id = lss->getMaterialId(intersecting_material);
+					std::size_t bits = 0;
+					for (std::size_t i = 0; i < materials.size(); i++) {
+						std::size_t material_id = lss->getMaterialId(materials[i]);
+						std::size_t bit = 1 << material_id;
+						if (bit == 0) {
+							BOOST_THROW_EXCEPTION(std::runtime_error("maximal number of of material indices for intersection exceeded"));
+						}
+						bits |= bit;
+					}
+
+					intersecting_materials = (int) bits;
 				}
 
 				T dmin = pt_get<T>(attr, "dmin", -STD_INFINITY(T));
@@ -23905,7 +24041,7 @@ public:
 				std::size_t n = pt_get<std::size_t>(attr, "n", 0);
 				T v = pt_get<T>(attr, "v", 0);
 
-				gen->run(v, n, m, dmin, intersecting, intersecting_material_id);
+				gen->run(v, n, m, dmin, intersecting, intersecting_materials);
 				fibers_valid = true;
 			}
 			else if (v.first == "init_fibers")
@@ -24052,21 +24188,21 @@ public:
 				boost::shared_ptr< DiscreteDistribution<T, 1> > dist(new CompositeDistribution<T, 1>());
 				dist->readSettings(v.second);
 				gen->setRadiusDistribution(dist);
-				//phase_valid = fibers_valid = false;
+				phase_valid = fibers_valid = false;
 			}
 			else if (v.first == "set_length_distribution")
 			{
 				boost::shared_ptr< DiscreteDistribution<T, 1> > dist(new CompositeDistribution<T, 1>());
 				dist->readSettings(v.second);
 				gen->setLengthDistribution(dist);
-				//phase_valid = fibers_valid = false;
+				phase_valid = fibers_valid = false;
 			}
 			else if (v.first == "set_fiber_distribution" || v.first == "set_orientation_distribution")
 			{
 				boost::shared_ptr< DiscreteDistribution<T, DIM> > dist(new CompositeDistribution<T, DIM>());
 				dist->readSettings(v.second);
 				gen->setOrientationDistribution(dist);
-				//phase_valid = fibers_valid = false;
+				phase_valid = fibers_valid = false;
 			}
 			else if (v.first == "tune_num_threads")
 			{
@@ -25525,7 +25661,7 @@ int run_tests()
 {
 	{
 		LOG_COUT << "########## Test 0" << std::endl;
-		LSSolver<T, P, DIM> lss(7, 5, 1, 1, 1, 1);
+		LSSolver<T, P, DIM> lss(2, 1, 1, 1, 1, 1);
 		lss.run_tests();
 	}
 	{

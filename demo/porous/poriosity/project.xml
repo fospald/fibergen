@@ -10,10 +10,10 @@
 	</variables>
 
 	<!-- Minimum fiber distance -->
-	<dmin>0.005</dmin>
+	<dmin>0.002</dmin>
 
 	<!-- Random seed -->
-	<seed>1</seed>
+	<seed>3</seed>
 
 	<!-- Create 2d periodic structure -->
 	<periodic>1</periodic>
@@ -34,7 +34,8 @@
 		<!-- Permeability coefficients -->
 		<materials>
 			<void mu="1" />
-			<stone  mu="0.001" />
+			<stone1 mu="0.2" />
+			<stone2 mu="0.001" />
 		</materials>
 
 		<mode>porous</mode>
@@ -43,7 +44,7 @@
 
 	<!-- List of actions to perform -->
 	<actions>
-		<select_material name="stone" />
+		<select_material name="stone1" />
 
 		<set_orientation_distribution>
 			<acg azz="0" />
@@ -57,8 +58,10 @@
 			<dirac x="0.1*scale" />
 		</set_radius_distribution>
 		
-		<generate_fibers n="10" />
+		<generate_fibers n="10" dmin="0.01" />
 		
+		<select_material name="stone2" />
+
 		<set_length_distribution>
 			<uniform a="0.01*scale" b="0.05*scale"  />
 		</set_length_distribution>
@@ -66,8 +69,8 @@
 		<set_radius_distribution>
 			<uniform a="0.01*scale" b="0.05*scale"  />
 		</set_radius_distribution>
-
-		<generate_fibers n="280" />
+		
+		<generate_fibers n="500" intersecting_materials="stone2" />
 		
 		<calc_effective_properties />
 
@@ -79,9 +82,9 @@
 		<loadstep>0</loadstep>
 		<interpolate>1</interpolate>
 		<custom_bounds>1</custom_bounds>
-		<vmin>0</vmin>
+		<vmin>-0.3</vmin>
 		<vmax>1</vmax>
-		<extra_fields>normals</extra_fields>
+		<extra_fields>normals,distance,fiber_id,orientation</extra_fields>
 	</view>
 
 </settings>

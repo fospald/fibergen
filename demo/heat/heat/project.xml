@@ -5,8 +5,8 @@
 	<image>thumbnail.png</image>
   
 	<variables>
-		<res type="int" value="256" />
-		<scale type="float" value="2.0" />
+		<res type="int" value="512" help="resolution" />
+		<scale type="float" value="2.0" help="geometry scaling factor" />
 	</variables>
 
 	<type>cylinder</type>
@@ -15,28 +15,26 @@
 	<length>0.1*scale</length>
 
 	<!-- Fiber radius -->
-	<radius>0.0025*scale</radius>
+	<radius>0.005*scale</radius>
 
 	<!-- Fiber volume fraction
 	<v>0.5</v> -->
 
 	<!-- Number of fibers -->
-	<n>10000</n>
+	<n>1000</n>
 
 	<!-- Maximum number of tries to generate n non intersecing fibers -->
-	<m>1000000</m>
+	<m>10000</m>
 
 	<!-- Minimum fiber distance -->
-	<dmin>0.0</dmin>
+	<dmin>0.5/res</dmin>
 
 	<!-- Random seed -->
 	<seed>0</seed>
 
 	<!-- Create periodic structure -->
-	<!-- If fast=1, distance maps may be not correctly in the far field -->
-	<periodic>1</periodic>
-	<planar x="1" />
-	<dx>1.0/res</dx>
+	<planar z="1" />
+	<dz>1.0/res</dz>
 
 	<!-- Allow intersecting structure -->
 	<intersecting>0</intersecting>
@@ -44,20 +42,18 @@
 	<!-- Number of threads to use -->
 	<num_threads>4</num_threads>
 
-	<solver nx="1" ny="res" nz="res">
+	<solver nx="res" ny="res" nz="1">
 
 		<!-- Solver tolerance -->
 		<tol>1e-6</tol>
 
 		<materials>
-			<matrix mu="10" />
-			<fiber  mu="1" />
+			<matrix mu="1" />
+			<fiber  mu="10" />
 		</materials>
 
 		<mode>heat</mode>
-		<gamma_scheme>collocated</gamma_scheme>
-		<mixing_rule>laminate</mixing_rule>
-
+		
 	</solver>
 
 	<!-- List of actions to perform -->
@@ -66,14 +62,26 @@
 
 		<!-- Set the fiber distribution -->
 		<set_fiber_distribution>
-			<acg weight="1" axx="0.0" ayy="1.0" azz="0.0" axy="0.0" axz="0.0" ayz="0.0" />
+			<acg weight="1" axx="1.0" ayy="1" azz="0.0" axy="0.0" axz="0.0" ayz="0.0" />
 		</set_fiber_distribution>
 	
+		<set_length_distribution>
+			<uniform a="0.01*scale" b="0.2*scale"  />
+		</set_length_distribution>
+
 		<calc_effective_properties />
 	
 		<print_A2 />
 
 	</actions>
+
+	<view>
+		<field>sigma0</field>
+		<slice_dim>z</slice_dim>
+		<loadstep>0.16666666666666666</loadstep>
+		<alpha>0.0042752653383875</alpha>
+		<interpolate>1</interpolate>
+	</view>
 
 </settings>
 
