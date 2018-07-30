@@ -43,12 +43,89 @@ from matplotlib import rcParams
 import matplotlib.ticker as mtick
 import matplotlib.cm as mcmap
 
+class PreferencesWidget(QtWidgets.QDialog):
+
+	def __init__(self, parent=None):
+		super(PreferencesWidget, self).__init__(parent)
+
+		app = QtWidgets.QApplication.instance()
+
+		self.setWindowTitle("Preferences")
+		self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
+		
+		grid = QtWidgets.QGridLayout()
+
+		self.fontCombo = QtWidgets.QFontComboBox()
+		self.fontCombo.setCurrentText(app.window.textEdit.font().family())
+		row = grid.rowCount()
+		grid.addWidget(QtWidgets.QLabel("Font:"), row, 0)
+		grid.addWidget(self.fontCombo, row, 1)
+		
+		self.fontSize = QtWidgets.QSpinBox()
+		self.fontSize.setMinimum(1)
+		self.fontSize.setMaximum(100)
+		self.fontSize.setValue(app.window.textEdit.font().pointSize())
+		row = grid.rowCount()
+		grid.addWidget(QtWidgets.QLabel("Font size:"), row, 0)
+		grid.addWidget(self.fontSize, row, 1)
+
+		self.tabSize = QtWidgets.QSpinBox()
+		self.tabSize.setMinimum(1)
+		self.tabSize.setMaximum(1000)
+		self.tabSize.setValue(app.window.textEdit.tabStopWidth())
+		row = grid.rowCount()
+		grid.addWidget(QtWidgets.QLabel("Tab width:"), row, 0)
+		grid.addWidget(self.tabSize, row, 1)
+
+		hline = QtWidgets.QFrame()
+		hline.setFrameShape(QtWidgets.QFrame.HLine)
+		hline.setFrameShadow(QtWidgets.QFrame.Sunken)
+		row = grid.rowCount()
+		grid.addWidget(hline, row, 0, row, 2)
+
+		hbox = QtWidgets.QHBoxLayout()
+		okButton = QtWidgets.QPushButton("&Save")
+		okButton.clicked.connect(self.save)
+		cancelButton = QtWidgets.QPushButton("&Cancel")
+		cancelButton.clicked.connect(self.close)
+
+		hbox.addStretch(1)
+		hbox.addWidget(cancelButton)
+		hbox.addWidget(okButton)
+		row = grid.rowCount()
+		grid.addLayout(hbox, row, 0, row, 2)
+
+		self.setLayout(grid)
+
+	def save(self):
+
+		app = QtWidgets.QApplication.instance()
+
+		font = self.fontCombo.currentFont()
+		font.setPointSize(self.fontSize.value())
+
+		if font.family() != app.window.textEdit.font().family():
+			app.settings.setValue("fontFamily", font.family())
+		if font.pointSize() != app.window.textEdit.font().pointSize():
+			app.settings.setValue("fontPointSize", font.pointSize())
+
+		app.window.textEdit.setFont(font)
+
+		tabSize = self.tabSize.value()
+		if tabSize != app.window.textEdit.tabStopWidth():
+			app.window.textEdit.setTabStopWidth(tabSize)
+			app.settings.setValue("tabStopWidth", tabSize)
+
+		self.close()
+
+
 class WriteVTKWidget(QtWidgets.QDialog):
 
 	def __init__(self, filename, rve_dims, field_groups, parent=None):
 		super(WriteVTKWidget, self).__init__(parent)
 
 		self.setWindowTitle("Write VTK")
+		self.setWindowFlags(self.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
 		
 		self.rve_dims = rve_dims
 		self.field_groups = field_groups
@@ -1492,6 +1569,8 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 	def __init__(self, parent = None):
 		QtWidgets.QTextEdit.__init__(self, parent)
 
+		app = QtWidgets.QApplication.instance()
+
 		doc = QtGui.QTextDocument()
 		option = QtGui.QTextOption()
 		option.setFlags(QtGui.QTextOption.ShowLineAndParagraphSeparators | QtGui.QTextOption.ShowTabsAndSpaces)
@@ -1499,14 +1578,15 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 		self.setDocument(doc)
 
 		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
-		#font = QtGui.QFont()
-		#font.setFamily("Monospace")
-		#font.setStyleHint(QtGui.QFont.Monospace)
+		fontFamily = app.settings.value("fontFamily", "")
+		if fontFamily != "":
+			font = QtGui.QFont(fontFamily)
+		
 		font.setFixedPitch(True)
-		font.setPointSize(font.pointSize())
-		fontmetrics = QtGui.QFontMetrics(font)
+		font.setPointSize(int(app.settings.value("fontPointSize", font.pointSize())))
 		self.setFont(font)
-		self.setTabStopWidth(2 * fontmetrics.width(' '))
+		fontmetrics = QtGui.QFontMetrics(font)
+		self.setTabStopWidth(int(app.settings.value("tabStopWidth", 2*fontmetrics.width(' '))))
 		self.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
 		self.setAcceptRichText(False)
 
@@ -2261,7 +2341,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 		self.textEdit = XMLTextEdit()
-	
+
 		self.runCount = 0
 		self.lastSaveText = self.getSaveText()
 
@@ -2362,6 +2442,8 @@ class MainWindow(QtWidgets.QMainWindow):
 		spacer = QtWidgets.QWidget()
 		spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.toolbar.addWidget(spacer)
+		aa("preferences-system", "Preferences", self.openPreferences, 0)
+		self.toolbar.addSeparator()
 		aa("help-contents", "Help", self.openHelp, QtCore.Qt.Key_F1)
 		aa("help-about", "About", self.openAbout, 0)
 		self.toolbar.addSeparator()
@@ -2392,6 +2474,10 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.tabWidget.setVisible(False)
 
 		self.show()
+
+	def openPreferences(self):
+		w = PreferencesWidget()
+		w.exec_()
 
 	def setDocumentVisible(self, visible):
 		self.vSplit.setVisible(visible)
