@@ -2421,7 +2421,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			if self.docTab is None:
 				self.docTab = DocWidget()
 			self.docTabIndex = self.addTab(self.docTab, "Help")
-		self.tabWidget.setCurrentIndex(self.docTabIndex)
+		self.tabWidget.setCurrentWidget(self.docTab)
 
 	def updateStatus(self):
 		c = self.textEdit.textCursor()
@@ -2442,9 +2442,9 @@ class MainWindow(QtWidgets.QMainWindow):
 		return index
 
 	def tabCloseRequested(self, index):
-		if index == self.demoTabIndex:
+		if index == self.tabWidget.indexOf(self.demoTab):
 			self.demoTabIndex = None
-		elif index == self.docTabIndex:
+		elif index == self.tabWidget.indexOf(self.docTab):
 			self.docTabIndex = None
 		self.tabWidget.removeTab(index)
 		if self.tabWidget.count() == 0:
@@ -2502,8 +2502,8 @@ class MainWindow(QtWidgets.QMainWindow):
 	def openDemo(self, filename):
 		if not self.openProjectSave(filename):
 			return False
-		if not self.demoTabIndex is None:
-			self.tabCloseRequested(self.demoTabIndex)
+		if self.tabWidget.currentWidget() == self.demoTab:
+			self.tabCloseRequested(self.tabWidget.currentIndex())
 			self.demoTabIndex = None
 		return True
 
@@ -2538,13 +2538,13 @@ class MainWindow(QtWidgets.QMainWindow):
 				self.demoTab.openProjectRequest.connect(self.openDemo)
 				self.demoTab.newProjectRequest.connect(self.newProject)
 			self.demoTabIndex = self.addTab(self.demoTab, "Demos")
-		self.tabWidget.setCurrentIndex(self.demoTabIndex)
+		self.tabWidget.setCurrentWidget(self.demoTab)
 
 	def newProject(self, filename=""):
 		if not self.checkTextSaved():
 			return False
-		if not self.demoTabIndex is None:
-			self.tabCloseRequested(self.demoTabIndex)
+		if self.tabWidget.currentWidget() == self.demoTab:
+			self.tabCloseRequested(self.tabWidget.currentIndex())
 			self.demoTabIndex = None
 		txt = ""
 		try:
@@ -2954,8 +2954,10 @@ class App(QtWidgets.QApplication):
 		})
 		#print(rcParams)
 
-		self.settings = QtCore.QSettings("NumaPDE", "FIBERGEN")
+		self.settings = QtCore.QSettings("NumaPDE", "fibergen")
 		self.window = MainWindow()
+
+		print("settings:", self.settings.fileName())
 
 		try:
 			if (len(args) > 1):

@@ -4409,6 +4409,7 @@ public:
 			{
 				boost::shared_ptr< const Fiber<T, DIM> > fiber;
 				fiber.reset(new TetrahedronFiber<T, DIM>(p));
+				fiber->set_material(0);
 
 				if (_cluster) {
 					_cluster->add(fiber);
@@ -4470,6 +4471,7 @@ public:
 			{
 				boost::shared_ptr< const Fiber<T, DIM> > fiber;
 				fiber.reset(new TriangleFiber<T, DIM>(p));
+				fiber->set_material(0);
 
 				if (_surface_cluster) {
 					_surface_cluster->add(fiber);
@@ -4600,13 +4602,18 @@ template <typename T, int DIM>
 class TetVTKFiber : public TetFiberBase<T, DIM>
 {
 public:
-	TetVTKFiber(const std::string& filename, std::size_t start, std::size_t end, bool fill)
+	TetVTKFiber(const std::string& filename, std::size_t start, std::size_t end, bool fill,
+		ublas::c_matrix<T,3,3> a, ublas::c_vector<T,3> t)
 	{
 		TetVTKReader<T> reader;
 		std::vector< ublas::c_vector<T,3> > points;
 		std::vector< ublas::c_vector<std::size_t,4> > tets;
 
 		reader.read(filename, points, tets);
+
+		for (std::size_t k = 0; k < points.size(); k++) {
+			points[k] = ublas::prod(a, points[k]) + t;
+		}
 
 		this->init(start, end, fill, points, tets);
 	}
@@ -4618,13 +4625,18 @@ template <typename T, int DIM>
 class TetDolfinXMLFiber : public TetFiberBase<T, DIM>
 {
 public:
-	TetDolfinXMLFiber(const std::string& filename, std::size_t start, std::size_t end, bool fill)
+	TetDolfinXMLFiber(const std::string& filename, std::size_t start, std::size_t end, bool fill,
+		ublas::c_matrix<T,3,3> a, ublas::c_vector<T,3> t)
 	{
 		TetDolfinXMLReader<T> reader;
 		std::vector< ublas::c_vector<T,3> > points;
 		std::vector< ublas::c_vector<std::size_t,4> > tets;
 
 		reader.read(filename, points, tets);
+
+		for (std::size_t k = 0; k < points.size(); k++) {
+			points[k] = ublas::prod(a, points[k]) + t;
+		}
 
 		this->init(start, end, fill, points, tets);
 	}
@@ -4643,7 +4655,8 @@ protected:
 public:
 
 	// construct from points
-	STLFiber(const std::string& filename, std::size_t start, std::size_t end, bool fill)
+	STLFiber(const std::string& filename, std::size_t start, std::size_t end, bool fill,
+		ublas::c_matrix<T,3,3> a, ublas::c_vector<T,3> t)
 	{
 		_fill_volume = fill;
 
@@ -4663,6 +4676,8 @@ public:
 				for (int j = 0; j < DIM; j++) {
 					p[k][j] = facets[i].v[k][j];
 				}
+
+				p[k] = ublas::prod(a, p[k]) + t;
 			}
 
 			// check normal
@@ -4673,6 +4688,7 @@ public:
 			try
 			{
 				fiber.reset(new TriangleFiber<T, DIM>(p));
+				fiber->set_material(0);
 
 				if (_cluster) {
 					_cluster->add(fiber);
@@ -4727,11 +4743,11 @@ public:
 	virtual boost::shared_ptr< Fiber<T, DIM> > clone() const
 	{
 		BOOST_THROW_EXCEPTION(std::runtime_error("STLFiber::clone(): not implemented!"));
-		boost::shared_ptr< Fiber<T, DIM> > fiber(new STLFiber("", 0, 0, _fill_volume));
-		fiber->set_id(this->id());
-		fiber->set_material(this->material());
-		fiber->set_parent(const_cast< Fiber<T, DIM>* const >(reinterpret_cast<const Fiber<T, DIM>* const>(this)));
-		return fiber;
+		//boost::shared_ptr< Fiber<T, DIM> > fiber(new STLFiber("", 0, 0, _fill_volume));
+		//fiber->set_id(this->id());
+		//fiber->set_material(this->material());
+		//fiber->set_parent(const_cast< Fiber<T, DIM>* const >(reinterpret_cast<const Fiber<T, DIM>* const>(this)));
+		//return fiber;
 	}
 	
 	inline virtual void translate(const ublas::c_vector<T, DIM>& dx)
@@ -23749,6 +23765,9 @@ public:
 		T dx = pt_get<T>(settings, "dx", 1);
 		T dy = pt_get<T>(settings, "dy", 1);
 		T dz = pt_get<T>(settings, "dz", 1);
+		T x0 = pt_get<T>(settings, "x0", 1);
+		T y0 = pt_get<T>(settings, "y0", 1);
+		T z0 = pt_get<T>(settings, "z0", 1);
 
 		const ptree::ptree& solver = settings.get_child("solver", empty_ptree);
 		const ptree::ptree& solver_attr = solver.get_child("<xmlattr>", empty_ptree);
@@ -24246,7 +24265,7 @@ public:
 					r = std::pow(V/(4*M_PI/(T)3), 1/(T)3);
 				}
 
-				read_vector(attr, c, "cx", "cy", "cz", 0.5*dx, 0.5*dy, 0.5*dz);
+				read_vector(attr, c, "cx", "cy", "cz", x0 + 0.5*dx, y0 + 0.5*dy, z0 + 0.5*dz);
 				read_vector(attr, a, "ax", "ay", "az", (T)1, (T)0, (T)0);
 
 				LOG_COUT << "placing " << type << " fiber: c=" << format(c) << " a=" << format(a) << " L=" << L << " R=" << r << std::endl;
@@ -24263,6 +24282,22 @@ public:
 				else {
 					BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Unknown fiber type '%s'") % type).str()));
 				}
+
+				gen->addFiber(fiber);
+				phase_valid = false; 
+			}
+			else if (v.first == "place_triangle")
+			{
+				ublas::c_vector<T, DIM> p[3];
+
+				read_vector(attr, p[0], "p1x", "p1y", "p1z", (T)0, (T)0, (T)0);
+				read_vector(attr, p[1], "p2x", "p2y", "p2z", (T)0, (T)0, (T)0);
+				read_vector(attr, p[2], "p3x", "p3y", "p3z", (T)0, (T)0, (T)0);
+
+				LOG_COUT << "placing triangle: p1=" << format(p[0]) << " p2=" << format(p[1]) << " p3=" << format(p[2]) << std::endl;
+				
+				boost::shared_ptr< const Fiber<T, DIM> > fiber;
+				fiber.reset(new TriangleFiber<T, DIM>(p));
 
 				gen->addFiber(fiber);
 				phase_valid = false; 
@@ -24291,10 +24326,16 @@ public:
 				std::size_t end = pt_get<std::size_t>(attr, "end", -1);
 				bool fill = pt_get<bool>(attr, "fill", true);
 
+				ublas::matrix<T> _a = ublas::identity_matrix<T>(3);
+				ublas::c_matrix<T,3,3> a;
+				ublas::c_vector<T,3> t;
+				read_matrix(attr, _a, "a", false); a = _a;
+				read_vector(attr, t, "tx", "ty", "tz", (T)0, (T)0, (T)0);
+
 				LOG_COUT << "placing tetvtk: filename=" << filename << std::endl;
 				
 				boost::shared_ptr< const Fiber<T, DIM> > fiber;
-				fiber.reset(new TetVTKFiber<T, DIM>(filename, start, end, fill));
+				fiber.reset(new TetVTKFiber<T, DIM>(filename, start, end, fill, a, t));
 
 				gen->addFiber(fiber);
 				phase_valid = false; 
@@ -24306,26 +24347,16 @@ public:
 				std::size_t end = pt_get<std::size_t>(attr, "end", -1);
 				bool fill = pt_get<bool>(attr, "fill", true);
 
+				ublas::matrix<T> _a = ublas::identity_matrix<T>(3);
+				ublas::c_matrix<T,3,3> a;
+				ublas::c_vector<T,3> t;
+				read_matrix(attr, _a, "a", false); a = _a;
+				read_vector(attr, t, "tx", "ty", "tz", (T)0, (T)0, (T)0);
+
 				LOG_COUT << "placing tetvtk: filename=" << filename << std::endl;
 				
 				boost::shared_ptr< const Fiber<T, DIM> > fiber;
-				fiber.reset(new TetDolfinXMLFiber<T, DIM>(filename, start, end, fill));
-
-				gen->addFiber(fiber);
-				phase_valid = false; 
-			}
-			else if (v.first == "place_triangle")
-			{
-				ublas::c_vector<T, DIM> p[3];
-
-				read_vector(attr, p[0], "p1x", "p1y", "p1z", (T)0, (T)0, (T)0);
-				read_vector(attr, p[1], "p2x", "p2y", "p2z", (T)0, (T)0, (T)0);
-				read_vector(attr, p[2], "p3x", "p3y", "p3z", (T)0, (T)0, (T)0);
-
-				LOG_COUT << "placing triangle: p1=" << format(p[0]) << " p2=" << format(p[1]) << " p3=" << format(p[2]) << std::endl;
-				
-				boost::shared_ptr< const Fiber<T, DIM> > fiber;
-				fiber.reset(new TriangleFiber<T, DIM>(p));
+				fiber.reset(new TetDolfinXMLFiber<T, DIM>(filename, start, end, fill, a, t));
 
 				gen->addFiber(fiber);
 				phase_valid = false; 
@@ -24337,10 +24368,16 @@ public:
 				std::size_t end = pt_get<std::size_t>(attr, "end", -1);
 				bool fill = pt_get<bool>(attr, "fill", true);
 
+				ublas::matrix<T> _a = ublas::identity_matrix<T>(3);
+				ublas::c_matrix<T,3,3> a;
+				ublas::c_vector<T,3> t;
+				read_matrix(attr, _a, "a", false); a = _a;
+				read_vector(attr, t, "tx", "ty", "tz", (T)0, (T)0, (T)0);
+
 				LOG_COUT << "placing stl: filename=" << filename << std::endl;
 				
 				boost::shared_ptr< const Fiber<T, DIM> > fiber;
-				fiber.reset(new STLFiber<T, DIM>(filename, start, end, fill));
+				fiber.reset(new STLFiber<T, DIM>(filename, start, end, fill, a, t));
 
 				gen->addFiber(fiber);
 				phase_valid = false; 
