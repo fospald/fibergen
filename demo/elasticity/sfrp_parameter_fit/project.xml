@@ -7,36 +7,30 @@
 
 	<variables>
 		<res type="int" value="256" />
-		<dy type="float" value="3**0.5" />
-		<R type="float" value="0.4" />
-		<cx type="float" value="0.5/res" />
+		<R type="float" value="0.5" />
+		<dx type="float" value="3**0.5" />
+		<cz type="float" value="0.5/res" />
 	</variables>
 
-	<dx>1.0/res</dx>
-	<dy>dy</dy>
-	<dz>1.0</dz>
+	<dx>dx</dx>
+	<dy>1</dy>
+	<dz>1.0/res</dz>
 
 	<periodic>0</periodic>
-	<planar z="0" y="0" x="1" />
+	<planar z="1" />
 
-	<solver nz="res" _ny="res" ny="int(dy*res+0.5)" nx="1" mult="1">
+	<solver nx="int(dx*res+0.5)" ny="res" nz="1">
 		
 		<materials>
 			<matrix law="iso" E="1.665" nu="0.36" />
 			<fiber  law="iso" E="73.0" nu="0.18" />
 		</materials>
 
-		<ref law="iso" lambda="0" mu="0.3" />
-
 		<method>cg</method>
-		<gamma_scheme>staggered</gamma_scheme>
 		<mode>elasticity</mode>
 		<mixing_rule>laminate</mixing_rule>
 
-		<tol>1e-16</tol>
-		<debug>0</debug>
-		<maxiter>50</maxiter>
-		<first_loadstep>1</first_loadstep>
+		<tol>1e-8</tol>
 
 	</solver>
 
@@ -45,15 +39,22 @@
 		<select_material name="fiber"/>
 
 		<!-- create dense hexagonal packing -->
-		<place_fiber R="R" cz="0.0" cy="0.0" cx="cx" az="0" ay="0" ax="1" L="2" />
-		<place_fiber R="R" cz="1" cy="0.0" cx="cx" az="0" ay="0" ax="1" L="2" />
-		<place_fiber R="R" cz="-0.5" cy="0.5*dy" cx="cx" az="0" ay="0" ax="1" L="2" />
-		<place_fiber R="R" cz="0.5" cy="0.5*dy" cx="cx" az="0" ay="0" ax="1" L="2" />
-		<place_fiber R="R" cz="0.0" cy="dy" cx="cx" az="0" ay="0" ax="1" L="2" />
-		<place_fiber R="R" cz="1" cy="dy" cx="cx" az="0" ay="0" ax="1" L="2" />
+		<place_fiber R="R" cx="0.0"    cy="0.0"  cz="cz" ax="0" ay="0" az="1" L="2" />
+		<place_fiber R="R" cx="0.0"    cy="1"    cz="cz" ax="0" ay="0" az="1" L="2" />
+		<place_fiber R="R" cx="0.5*dx" cy="-0.5" cz="cz" ax="0" ay="0" az="1" L="2" />
+		<place_fiber R="R" cx="0.5*dx" cy="0.5"  cz="cz" ax="0" ay="0" az="1" L="2" />
+		<place_fiber R="R" cx="dx"     cy="0.0"  cz="cz" ax="0" ay="0" az="1" L="2" />
+		<place_fiber R="R" cx="dx"     cy="1"    cz="cz" ax="0" ay="0" az="1" L="2" />
 
 		<run_load_case e33="0.2" e22="0" e11="1.0" e23="0.1" />
 
 	</actions>
+
+	<view>
+		<field>epsilon1</field>
+		<slice_dim>z</slice_dim>
+		<alpha>0.0633159695969352</alpha>
+		<interpolate>1</interpolate>
+	</view>
 
 </settings>

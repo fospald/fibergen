@@ -1319,6 +1319,8 @@ class PlotWidget(QtWidgets.QWidget):
 			vmin = float(self.vminText.text())
 			vmax = float(self.vmaxText.text())
 			
+			# NOTE: interpolation is matplotlib 2.0 is still buggy
+			# https://github.com/matplotlib/matplotlib/issues/8631
 			#methods = ['bilinear', 'bicubic', 'spline16', 'spline36', 'hanning', 'hamming', 'hermite', 'kaiser', 'quadric', 'catrom', 'gaussian', 'bessel', 'mitchell', 'sinc', 'lanczos']
 			interpolation = "bicubic" if self.interpolateCheck.isChecked() else "nearest"
 
@@ -2357,9 +2359,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		self.tabWidget = QtWidgets.QTabWidget()
 		self.tabWidget.setTabsClosable(True)
+		self.tabWidget.setMovable(True)
 		self.tabWidget.tabCloseRequested.connect(self.tabCloseRequested)
 		self.tabWidget.tabBar().installEventFilter(TabDoubleClickEventFilter(self.tabWidget))
-		
+		#self.tabWidget.tabBar().setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Fixed)
+		#self.tabWidget.tabBar().setExpanding(True)
+
 		self.filename = None
 		self.file_id = 0
 		self.filenameLabel = QtWidgets.QLabel()
