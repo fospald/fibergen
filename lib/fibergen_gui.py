@@ -241,6 +241,7 @@ class WriteVTKWidget(QtWidgets.QDialog):
 						data = data[[0, 5, 4, 8, 1, 3, 7, 6, 2]]
 						write("TENSORS")
 					else:
+						print(field.name, ncomp)
 						raise "problem"
 
 					npdtype = field_group[0].data[loadstep].dtype
@@ -249,7 +250,12 @@ class WriteVTKWidget(QtWidgets.QDialog):
 						dtype = "float"
 					elif npdtype == np.float64:
 						dtype = "double"
+					elif npdtype == np.int32:
+						dtype = "int"
+					elif npdtype == np.int64:
+						dtype = "long"
 					else:
+						print(npdtype)
 						raise "problem"
 
 					if field.name in ["phi"]:
@@ -262,9 +268,14 @@ class WriteVTKWidget(QtWidgets.QDialog):
 					if ncomp == 1:
 						write("LOOKUP_TABLE default\n")
 
+					if dtype == "long":
+						print(data.shape)
+
 					data = data[(i*ncomp):(i*ncomp + ncomp)].tobytes(order='F')
 
-					#print(label, len(data), ncomp)
+					if dtype == "long":
+						print(label, len(data), ncomp)
+
 					f.write(data)
 
 					del data

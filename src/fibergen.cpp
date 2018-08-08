@@ -12380,7 +12380,7 @@ public:
 	// n: interface normal vector
 	// Fbar: prescribed strain
 	// F1, F2: the strains in each phase (the solution)
-	inline void solve_newton(std::size_t _i, MaterialLaw<T>& law1, MaterialLaw<T>& law2, _P c1, _P c2, const Tensor3<T>& n, const T* Fbar, T* F1, T* F2) const
+	virtual void solve_newton(std::size_t _i, MaterialLaw<T>& law1, MaterialLaw<T>& law2, _P c1, _P c2, const Tensor3<T>& n, const T* Fbar, T* F1, T* F2) const
 	{
 	//	Timer __t("laminate solve_newton", false);
 
@@ -12485,7 +12485,7 @@ public:
 			DEBUG_LAMINATE("gradient: " << format(g));
 			DEBUG_LAMINATE("gradient norm: " << g_norm);
 
-			if (g_norm <= eps_g) {
+			if (g_norm <= this->eps_g) {
 				DEBUG_LAMINATE("converged g_norm <= eps_g");
 				break;
 			}
@@ -12501,12 +12501,14 @@ public:
 
 			DEBUG_LAMINATE("hessian: " << format(H));
 
+#if 0
 			if (DIM == 3) {
 				T trH = H[0] + H[1] + H[2];
 				H[0] = H[1] = H[2] = trH;
 				T trg = g[0] + g[1] + g[2];
 				g[0] = g[1] = g[2] = trg;
 			}
+#endif
 
 			// compute H^{-1}, H^{-1}g
 			Hinv.inv(H);
@@ -12955,6 +12957,335 @@ if (this->comp_fix) {
 	}
 };
 
+
+template<typename T, typename _P, int DIM>
+class InfinityLaminateMixedMaterialLaw : public LaminateMixedMaterialLaw<T, _P, DIM>
+{
+public:
+	InfinityLaminateMixedMaterialLaw(boost::shared_ptr< TensorField<T> > normals)
+		: LaminateMixedMaterialLaw<T, _P, DIM>(normals)
+	{
+	}
+
+	// newton method
+	// i: cell index (should not be used)
+	// law1, law2: phase material laws
+	// c1, c2: concentrations
+	// n: interface normal vector
+	// Fbar: prescribed strain
+	// F1, F2: the strains in each phase (the solution)
+	virtual void solve_newton(std::size_t _i, MaterialLaw<T>& law1, MaterialLaw<T>& law2, _P c1, _P c2, const Tensor3<T>& n, const T* Fbar, T* F1, T* F2) const
+	{
+#if 1
+	//	Timer __t("laminate solve_newton", false);
+
+		// Note: a, a_next, da live in the rotated (world) coordinate system
+		
+#if 0
+		#define DEBUG_INFLAMINATE(x) LOG_COUT << x << std::endl;
+#else
+		#define DEBUG_INFLAMINATE(x)
+#endif
+
+		Tensor3x3<T> P1, P2, dP1da, dP2da, Fbarinv, RT;
+		Tensor3x3<T> dF1da[3], dF2da[3];
+		Tensor3<T> a, da, a_next, g, Hinvg, FbarinvHinvg, Fbarinva;
+		SymTensor3x3<T> H, Hinv;
+		T W_next;
+
+		// compute rotation matrix from lamination direction (e1, e2 or e3) to n (RT*e1 = n)
+#define ROT_LAMINATE 0
+#if ROT_LAMINATE
+		Tensor3<T> e1;
+		e1[0] = 1; e1[1] = e1[2] = 0;
+		RT.rot(e1, n);
+#else
+		RT.eye();
+#endif
+
+		// helper for voigt notation
+		static const std::size_t row[9] = {0, 1, 2, 1, 0, 0, 2, 2, 1};
+		static const std::size_t col[9] = {0, 1, 2, 2, 2, 1, 1, 0, 0};
+		static const std::size_t row_indices[3][3] = {{0, 8, 7}, {5, 1, 6}, {4, 3, 2}};
+
+		if (DIM == 9) {
+			// compute Fbar^{-1}
+			Fbarinv.inv(Fbar);
+		}
+
+		// init a
+		a.zero();
+
+		// set initial F1 and F2
+		// F1 = Fbar
+		// F2 = Fbar
+		for (std::size_t i = 0; i < DIM; i++) {
+			F1[i] = F2[i] = Fbar[i];
+		}
+		this->fix_dim(F1); this->fix_dim(F2);
+
+		T w1 = c1, w2 = c2;
+		T q1 = 0.5, q2 = 0.5;
+
+		// compute initial energy W
+		T W = w1*law1.W(_i, F1) + w2*law2.W(_i, F2);
+
+		if (std::isnan(W) || std::isinf(W)) {
+			set_exception((boost::format("laminate energy inf or NaN").str()));
+		}
+
+		DEBUG_INFLAMINATE("\n-------------- LAMINATE Solver");
+		DEBUG_INFLAMINATE("n " << n[0] << " " << n[1] << " " << n[2]);
+		DEBUG_INFLAMINATE("F1 " << format(Tensor3x3<T>(F1)));
+		DEBUG_INFLAMINATE("F2 " << format(Tensor3x3<T>(F2)));
+		DEBUG_INFLAMINATE("W " << W);
+		DEBUG_INFLAMINATE("c1 " << c1);
+		DEBUG_INFLAMINATE("c2 " << c2);
+
+		std::size_t backtrack_iter = 0, iter = 0;
+
+		for (; ; iter++)
+		{
+			DEBUG_INFLAMINATE("# Newton iteration " << iter);
+			DEBUG_INFLAMINATE("W " << W);
+			DEBUG_INFLAMINATE("a " << a[0] << " " << a[1] << " " << a[2]);
+			DEBUG_INFLAMINATE("F1 " << format(Tensor3x3<T>(F1)));
+			DEBUG_INFLAMINATE("F2 " << format(Tensor3x3<T>(F2)));
+			DEBUG_INFLAMINATE("det(F1) " << Tensor3x3<T>(F1).det());
+			DEBUG_INFLAMINATE("det(F2) " << Tensor3x3<T>(F2).det());
+
+			// compute derivatives dF1/da and dF2/da
+			for (std::size_t k = 0; k < 3; k++)
+			{
+				for (std::size_t i = 0; i < 9; i++) {
+					dF1da[k][i] =  q2*RT[row_indices[k][row[i]]]*n[col[i]];
+					dF2da[k][i] = -q1*RT[row_indices[k][row[i]]]*n[col[i]];
+				}
+
+				// symmetrize for linear elasticity
+				this->fix_sym(dF1da[k]); this->fix_sym(dF2da[k]);
+
+				DEBUG_INFLAMINATE("dF1da" << k << ": " << format(dF1da[k]));
+				DEBUG_INFLAMINATE("dF2da" << k << ": " << format(dF2da[k]));
+			}
+
+			// compute gradient g=dW/da
+			law1.PK1(_i, F1, 1, false, P1); this->fix_dim(P1);
+			law2.PK1(_i, F2, 1, false, P2); this->fix_dim(P2);
+			for (std::size_t k = 0; k < 3; k++) {
+				g[k] = w1*P1.dot(dF1da[k]) + w2*P2.dot(dF2da[k]);
+			}
+
+			T g_norm = ublas::norm_2(g);
+
+			DEBUG_INFLAMINATE("P1: " << format(P1));
+			DEBUG_INFLAMINATE("P2: " << format(P2));
+			DEBUG_INFLAMINATE("gradient: " << format(g));
+			DEBUG_INFLAMINATE("gradient norm: " << g_norm);
+
+			if (g_norm <= this->eps_g) {
+				DEBUG_INFLAMINATE("converged g_norm <= eps_g");
+				break;
+			}
+
+			// compute hessian H=d^2W/da^2
+			for (std::size_t i = 0; i < 6; i++) {
+				std::size_t k = row[i];
+				std::size_t l = col[i];
+				law1.dPK1(_i, F1, 1, false, dF1da[l], dP1da); this->fix_dim(dP1da);
+				law2.dPK1(_i, F2, 1, false, dF2da[l], dP2da); this->fix_dim(dP2da);
+				H[i] = w1*dP1da.dot(dF1da[k]) + w2*dP2da.dot(dF2da[k]);
+			}
+
+			DEBUG_INFLAMINATE("hessian: " << format(H));
+
+#if 0
+			if (DIM == 3) {
+				T trH = H[0] + H[1] + H[2];
+				H[0] = H[1] = H[2] = trH;
+				T trg = g[0] + g[1] + g[2];
+				g[0] = g[1] = g[2] = trg;
+			}
+#endif
+
+			// compute H^{-1}, H^{-1}g
+			Hinv.inv(H);
+			Hinvg.mult(Hinv, g);
+
+			// compute (negative) step direction da
+#if ROT_LAMINATE
+			da.mult(RT, Hinvg);
+#else
+			da = Hinvg;
+#endif
+			T gTda = da.dot(g);
+
+			// compute decrement and gradient norm
+#if 1
+			T da_norm = ublas::norm_2(Hinvg);
+			DEBUG_INFLAMINATE("norm da: " << da_norm);
+
+			// check convergence
+			if (da_norm <= this->eps_a) {
+				DEBUG_INFLAMINATE("converged da_norm <= eps_a");
+				break;
+			}
+#else
+			T lambda2 = g.dot(Hinvg);
+			DEBUG_INFLAMINATE("lambda2: " << lambda2);
+			DEBUG_INFLAMINATE("lambda2/W: " << (lambda2/W));
+
+			// check convergence
+			if (lambda2 <= 2*eps_a*W) {
+				DEBUG_INFLAMINATE("converged lambda2 <= 2*eps_a*W");
+				break;
+			}
+#endif
+
+			// compute maximum feasible step length (only in the nonlinear case)
+			T t = 1;
+			if (DIM == 9 && this->project_t) {
+				/*
+				TODO:
+				FbarinvHinvg.mult(Fbarinv, Hinvg);
+				T w = FbarinvHinvg.dot(n);
+
+				Fbarinva.mult(Fbarinv, a);
+				T x = Fbarinva.dot(n);
+
+				DEBUG_INFLAMINATE("w: " << w);
+				DEBUG_INFLAMINATE("t1: " << (delta/c1 + x)/w);
+				DEBUG_INFLAMINATE("t2: " << (-delta/c2 + x)/w);
+
+				if (w > 0) {
+					t = std::min((T)1, (x + delta/c1)/w);
+				}
+				else if (w < 0) {
+					t = std::min((T)1, (x - delta/c2)/w);
+				}
+				*/
+			}
+
+			// perform backtracking
+			for (;;)
+			{
+				// compute next a
+				for (std::size_t i = 0; i < 3; i++) {
+					a_next[i] = a[i] - t*da[i];
+				}
+				
+				// compute next F1 and F2
+				// F1 = Fbar - c2*a_next*n^T
+				// F2 = Fbar + c1*a_next*n^T
+				for (std::size_t i = 0; i < DIM; i++) {
+					F1[i] = F2[i] = Fbar[i];
+				}
+				this->fix_dim(F1); this->fix_dim(F2);
+				for (std::size_t i = 0; i < 9; i++) {
+					F1[i] +=  q2*a_next[row[i]]*n[col[i]];
+					F2[i] += -q1*a_next[row[i]]*n[col[i]];
+				}
+				this->fix_sym(F1); this->fix_sym(F2);
+
+				DEBUG_INFLAMINATE("det(F1) = " << Tensor3x3<T>::det(F1));
+				DEBUG_INFLAMINATE("det(F2) = " << Tensor3x3<T>::det(F2));
+				
+#if 1
+				if (DIM != 9) {
+					DEBUG_INFLAMINATE("a " << a_next[0] << " " << a_next[1] << " " << a_next[2]);
+					DEBUG_INFLAMINATE("F1 " << format(Tensor3x3<T>(F1)));
+					DEBUG_INFLAMINATE("F2 " << format(Tensor3x3<T>(F2)));
+
+					// TODO: we can break here only if it is a linear problem
+					return;
+				}
+#endif
+
+				// compute next energy
+				W_next = w1*law1.W(_i, F1) + w2*law2.W(_i, F2);
+				
+				if (!this->backtrack) {
+					break;
+				}
+
+				DEBUG_INFLAMINATE("backtracking: t=" << t << " W=" << std::setprecision(16) << W_next);
+				
+				// check if we have sufficient decrease
+				if (W_next < W - this->alpha*t*gTda) {
+					break;
+				}
+
+				t *= this->beta;
+				backtrack_iter++;
+
+				if (t <= this->eps_t) {
+					break;
+				}
+			}
+
+			if (t <= this->eps_t) {
+				DEBUG_INFLAMINATE("converged t <= eps_t");
+				break;
+			}
+
+			DEBUG_INFLAMINATE("a " << format(a_next));
+
+			// perform step
+			a = a_next;
+			W = W_next;
+
+			if (iter >= this->maxiter)
+			{
+				DEBUG_INFLAMINATE("converged iter >= maxiter");
+				break; // TODO: improve stopping criteria
+
+				Tensor3x3<T> Fbar2(Fbar);
+				this->fix_sym(Fbar2);
+				
+				LOG_COUT << "i = " << _i << std::endl;
+				LOG_COUT << "c1 = " << c1 << std::endl;
+				LOG_COUT << "c2 = " << c2 << std::endl;
+				LOG_COUT << "c1+c2-1 = " << (c1+c2-1) << std::endl;
+				LOG_COUT << "n = " << format(n) << " norm = " << ublas::norm_2(n) << std::endl;
+				LOG_COUT << "Fbar = " << format(Fbar2) << std::endl;
+				LOG_COUT << "det(Fbar) = " << Fbar2.det() << std::endl;
+
+				SaintVenantKirchhoffMaterialLaw<T>* svk1 = dynamic_cast<SaintVenantKirchhoffMaterialLaw<T>*>(&law1);
+				if (svk1 != NULL) {
+					LOG_COUT << "mu1=" << svk1->mu << "lambda1=" << svk1->lambda << std::endl;
+				}
+				SaintVenantKirchhoffMaterialLaw<T>* svk2 = dynamic_cast<SaintVenantKirchhoffMaterialLaw<T>*>(&law2);
+				if (svk2 != NULL) {
+					LOG_COUT << "mu2=" << svk2->mu << "lambda2=" << svk2->lambda << std::endl;
+				}
+
+				set_exception((boost::format("Newton solver did not converge da_norm=%g eps_a=%g eps_t=%g") % da_norm % this->eps_a % this->eps_t).str());
+			}
+		}
+
+		if (this->debug) {
+			#pragma omp critical
+			{
+				*const_cast<std::size_t*>(&this->_max_backtrack) = std::max(backtrack_iter, this->_max_backtrack);
+				*const_cast<std::size_t*>(&this->_sum_backtrack) += backtrack_iter;
+				*const_cast<std::size_t*>(&this->_max_newtoniter) = std::max(iter, this->_max_newtoniter);
+				*const_cast<std::size_t*>(&this->_sum_newtoniter) += iter;
+				*const_cast<std::size_t*>(&this->_calls) += 1;
+			}
+		}
+
+#if 0
+		const T J1 = Tensor3x3<T>::det(F1);
+		const T J2 = Tensor3x3<T>::det(F2);
+
+		if (J1 <= 0 || J2 <= 0) {
+			BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("newton_solve problem").str())));
+		}
+#endif
+
+#endif
+	}
+};
 
 
 template<typename T, typename _P, int DIM>
@@ -13887,6 +14218,11 @@ public:
 		CHECK_MIX("random", RandomMixedMaterialLaw, ,)
 		CHECK_MIX("reuss", ReussMixedMaterialLaw, ,)
 		CHECK_MIX("laminate", LaminateMixedMaterialLaw, get_normals(), {
+			//mr->eps = _tol;
+			//T eps = std::numeric_limits<T>::epsilon();
+			//mr->delta = std::max((T)0, 1 - 0.1*_tol);
+		})
+		CHECK_MIX("infinity-laminate", InfinityLaminateMixedMaterialLaw, get_normals(), {
 			//mr->eps = _tol;
 			//T eps = std::numeric_limits<T>::epsilon();
 			//mr->delta = std::max((T)0, 1 - 0.1*_tol);
@@ -23765,9 +24101,9 @@ public:
 		T dx = pt_get<T>(settings, "dx", 1);
 		T dy = pt_get<T>(settings, "dy", 1);
 		T dz = pt_get<T>(settings, "dz", 1);
-		T x0 = pt_get<T>(settings, "x0", 1);
-		T y0 = pt_get<T>(settings, "y0", 1);
-		T z0 = pt_get<T>(settings, "z0", 1);
+		T x0 = pt_get<T>(settings, "x0", 0);
+		T y0 = pt_get<T>(settings, "y0", 0);
+		T z0 = pt_get<T>(settings, "z0", 0);
 
 		const ptree::ptree& solver = settings.get_child("solver", empty_ptree);
 		const ptree::ptree& solver_attr = solver.get_child("<xmlattr>", empty_ptree);
