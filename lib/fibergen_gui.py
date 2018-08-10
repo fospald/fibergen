@@ -2745,6 +2745,8 @@ class MainWindow(QtWidgets.QMainWindow):
 		loadstep_called = []
 		phase_names = []
 
+		get_mean_values = False
+
 		progress = QtWidgets.QProgressDialog("Computation is running...", "Cancel", 0, 0, self)
 		progress.setWindowTitle("Run")
 		progress.setWindowFlags(progress.windowFlags() & ~QtCore.Qt.WindowContextHelpButtonHint)
@@ -2816,10 +2818,11 @@ class MainWindow(QtWidgets.QMainWindow):
 			#print "res=", residual
 			# progress.setValue(100)
 			process_events()
-			mean_strains.append(fg.get_mean_strain())
-			process_events()
-			mean_stresses.append(fg.get_mean_stress())
-			process_events()
+			if get_mean_values:
+				mean_strains.append(fg.get_mean_strain())
+				process_events()
+				mean_stresses.append(fg.get_mean_stress())
+				process_events()
 			return progress.wasCanceled()
 
 
@@ -2833,17 +2836,17 @@ class MainWindow(QtWidgets.QMainWindow):
 			
 			fg.run()
 
+			if progress.wasCanceled():
+				progress.close()
+				del fg
+				return
+
 			if record_loadstep != 0:
 				fg.init_phase()
 
 			if len(loadstep_called) == 0 and record_loadstep != 0:
 				field_names = const_fields
 				loadstep_callback()
-
-			if progress.wasCanceled():
-				progress.close()
-				del fg
-				return
 
 		except:
 			print(traceback.format_exc())
@@ -2998,11 +3001,10 @@ class MainWindow(QtWidgets.QMainWindow):
 				('residuals', matrix([[i,r] for i,r in enumerate(residuals)])),
 			]))
 		
-		"""
-		for i, ij in enumerate([11, 22, 33, 23, 13, 12]):
-			resultText += plot(range(len(mean_stresses)), [s[i] for s in mean_stresses], "Sigma_%s" % ij, "Iteration", "Sigma_%d" % ij, "linear")
-			resultText += plot(range(len(mean_strains)), [s[i] for s in mean_strains], "Epsilon_%s" % ij, "Iteration", "Epsilon_%d" % ij, "linear")
-		"""
+		if get_mean_values:
+			for i, ij in enumerate([11, 22, 33, 23, 13, 12]):
+				resultText += plot(range(len(mean_stresses)), [s[i] for s in mean_stresses], "Sigma_%s" % ij, "Iteration", "Sigma_%d" % ij, "linear")
+				resultText += plot(range(len(mean_strains)), [s[i] for s in mean_strains], "Epsilon_%s" % ij, "Iteration", "Epsilon_%d" % ij, "linear")
 
 		other = self.tabWidget.currentWidget()
 

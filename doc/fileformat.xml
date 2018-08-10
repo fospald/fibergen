@@ -70,8 +70,8 @@
 		<abs_tol help="absolute error tolerance" type="float">2**-52</abs_tol>
 		<bc_tol help="relative error for boundary conditions" type="float">1e-3</bc_tol>
 		<maxiter help="maximum iterations" type="int">10000</maxiter>
-		<error_estimator help="method for convergence check" type="str" values="none,residual,energy,div_sigma,sigma">sigma</error_estimator>
-		<outer_error_estimator help="method for outer loop convergence check" type="str" values="none,residual,energy,div_sigma,sigma">sigma</outer_error_estimator>
+		<error_estimator help="method for convergence check" type="str" values="none,residual,energy,div_sigma,sigma,epsilon">epsilon</error_estimator>
+		<outer_error_estimator help="method for outer loop convergence check" type="str" values="none,residual,energy,div_sigma,sigma,epsilon">epsilon</outer_error_estimator>
 		
 		<mixing_rule help="method for mixing materials at interfaces" type="str" values="voigt,reuss,laminate,maximum,split,fluidity,random,iso">voigt</mixing_rule>
 		

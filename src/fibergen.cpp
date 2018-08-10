@@ -11409,7 +11409,7 @@ public:
 			T lambda_min_p = STD_INFINITY(T);
 			T lambda_max_p = -STD_INFINITY(T);
 			
-			#pragma omp for schedule (static) collapse(2)
+			#pragma omp for schedule (dynamic) collapse(2)
 			BEGIN_TRIPLE_LOOP(kk, F.nx, F.ny, F.nz, F.nzp)
 			{
 				Tensor<T, DIM> Fk;
@@ -14013,8 +14013,8 @@ public:
 		_ref_scale = 1.0;
 		_newton_relax = 1.0;
 		_basic_relax = 1.0;
-		_error_estimator = "sigma";
-		_outer_error_estimator = "sigma";
+		_error_estimator = "epsilon";
+		_outer_error_estimator = "epsilon";
 		_update_ref = "loadstep";
 		_method = "cg";
 		_cg_inner_product = "l2";
