@@ -19,6 +19,7 @@ import numpy as np
 import scipy.misc
 import keyword
 import textwrap
+from weakref import WeakKeyDictionary
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 try:
@@ -802,8 +803,21 @@ class PlotWidget(QtWidgets.QWidget):
 		self.fignavbar.locLabel.setContentsMargins(0,-4,0,-4)
 
 		if other != None:
-			self.fignavbar._views = copy.copy(other.fignavbar._views)
-			self.fignavbar._positions = copy.copy(other.fignavbar._positions)
+			if hasattr(self.fignavbar, "_views"):
+				self.fignavbar._views = copy.copy(other.fignavbar._views)
+				self.fignavbar._positions = copy.copy(other.fignavbar._positions)
+			else:
+				# TODO: copy is not possible due to axis reference
+				pass
+				"""
+				for e in other.fignavbar._nav_stack._elements:
+					
+				self.fignavbar._nav_stack = copy.copy(other.fignavbar._nav_stack)
+						self.fignavbar._nav_stack.push(
+							WeakKeyDictionary(
+								{ax: (views[i], pos[i])
+							for i, ax in enumerate(self.figcanvas.figure.get_axes())}))
+				"""
 
 		wvbox = QtWidgets.QVBoxLayout()
 		wvbox.addWidget(self.fignavbar)
@@ -922,7 +936,12 @@ class PlotWidget(QtWidgets.QWidget):
 			vmax = ET.SubElement(view, 'vmax')
 			vmax.text = self.vmaxText.text()
 
-		views = self.fignavbar._views()
+		if hasattr(self.fignavbar, "_views"):
+			views = self.fignavbar._views()
+		else:
+			arr = self.fignavbar._nav_stack().values()
+			views = [n[0] for n in arr]
+
 		if not views is None and len(views):
 			v = views[0]
 			data = self.getCurrentSlice()
@@ -1400,6 +1419,7 @@ class PlotWidget(QtWidgets.QWidget):
 			self.figcanvas.setVisible(False)
 			self.fignavbar.setVisible(False)
 
+		"""
 		if (xlim != None):
 			self.axes.set_xlim(xlim)
 		if (ylim != None):
@@ -1407,11 +1427,11 @@ class PlotWidget(QtWidgets.QWidget):
 
 		self.axes.xaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
 		self.axes.yaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
-
-		self.figcanvas.draw()
+		"""
 
 		if firstReplot:
-			#self.fignavbar.push_current()
+			self.figcanvas.draw()
+
 			if not self.initialView is None:
 				# /usr/lib/python3/dist-packages/matplotlib/backend_bases.py
 				views = []
@@ -1422,11 +1442,51 @@ class PlotWidget(QtWidgets.QWidget):
 						a.get_position(True).frozen(),
 						a.get_position().frozen()))
 				if len(views):
-					views[0] = tuple(self.initialView)
-					self.fignavbar._views.push(views)
-					self.fignavbar._positions.push(pos)
-					#self.fignavbar.forward()
-			self.fignavbar._update_view()
+					if hasattr(self.fignavbar, "_views"):
+						self.fignavbar._views.push(views)
+						self.fignavbar._positions.push(pos)
+						views = copy.copy(views)
+						views[0] = tuple(self.initialView)
+						self.fignavbar._views.push(views)
+						self.fignavbar._positions.push(pos)
+						self.fignavbar._views._pos = len(self.fignavbar._views._elements)-1
+						self.fignavbar._positions._pos = len(self.fignavbar._positions._elements)-1
+					else:
+						self.fignavbar._nav_stack.push(
+							WeakKeyDictionary(
+								{ax: (views[i], pos[i])
+							for i, ax in enumerate(self.figcanvas.figure.get_axes())}))
+						views = copy.copy(views)
+						views[0] = tuple(self.initialView)
+						self.fignavbar._nav_stack.push(
+							WeakKeyDictionary(
+								{ax: (views[i], pos[i])
+							for i, ax in enumerate(self.figcanvas.figure.get_axes())}))
+						self.fignavbar._nav_stack._pos = len(self.fignavbar._nav_stack._elements)-1
+
+		if hasattr(self.fignavbar, "_views"):
+			views = self.fignavbar._views()
+			if not views is None:
+				pos = self.fignavbar._positions()
+				for i, a in enumerate(self.figcanvas.figure.get_axes()):
+					a._set_view(views[i])
+					# Restore both the original and modified positions
+					a.set_position(pos[i][0], 'original')
+					a.set_position(pos[i][1], 'active')
+					#a.reset_position()
+		else:
+			views = self.fignavbar._nav_stack()
+			if not views is None:
+				items = list(views.items())
+				for ax, (view, (pos_orig, pos_active)) in items:
+					ax._set_view(view)
+					# Restore both the original and modified positions
+					ax._set_position(pos_orig, 'original')
+					ax._set_position(pos_active, 'active')
+					#ax.reset_position()
+
+		self.figcanvas.draw()
+
 
 
 class XMLHighlighter(QtGui.QSyntaxHighlighter):
