@@ -804,8 +804,10 @@ class PlotWidget(QtWidgets.QWidget):
 		self.fignavbar.layout().setSpacing(tb.layout().spacing())
 		self.fignavbar.sizeHint = tb.sizeHint
 		self.fignavbar.locLabel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignCenter)
-		self.fignavbar.locLabel.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding))
+		self.fignavbar.locLabel.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed))
 		self.fignavbar.locLabel.setContentsMargins(0,-4,0,-4)
+		fm = QtGui.QFontMetrics(self.fignavbar.locLabel.font())
+		self.fignavbar.locLabel.setFixedHeight(2*fm.height())
 
 		if other != None:
 			if hasattr(self.fignavbar, "_views"):
