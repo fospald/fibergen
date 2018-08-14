@@ -458,10 +458,12 @@ table {
 th, td, .help {
 	border: 1px solid """ + pal.shadow().color().name() + """;
 	padding: 0.5em;
+	text-align: left;
 }
 .help {
 	background-color: """ + pal.toolTipBase().color().name() + """;
 	color: """ + pal.toolTipText().color().name() + """;
+	display: inline-block;
 }
 .help:first-letter {
 	text-transform: uppercase;
@@ -742,6 +744,7 @@ class PlotWidget(QtWidgets.QWidget):
 		
 		self.figcanvas = FigureCanvas(self.fig)
 		self.figcanvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+
 		#self.figcanvas.setContentsMargins(0, 0, 0, 0)
 		#self.figcanvas.setStyle(app.style())
 		#self.figcanvas.setStyleSheet("background-color: yellow")
@@ -750,7 +753,9 @@ class PlotWidget(QtWidgets.QWidget):
 		self.fignavbar.set_cursor(cursors.SELECT_REGION)
 		self.fignavbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
 		self.fignavbar.set_history_buttons = self.setHistoryButtons
-
+		self.fignavbar._update_view_old = self.fignavbar._update_view
+		self.fignavbar._update_view = self.fignavbar_update_view
+		
 		def setIcon(c, names):
 			for name in names:
 				if QtGui.QIcon.hasThemeIcon(name):
@@ -877,7 +882,7 @@ class PlotWidget(QtWidgets.QWidget):
 		self.updateFigCanvasVisible()
 
 	def setHistoryButtons(self):
-		#self.fignavbar._actions["home"].setEnabled(not self.fignavbar._views is None and len(self.fignavbar._views))
+		#self.redrawCanvas()
 		pass
 
 	def getViewXML(self):
@@ -1464,6 +1469,25 @@ class PlotWidget(QtWidgets.QWidget):
 							for i, ax in enumerate(self.figcanvas.figure.get_axes())}))
 						self.fignavbar._nav_stack._pos = len(self.fignavbar._nav_stack._elements)-1
 
+		self.fignavbar_update_view()
+
+	def fignavbar_update_view(self):
+		
+		self.fignavbar._update_view_old()
+
+		s = self.figcanvas.size()
+		s.setWidth(s.width()+0)
+		e = QtGui.QResizeEvent(s, self.figcanvas.size())
+		self.figcanvas.resizeEvent(e)
+
+		self.figcanvas.draw()
+
+		#print("update")
+
+	def redrawCanvas(self):
+
+		self.figcanvas.draw()
+
 		if hasattr(self.fignavbar, "_views"):
 			views = self.fignavbar._views()
 			if not views is None:
@@ -1481,12 +1505,9 @@ class PlotWidget(QtWidgets.QWidget):
 				for ax, (view, (pos_orig, pos_active)) in items:
 					ax._set_view(view)
 					# Restore both the original and modified positions
-					ax._set_position(pos_orig, 'original')
-					ax._set_position(pos_active, 'active')
+					ax.set_position(pos_orig, 'original')
+					ax.set_position(pos_active, 'active')
 					#ax.reset_position()
-
-		self.figcanvas.draw()
-
 
 
 class XMLHighlighter(QtGui.QSyntaxHighlighter):
