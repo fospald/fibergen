@@ -14202,9 +14202,9 @@ public:
 			} \
 		}
 
-		if (_mode == "viscosity" && name == "laminate") {
-			name = "fluidity";
-		}
+		//if (_mode == "viscosity" && name == "laminate") {
+		//	name = "fluidity";
+		//}
 
 		if (false) {}
 		CHECK_MIX("voigt", VoigtMixedMaterialLaw, ,)
@@ -18140,6 +18140,7 @@ public:
 		//const T xi0_0 = 2*M_PI/_dx, xi1_0 = 2*M_PI/_dy, xi2_0 = 2*M_PI/_dz;
 		const T xi0_0 = 2*M_PI/_dx, xi1_0 = 2*M_PI/_dy, xi2_0 = 2*M_PI/_dz;
 		const T small = boost::numeric::bounds<T>::smallest();
+		const T mu_lambda_0 = mu_0/lambda_0;
 
 		const bool nx_even = (_nx & 1) == 0;
 		const bool ny_even = (_ny & 1) == 0;
@@ -18279,6 +18280,18 @@ public:
 							}
 */
 
+							#if 1
+							// defined for lambda_0 -> infinity
+							gamma(iv, jv) = (
+								(1 + 2*mu_lambda_0)*((T)0.25)*(r[i]*rc[l]*delta(j,k) + r[j]*rc[l]*delta(i,k) + r[i]*rc[k]*delta(j,l) + r[j]*rc[k]*delta(i,l))
+								+ (((T)0.25)*(r[i]*rc[l]*sjk + r[j]*rc[l]*sik + r[i]*rc[k]*sjl + r[j]*rc[k]*sil) - std::real(r[i]*rc[j])*std::real(r[k]*rc[l]))
+								- mu_lambda_0*r[i]*r[j]*rc[k]*rc[l]
+							) /
+							(
+								mu_0*(2*(1 + mu_lambda_0) - r2)
+							);
+							#else
+							// undefined for lambda_0 -> infinity
 							gamma(iv, jv) = (
 								(lambda_0 + 2*mu_0)*((T)0.25)*(r[i]*rc[l]*delta(j,k) + r[j]*rc[l]*delta(i,k) + r[i]*rc[k]*delta(j,l) + r[j]*rc[k]*delta(i,l))
 								+ lambda_0*(((T)0.25)*(r[i]*rc[l]*sjk + r[j]*rc[l]*sik + r[i]*rc[k]*sjl + r[j]*rc[k]*sil) - std::real(r[i]*rc[j])*std::real(r[k]*rc[l]))
@@ -18287,6 +18300,8 @@ public:
 							(
 								mu_0*(2*(lambda_0 + mu_0) - lambda_0*r2)
 							);
+							#endif
+
 #endif
 							
 							gamma(jv, iv) = std::conj(gamma(iv, jv));
@@ -19413,6 +19428,49 @@ public:
 
 	// compute eta = 2*alpha*mu_0*(tau - mu_0 * Gamma^0 : tau), <eta> = E
 	// where lambda_0 -> infinity, mu_0 -> mu_0/2 is used for Gamma^0
+	void DeltaOperatorWillotR(const ublas::vector<T>& E, T mu_0, T lambda_0,
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+	{
+		pRealTensor tau_copy;
+
+		/*
+		ublas::vector<T> tau0 = tau.average();
+		LOG_COUT << "E = " << format(E) << std::endl;
+		LOG_COUT << "tau0 = " << format(tau0) << std::endl;
+		*/
+		
+		// fluidity -> viscosity
+		mu_0 = 1/(4*mu_0);
+
+		if (tau[0] == eta[0]) {
+			// create copy of tau since tau gets lost after inplace GammaOperatorStaggered
+			tau_copy = _temp->shadow();
+			tau.copyTo(*tau_copy);
+		}
+		else {
+			// operating out of place, no copy necessary
+			tau_copy = tau.shadow();
+		}
+
+		// calculate mean constant such that <eta> = E
+		ublas::c_vector<T, 6> adj = E - 2*alpha*mu_0*tau_copy->average();
+
+		// compute eta = -4*alpha * mu_0^2 * Gamma^0 : tau
+		GammaOperatorWillotR(adj, -1.0/(4*mu_0), STD_INFINITY(T), tau, tau_hat, eta_hat, eta, alpha);
+
+		// compute eta += 2*alpha*mu_0*tau
+		eta.xpay(eta, 2*alpha*mu_0, *tau_copy);
+
+		/*
+		ublas::vector<T> tau1 = eta.average();
+		LOG_COUT << "tau1 = " << format(tau1) << std::endl;
+		LOG_COUT << "eta0*(gamma_bar - gamma_0) = " << format((_S - tau0)*(2*mu_0)) << std::endl;
+		*/
+	}
+
+
+	// compute eta = 2*alpha*mu_0*(tau - mu_0 * Gamma^0 : tau), <eta> = E
+	// where lambda_0 -> infinity, mu_0 -> mu_0/2 is used for Gamma^0
 	void DeltaOperatorStaggered(const ublas::vector<T>& E, T mu_0, T lambda_0,
 		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
 	{
@@ -19445,7 +19503,6 @@ public:
 
 		// compute eta += 2*alpha*mu_0*tau
 		eta.xpay(eta, 2*alpha*mu_0, *tau_copy);
-
 
 		/*
 		ublas::vector<T> tau1 = eta.average();
@@ -19500,6 +19557,10 @@ public:
 			}
 			else if (_gamma_scheme == "staggered" || _gamma_scheme == "half_staggered" || _gamma_scheme == "full_staggered") {
 				DeltaOperatorStaggered(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+				return;
+			}
+			else if (_gamma_scheme == "willot") {
+				DeltaOperatorWillotR(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
 				return;
 			}
 		}
@@ -20276,7 +20337,7 @@ public:
 		*/
 
 		// check if we need additional temporary vector
-		bool needTemp = ((_mode == "viscosity") && (_gamma_scheme == "staggered" || _gamma_scheme == "half_staggered" || _gamma_scheme == "full_staggered")); // || (_G0_solver == "multigrid");
+		bool needTemp = ((_mode == "viscosity") && (_gamma_scheme == "staggered" || _gamma_scheme == "half_staggered" || _gamma_scheme == "full_staggered" || _gamma_scheme == "willot")); // || (_G0_solver == "multigrid");
 		if (needTemp) {
 			if (!_temp) _temp.reset(new RealTensor(*_epsilon, 0));
 			_temp->setConstant(ublas::zero_vector<T>(_temp->dim));

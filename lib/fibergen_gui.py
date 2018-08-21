@@ -9,6 +9,7 @@ import sys, os, re
 import webbrowser
 import base64
 import copy
+import cgi
 import traceback
 import codecs
 import collections
@@ -2045,7 +2046,7 @@ p ~ p {
 		if en is None:
 			help = "Unknown element"
 		else:
-			help = e.get("help")
+			help = cgi.escape(e.get("help"))
 
 		html += '<div class="help">' + help + "</div>"
 
@@ -2067,20 +2068,20 @@ p ~ p {
 					if i > 0:
 						html += " | "
 					if not item[1] is None:
-						html += '<a href="http://x#ins#' + v + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + v + '</a>'
+						html += '<a href="http://x#ins#' + v + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + cgi.escape(v) + '</a>'
 					else:
 						html += v
 				html += "</p>"
 
 			if not e.text is None and len(e.text.strip()) > 0:
-				html += '<p><b>Default:</b> ' + e.text.strip() + "</p>"
+				html += '<p><b>Default:</b> ' + cgi.escape(e.text.strip()) + "</p>"
 			
 			if (not en is None):
 				attr = ""
 				attribs = list(e.findall("attrib"))
 				attribs = sorted(attribs, key=lambda a: a.get("name").lower())
 				for a in attribs:
-					default = ("" if a.text is None else a.text.strip())
+					default = cgi.escape("" if a.text is None else a.text.strip())
 					attr += "<tr>"
 					if not item[1] is None:
 						attr += '<td><b><a href="http://x#set#' + a.get("name") + '#' + default + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + a.get("name") + "</a></b></td>"
@@ -2089,8 +2090,8 @@ p ~ p {
 						attr += '<td><b>' + a.get("name") + "</b></td>"
 					attr += "<td>" + a.get("type") + "</td>"
 					attr += "<td>" + default + "</td>"
-					help = a.get("help")
-					values = a.get("values")
+					help = cgi.escape(a.get("help"))
+					values = cgi.escape(a.get("values"))
 					if not values is None:
 						help += " (%s)" % values
 					attr += "<td>" + help + "</td>"
@@ -2114,7 +2115,7 @@ p ~ p {
 				if a.tag == "attrib":
 					continue
 				typ = a.get("type")
-				default = ("" if a.text is None else a.text.strip())
+				default = cgi.escape("" if a.text is None else a.text.strip())
 				tags += "<tr>"
 				if not item[1] is None:
 					tags += '<td><b><a href="http://x#add#' + a.tag + '#' + typ + '#' + default + '">' + a.tag + "</a></b></td>"
@@ -2122,7 +2123,7 @@ p ~ p {
 					tags += '<td><b>' + help_link(a.tag) + '</b></td>'
 				tags += "<td>" + typ + "</td>"
 				tags += "<td>" + default + "</td>"
-				help = a.get("help")
+				help = cgi.escape(a.get("help"))
 				help = re.sub('\[(.*?)\]', lambda m: help_link(m.group(1)), help)
 				tags += "<td>" + help + "</td>"
 
@@ -2942,6 +2943,28 @@ class MainWindow(QtWidgets.QMainWindow):
 		if len(field_groups) == 0:
 			del fg
 			return
+
+		# compute magnitudes
+		for i, field_group in enumerate(field_groups):
+			name = field_group[0].name
+			dim = field_group[0].data[0].shape[0]
+			if name in ["u", "sigma", "epsilon"] and dim > 1:
+				mag_name = "magnitude_" + name
+				field = PlotField()
+				if dim == 6:
+					field.data = [(np.linalg.norm(d[0:3], axis=0, keepdims=True)**2 + 2*(np.linalg.norm(d[3:6], axis=0, keepdims=True)**2))**0.5 for d in field_group[0].data]
+				else:
+					field.data = [np.linalg.norm(d, axis=0, keepdims=True) for d in field_group[0].data]
+				field.label = "‖" + field_group[0].label[0:field_group[0].label.find("_")] + "‖"
+				field.description = "magnitude of " + field_group[0].description[0:(field_group[0].label.rfind(" ")-1)]
+				field.name = mag_name
+				field.key = mag_name
+				field.component = 0
+				field.num_discrete_values = field_group[0].num_discrete_values
+				field.value_labels = field_group[0].value_labels
+				field_groups[i].append(field)
+				#field_groups[i].insert(0, field)
+
 
 		volume_fractions = collections.OrderedDict()
 		phase_names = fg.get_phase_names()

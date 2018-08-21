@@ -53,6 +53,7 @@
 		</materials>
 
 		<mode>heat</mode>
+		<mixing_rule>laminate</mixing_rule>
 		
 	</solver>
 
