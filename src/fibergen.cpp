@@ -46,6 +46,8 @@ multigrid improvements:
 - combine last smoothing with restriction operation
 */
 
+#define USE_MANY_FFT
+
 #include <Python.h>
 #include <fftw3.h>
 #include <omp.h>
@@ -9180,7 +9182,14 @@ template<typename T, typename S = T>
 class TensorField : public TensorFieldBase
 {
 public:
-	T** t;	// tensor data
+#ifdef USE_MANY_FFT
+	T* t;	// tensor data
+	std::size_t bytes;	// total size in bytes of t
+	std::size_t page_size;	// size for each dimension
+	std::size_t ne;		// number of elements in t
+#else
+	T** t;	// tensor data (component wise)
+#endif
 
 	explicit TensorField(const TensorFieldBase& base) : TensorFieldBase(base.nx, base.ny, base.nz, base.dim), t(NULL) {}
 
@@ -9205,16 +9214,30 @@ public:
 			return;
 		}
 
+#ifdef USE_MANY_FFT
+		fftw_free(t);
+#else
 		for (std::size_t i = 0; i < dim; i++) {
 			freeComponent(i);
 		}
 		delete[] t;
+#endif
+
 		t = NULL;
 		DEBP("Deleted tensor " << this);
 	}
 
 	void init()
 	{
+#ifdef USE_MANY_FFT
+		ne = n*dim;
+		bytes = sizeof(T)*ne;
+		page_size = sizeof(T)*n;
+		t = (T*) fftw_malloc(bytes);
+		if (t == NULL) {
+			BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Memory alloaction of %d bytes failed!") % bytes).str()));
+		}
+#else
 		std::size_t bytes = sizeof(T)*n;
 		
 		// alloc tensor field
@@ -9225,7 +9248,8 @@ public:
 				BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Memory alloaction of %d bytes failed!") % bytes).str()));
 			}
 		}
-		
+#endif
+
 		DEBP("Allocated tensor " << this << " dim=" << dim << " n=" << n);
 
 #ifdef NAN_FILL
@@ -9245,18 +9269,23 @@ public:
 		Timer __timer("copy tensor", false);
 
 		assert_compatible(t);
-#if 0
+
+#ifdef USE_MANY_FFT
+		memcpy(t.t, this->t, bytes);
+#else
+	#if 0
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				t[j][i] = this->t[j][i];
 			}
 		}
-#else
+	#else
 		#pragma omp parallel for schedule (static)
 		for (std::size_t i = 0; i < dim; i++) {
 			memcpy(t[i], this->t[i], sizeof(T)*n);
 		}
+	#endif
 #endif
 	}
 
@@ -9272,7 +9301,11 @@ public:
 	{
 		boost::shared_ptr< TensorField< std::complex<T>, T > > f(new TensorField< std::complex<T>, T >(*this));
 		f->is_shadow = true;
+#ifdef USE_MANY_FFT
+		f->t = (std::complex<T>*) this->t;
+#else
 		f->t = (std::complex<T>**) this->t;
+#endif
 		// adjust the size of the tensor
 		f->nz = f->nzc;
 		f->n /= 2;
@@ -9282,21 +9315,33 @@ public:
 	inline T* operator[] (const std::size_t index)
 	{
 		DEBP("Tensor access " << this << " index=" << index);
+#ifdef USE_MANY_FFT
+		return t + index*page_size;
+#else
 		return t[index];
+#endif
 	}
 
 	inline T* operator[] (const std::size_t index) const
 	{
 		DEBP("Tensor const access " << this << " index=" << index);
+#ifdef USE_MANY_FFT
+		return t + index*page_size;
+#else
 		return t[index];
+#endif
 	}
 
 	void freeComponent(std::size_t i)
 	{
+#ifdef USE_MANY_FFT
+		// TODO: we can not free a component
+#else
 		if (t[i] == NULL) return;
 		//LOG_COUT << "TensorField " << this << " free component " << i << std::endl;
 		fftw_free(t[i]);
 		t[i] = NULL;
+#endif
 	}
 
 	void check(const std::string& name)
@@ -9307,11 +9352,11 @@ public:
 				for (std::size_t j = 0; j < ny; j++) {
 					std::size_t kk = i*nyzp + j*nzp;
 					for (std::size_t k = 0; k < nz; k++) {
-						if (std::isnan(t[d][kk])) {
+						if (std::isnan((*this)[d][kk])) {
 							std::cout << i << " " << j << " " << k << " " << d << std::endl;
 							BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("field '%s' contains NaN") % name).str()));
 						}
-						if (std::isinf(t[d][kk])) {
+						if (std::isinf((*this)[d][kk])) {
 							std::cout << i << " " << j << " " << k << " " << d << std::endl;
 							BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("field '%s' contains inf") % name).str()));
 						}
@@ -9334,7 +9379,7 @@ public:
 				for (std::size_t j = 0; j < ny; j++) {
 					std::size_t kk = i*nyzp + j*nzp;
 					for (std::size_t k = nz; k < nzp; k++) {
-						t[d][kk + k] = nan;
+						(*this)[d][kk + k] = nan;
 					}
 				}
 			}
@@ -9346,12 +9391,19 @@ public:
 	{
 		Timer __t("add", false);
 
+#ifdef USE_MANY_FFT
+		#pragma omp parallel for schedule (static)
+		for (std::size_t i = 0; i < ne; i++) {
+			t[i] += x.t[i];
+		}
+#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				t[j][i] += x[j][i];
 			}
 		}
+#endif
 	}
 	
 	// compute r = x + a*y
@@ -9361,12 +9413,19 @@ public:
 
 		// TODO: add specialization for a == 1
 		
+#ifdef USE_MANY_FFT
+		#pragma omp parallel for schedule (static)
+		for (std::size_t i = 0; i < ne; i++) {
+			t[i] = x.t[i] + a*y.t[i];
+		}
+#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				t[j][i] = x[j][i] + a*y[j][i];
 			}
 		}
+#endif
 	}
 	
 	// add constant to each component of tensor
@@ -9379,7 +9438,7 @@ public:
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < m; j++) {
 			for (std::size_t i = 0; i < n; i++) {
-				t[j][i] += c[j];
+				(*this)[j][i] += c[j];
 			}
 		}
 	}
@@ -9388,12 +9447,19 @@ public:
 	{
 		Timer __t("add", false);
 
+#ifdef USE_MANY_FFT
+		#pragma omp parallel for schedule (static)
+		for (std::size_t i = 0; i < ne; i++) {
+			std::swap(t[i], x.t[i]);
+		}
+#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				std::swap(t[j][i], x[j][i]);
 			}
 		}
+#endif
 	}
 	
 	// scale tensor component wise
@@ -9406,7 +9472,7 @@ public:
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < m; j++) {
 			for (std::size_t i = 0; i < n; i++) {
-				t[j][i] *= c[j];
+				(*this)[j][i] *= c[j];
 			}
 		}
 	}
@@ -9430,26 +9496,27 @@ public:
 		T z_d = k - k0;
 
 		for (std::size_t d = 0; d < dim; d++) {
-			T c00 = t[d][i0*nyzp + j0*nzp + k0]*(1 - x_d) + t[d][i1*nyzp + j0*nzp + k0]*x_d;
-			T c01 = t[d][i0*nyzp + j0*nzp + k1]*(1 - x_d) + t[d][i1*nyzp + j0*nzp + k1]*x_d;
-			T c10 = t[d][i0*nyzp + j1*nzp + k0]*(1 - x_d) + t[d][i1*nyzp + j1*nzp + k0]*x_d;
-			T c11 = t[d][i0*nyzp + j1*nzp + k1]*(1 - x_d) + t[d][i1*nyzp + j1*nzp + k1]*x_d;
+			T c00 = (*this)[d][i0*nyzp + j0*nzp + k0]*(1 - x_d) + (*this)[d][i1*nyzp + j0*nzp + k0]*x_d;
+			T c01 = (*this)[d][i0*nyzp + j0*nzp + k1]*(1 - x_d) + (*this)[d][i1*nyzp + j0*nzp + k1]*x_d;
+			T c10 = (*this)[d][i0*nyzp + j1*nzp + k0]*(1 - x_d) + (*this)[d][i1*nyzp + j1*nzp + k0]*x_d;
+			T c11 = (*this)[d][i0*nyzp + j1*nzp + k1]*(1 - x_d) + (*this)[d][i1*nyzp + j1*nzp + k1]*x_d;
 			T c0 = c00*(1 - y_d) + c10*y_d;
 			T c1 = c01*(1 - y_d) + c11*y_d;
 			ret[d] = c0*(1 - z_d) + c1*z_d;
 		}
 	}
 
-	// scale tensor by constant
+	// init tensor with random values
 	void random()
 	{
 		Timer __t("random", false);
 
 		// TODO: random does not produce always different numbers in parallel
+
 		//#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
-				t[j][i] = RandomNormal01<T>::instance().rnd();
+				(*this)[j][i] = RandomNormal01<T>::instance().rnd();
 			}
 		}
 	}
@@ -9458,10 +9525,14 @@ public:
 	{
 		Timer __t("zero", false);
 
+#ifdef USE_MANY_FFT
+		std::memset(t, 0, bytes);
+#else
 		#pragma omp parallel for schedule (static)
 		for (std::size_t j = 0; j < dim; j++) {
 			std::memset(t[j], 0, n*sizeof(T));
 		}
+#endif
 	}
 
 	// scale tensor by constant
@@ -9469,12 +9540,16 @@ public:
 	{
 		Timer __t("abs", false);
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				t[j][i] = std::abs(t[j][i]);
 			}
 		}
+#endif
 	}
 
 	// scale tensor by constant
@@ -9482,12 +9557,16 @@ public:
 	{
 		Timer __t("scale", false);
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				t[j][i] *= s;
 			}
 		}
+#endif
 	}
 
 	// compute r = x + a*(y - z)
@@ -9495,24 +9574,32 @@ public:
 	{
 		Timer __t("xpaymz", false);
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				t[j][i] = x[j][i] + a*(y[j][i] - z[j][i]);
 			}
 		}
+#endif
 	}
 
 	void adjustResidual(const ublas::vector<T>& E, const TensorField<T,S>& z)
 	{
 		Timer __t("adjustResidual", false);
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				t[j][i] += E[j] - z[j][i];
 			}
 		}
+#endif
 	}
 
 	// set tensor values to constant
@@ -9521,12 +9608,16 @@ public:
 	{
 		Timer __t("setConstant", false);
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				t[j][i] = c;
 			}
 		}
+#endif
 	}
 
 	// set tensor values to constant
@@ -9535,21 +9626,29 @@ public:
 	{
 		Timer __t("setConstant", false);
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
 				t[j][i] = c[j];
 			}
 		}
+#endif
 	}
 
 	// set tensor values to constant
 	// NOTE: we also write to the padding, this does not matter
 	inline void setConstant(std::size_t index, const ublas::vector<T>& c)
 	{
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		for (std::size_t j = 0; j < dim; j++) {
 			t[j][index] = c[j];
 		}
+#endif
 	}
 
 	// set tensor values to constant 1
@@ -9557,19 +9656,27 @@ public:
 	{
 		Timer __t("setOne", false);
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		T* data = t[index];
 		#pragma omp parallel for schedule (static)
 		for (std::size_t i = 0; i < n; i++) {
 			data[i] = 1;
 		}
+#endif
 	}
 
 	// assign data at index i to tensor
 	inline void assign(std::size_t i, T* E) const
 	{
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		for (std::size_t k = 0; k < dim; k++) {
 			E[k] = t[k][i];
 		}
+#endif
 	}
 
 	ublas::vector<T> component_dot(const TensorField<T,S>& b)
@@ -9578,6 +9685,9 @@ public:
 
 		ublas::vector<T> a = ublas::zero_vector<T>(dim);
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		#pragma omp parallel
 		{
 			ublas::vector<T> ap = ublas::zero_vector<T>(dim);
@@ -9606,6 +9716,7 @@ public:
 				a += ap;
 			}
 		}
+#endif
 		
 		a /= nxyz;
 		return a;
@@ -9661,6 +9772,9 @@ public:
 
 		ublas::vector<T> a = ublas::zero_vector<T>(dim);
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		#pragma omp parallel
 		{
 			ublas::vector<T> ap = ublas::zero_vector<T>(dim);
@@ -9689,7 +9803,8 @@ public:
 				a += ap;
 			}
 		}
-		
+#endif
+
 		a /= nxyz;
 		return a;
 	}
@@ -9704,6 +9819,9 @@ public:
 			a[j] = -STD_INFINITY(T);
 		}
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		#pragma omp parallel
 		{
 			ublas::vector<T> ap = ublas::zero_vector<T>(dim);
@@ -9737,7 +9855,8 @@ public:
 				}
 			}
 		}
-		
+#endif
+
 		return a;
 	}
 
@@ -9748,6 +9867,9 @@ public:
 
 		long a = 0;
 
+#ifdef USE_MANY_FFT
+		// TODO
+#else
 		for (std::size_t j = 0; j < dim; j++)
 		{
 			for (std::size_t ii = 0; ii < nx; ii++)
@@ -9763,7 +9885,8 @@ public:
 				}
 			}
 		}
-		
+#endif
+
 		return a;
 	}
 };
@@ -11319,7 +11442,7 @@ public:
 			_phi = _phi_cg;
 		}
 
-		phi = _phi->t[0];
+		phi = (*_phi)[0];
 	}
 
 	void setOne(std::size_t index = 0)
