@@ -1418,7 +1418,9 @@ public:
 
 	Timer(const std::string& text, bool print = true, bool log = true) : _text(text), _print(print), _log(log)
 	{
-		//_print = true;
+#ifdef DEBUG
+		_print = true;
+#endif
 
 		if (_print) {
 			LOG_COUT << BOLD_TEXT << "Begin " << _text << std::endl;
@@ -6809,6 +6811,7 @@ template<typename T>
 class FFT3Base
 {
 protected:
+	std::size_t _howmany;
 	std::size_t _nx, _ny, _nz;
 	unsigned _flags;
 
@@ -6817,11 +6820,11 @@ protected:
 		if (x == y) return;
 
 		// TODO: use parallel memcpy?
-		memcpy(y, x, _nx*_ny*2*(_nz/2+1)*sizeof(T));
+		memcpy(y, x, _howmany*_nx*_ny*2*(_nz/2+1)*sizeof(T));
 	}
 
 public:
-	FFT3Base(std::size_t nx, std::size_t ny, std::size_t nz, const std::string& planner_flag) : _nx(nx), _ny(ny), _nz(nz)
+	FFT3Base(std::size_t howmany, std::size_t nx, std::size_t ny, std::size_t nz, const std::string& planner_flag) : _howmany(howmany), _nx(nx), _ny(ny), _nz(nz)
 	{
 		if (planner_flag == "estimate") {
 			_flags = FFTW_ESTIMATE;
@@ -6865,12 +6868,21 @@ protected:
 	fftw_plan _fplan, _bplan;
 
 public:
-	FFT3(std::size_t nx, std::size_t ny, std::size_t nz, double* data, const std::string& planner_flag)
-		: FFT3Base<double>(nx, ny, nz, planner_flag)
+	FFT3(std::size_t howmany, std::size_t nx, std::size_t ny, std::size_t nz, double* data, const std::string& planner_flag)
+		: FFT3Base<double>(howmany, nx, ny, nz, planner_flag)
 	{
 		// TODO: test other planner flags http://www.fftw.org/doc/Planner-Flags.html#Planner-Flags
-		_fplan = fftw_plan_dft_r2c_3d(nx, ny, nz, data, reinterpret_cast<fftw_complex*>(data), _flags);
-		_bplan = fftw_plan_dft_c2r_3d(nx, ny, nz, reinterpret_cast<fftw_complex*>(data), data, _flags);
+		if (howmany > 1) {
+			int n[3]; n[0] = (int)nx; n[1] = (int)ny; n[2] = (int)nz;
+			int nzc = nz/2+1;
+			int nzp = 2*nzc;
+			_fplan = fftw_plan_many_dft_r2c(3, n, howmany, data, NULL, 1, nx*ny*nzp, reinterpret_cast<fftw_complex*>(data), NULL, 1, nx*ny*nzc, _flags);
+			_bplan = fftw_plan_many_dft_c2r(3, n, howmany, reinterpret_cast<fftw_complex*>(data), NULL, 1, nx*ny*nzc, data, NULL, 1, nx*ny*nzp, _flags);
+		}
+		else {
+			_fplan = fftw_plan_dft_r2c_3d(nx, ny, nz, data, reinterpret_cast<fftw_complex*>(data), _flags);
+			_bplan = fftw_plan_dft_c2r_3d(nx, ny, nz, reinterpret_cast<fftw_complex*>(data), data, _flags);
+		}
 	}
 	
 	~FFT3() {
@@ -6900,14 +6912,23 @@ class FFT3<float> : public FFT3Base<float>
 protected:
 	fftwf_plan _fplan, _bplan;
 
-public:
-	FFT3(std::size_t nx, std::size_t ny, std::size_t nz, float* data, const std::string& planner_flag)
-		: FFT3Base<float>(nx, ny, nz, planner_flag)
+public:	FFT3(std::size_t howmany, std::size_t nx, std::size_t ny, std::size_t nz, float* data, const std::string& planner_flag)
+		: FFT3Base<float>(howmany, nx, ny, nz, planner_flag)
 	{
-		_fplan = fftwf_plan_dft_r2c_3d(nx, ny, nz, data, reinterpret_cast<fftwf_complex*>(data), _flags);
-		_bplan = fftwf_plan_dft_c2r_3d(nx, ny, nz, reinterpret_cast<fftwf_complex*>(data), data, _flags);
+		// TODO: test other planner flags http://www.fftw.org/doc/Planner-Flags.html#Planner-Flags
+		if (howmany > 1) {
+			int n[3]; n[0] = (int)nx; n[1] = (int)ny; n[2] = (int)nz;
+			int nzc = nz/2+1;
+			int nzp = 2*nzc;
+			_fplan = fftwf_plan_many_dft_r2c(3, n, howmany, data, n, 1, nx*ny*nzp, reinterpret_cast<fftwf_complex*>(data), n, 1, nx*ny*nzc, _flags);
+			_bplan = fftwf_plan_many_dft_c2r(3, n, howmany, reinterpret_cast<fftwf_complex*>(data), n, 1, nx*ny*nzc, data, n, 1, nx*ny*nzp, _flags);
+		}
+		else {
+			_fplan = fftwf_plan_dft_r2c_3d(nx, ny, nz, data, reinterpret_cast<fftwf_complex*>(data), _flags);
+			_bplan = fftwf_plan_dft_c2r_3d(nx, ny, nz, reinterpret_cast<fftwf_complex*>(data), data, _flags);
+		}
 	}
-	
+
 	~FFT3() {
 		fftwf_destroy_plan(_fplan);
 		fftwf_destroy_plan(_bplan);
@@ -8147,7 +8168,7 @@ IACA_END
 	void solve_direct_fft(const T* b, T* x)
 	{
 		if (!_fft) {
-			_fft.reset(new FFT3<T>(nx, ny, nz, x, "measure"));
+			_fft.reset(new FFT3<T>(1, nx, ny, nz, x, "measure"));
 		}
 
 		std::complex<T>* xc = (std::complex<T>*) x;
@@ -9232,7 +9253,7 @@ public:
 #ifdef USE_MANY_FFT
 		ne = n*dim;
 		bytes = sizeof(T)*ne;
-		page_size = sizeof(T)*n;
+		page_size = n;
 		t = (T*) fftw_malloc(bytes);
 		if (t == NULL) {
 			BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Memory alloaction of %d bytes failed!") % bytes).str()));
@@ -9535,13 +9556,16 @@ public:
 #endif
 	}
 
-	// scale tensor by constant
+	// absolute value
 	void abs()
 	{
 		Timer __t("abs", false);
 
 #ifdef USE_MANY_FFT
-		// TODO
+		#pragma omp parallel for schedule (static)
+		for (std::size_t i = 0; i < ne; i++) {
+			t[i] = std::abs(t[i]);
+		}
 #else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
@@ -9558,7 +9582,10 @@ public:
 		Timer __t("scale", false);
 
 #ifdef USE_MANY_FFT
-		// TODO
+		#pragma omp parallel for schedule (static)
+		for (std::size_t i = 0; i < ne; i++) {
+			t[i] *= s;
+		}
 #else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
@@ -9575,7 +9602,10 @@ public:
 		Timer __t("xpaymz", false);
 
 #ifdef USE_MANY_FFT
-		// TODO
+		#pragma omp parallel for schedule (static)
+		for (std::size_t i = 0; i < ne; i++) {
+			t[i] = x.t[i] + a*(y.t[i] - z.t[i]);
+		}
 #else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
@@ -9590,16 +9620,12 @@ public:
 	{
 		Timer __t("adjustResidual", false);
 
-#ifdef USE_MANY_FFT
-		// TODO
-#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
-				t[j][i] += E[j] - z[j][i];
+				(*this)[j][i] += E[j] - z[j][i];
 			}
 		}
-#endif
 	}
 
 	// set tensor values to constant
@@ -9609,7 +9635,10 @@ public:
 		Timer __t("setConstant", false);
 
 #ifdef USE_MANY_FFT
-		// TODO
+		#pragma omp parallel for schedule (static)
+		for (std::size_t i = 0; i < ne; i++) {
+			t[i] = c;
+		}
 #else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
@@ -9626,29 +9655,21 @@ public:
 	{
 		Timer __t("setConstant", false);
 
-#ifdef USE_MANY_FFT
-		// TODO
-#else
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < dim; j++) {
 			for (std::size_t i = 0; i < n; i++) {
-				t[j][i] = c[j];
+				(*this)[j][i] = c[j];
 			}
 		}
-#endif
 	}
 
 	// set tensor values to constant
 	// NOTE: we also write to the padding, this does not matter
 	inline void setConstant(std::size_t index, const ublas::vector<T>& c)
 	{
-#ifdef USE_MANY_FFT
-		// TODO
-#else
 		for (std::size_t j = 0; j < dim; j++) {
-			t[j][index] = c[j];
+			(*this)[j][index] = c[j];
 		}
-#endif
 	}
 
 	// set tensor values to constant 1
@@ -9656,27 +9677,19 @@ public:
 	{
 		Timer __t("setOne", false);
 
-#ifdef USE_MANY_FFT
-		// TODO
-#else
-		T* data = t[index];
+		T* data = (*this)[index];
 		#pragma omp parallel for schedule (static)
 		for (std::size_t i = 0; i < n; i++) {
 			data[i] = 1;
 		}
-#endif
 	}
 
 	// assign data at index i to tensor
 	inline void assign(std::size_t i, T* E) const
 	{
-#ifdef USE_MANY_FFT
-		// TODO
-#else
 		for (std::size_t k = 0; k < dim; k++) {
-			E[k] = t[k][i];
+			E[k] = (*this)[k][i];
 		}
-#endif
 	}
 
 	ublas::vector<T> component_dot(const TensorField<T,S>& b)
@@ -9685,9 +9698,6 @@ public:
 
 		ublas::vector<T> a = ublas::zero_vector<T>(dim);
 
-#ifdef USE_MANY_FFT
-		// TODO
-#else
 		#pragma omp parallel
 		{
 			ublas::vector<T> ap = ublas::zero_vector<T>(dim);
@@ -9703,7 +9713,7 @@ public:
 					for (std::size_t kk = 0; kk < nz; kk++)
 					{
 						for (std::size_t j = 0; j < dim; j++) {
-							ap[j] += t[j][k]*b[j][k];
+							ap[j] += (*this)[j][k]*b[j][k];
 						}
 						k++;
 					}
@@ -9716,7 +9726,6 @@ public:
 				a += ap;
 			}
 		}
-#endif
 		
 		a /= nxyz;
 		return a;
@@ -9772,14 +9781,11 @@ public:
 
 		ublas::vector<T> a = ublas::zero_vector<T>(dim);
 
-#ifdef USE_MANY_FFT
-		// TODO
-#else
 		#pragma omp parallel
 		{
 			ublas::vector<T> ap = ublas::zero_vector<T>(dim);
 			
-			#pragma omp for nowait schedule (static) collapse(2)
+			#pragma omp for nowait schedule (static) collapse(3)
 			for (std::size_t j = 0; j < dim; j++)
 			{
 				for (std::size_t ii = 0; ii < nx; ii++)
@@ -9790,7 +9796,7 @@ public:
 						std::size_t k = ii*nyzp + jj*nzp;
 					
 						for (std::size_t kk = 0; kk < nz; kk++) {
-							ap[j] += t[j][k];
+							ap[j] += (*this)[j][k];
 							k++;
 						}
 					}
@@ -9803,7 +9809,6 @@ public:
 				a += ap;
 			}
 		}
-#endif
 
 		a /= nxyz;
 		return a;
@@ -9819,9 +9824,6 @@ public:
 			a[j] = -STD_INFINITY(T);
 		}
 
-#ifdef USE_MANY_FFT
-		// TODO
-#else
 		#pragma omp parallel
 		{
 			ublas::vector<T> ap = ublas::zero_vector<T>(dim);
@@ -9829,7 +9831,7 @@ public:
 				ap[j] = -STD_INFINITY(T);
 			}
 
-			#pragma omp for nowait schedule (static) collapse(2)
+			#pragma omp for nowait schedule (static) collapse(3)
 			for (std::size_t j = 0; j < dim; j++)
 			{
 				for (std::size_t ii = 0; ii < nx; ii++)
@@ -9840,7 +9842,7 @@ public:
 						std::size_t k = ii*nyzp + jj*nzp;
 					
 						for (std::size_t kk = 0; kk < nz; kk++) {
-							ap[j] = std::max(ap[j], t[j][k]);
+							ap[j] = std::max(ap[j], (*this)[j][k]);
 							k++;
 						}
 					}
@@ -9855,7 +9857,6 @@ public:
 				}
 			}
 		}
-#endif
 
 		return a;
 	}
@@ -9867,9 +9868,6 @@ public:
 
 		long a = 0;
 
-#ifdef USE_MANY_FFT
-		// TODO
-#else
 		for (std::size_t j = 0; j < dim; j++)
 		{
 			for (std::size_t ii = 0; ii < nx; ii++)
@@ -9879,13 +9877,12 @@ public:
 					std::size_t k = ii*nyzp + jj*nzp;
 				
 					for (std::size_t kk = 0; kk < nz; kk++) {
-						a ^= ((*((long*)(t[j] + k))) * (long) (k+1));
+						a ^= ((*((long*)((*this)[j] + k))) * (long) (k+1));
 						k++;
 					}
 				}
 			}
 		}
-#endif
 
 		return a;
 	}
@@ -14062,7 +14059,8 @@ protected:
 	ublas::vector<T> _F00;		// mean strain at beginning of current basic scheme loop 
 	T _bc_relax;			// relaxation of boundary condition mean value adjustment
 
-	boost::shared_ptr< FFT3<T> > _fft;	// FFT object
+	//boost::shared_ptr< FFT3<T> > _fft;	// FFT object
+	std::map<std::size_t, boost::shared_ptr< FFT3<T> > > _ffts;	// FFT objects
 	std::string _fft_planner_flag;	// estimate, measure, patient, exhaustive, wisdom_only
 
 	// offsets for computing (periodic) forward and backward finite differences along a specific component
@@ -14470,7 +14468,7 @@ public:
 
 		// alloc strain tensor and complex shadow _tau
 		_epsilon.reset(new RealTensor(_nx, _ny, _nz, _mat->dim()));
-		init_fft();
+		//init_fft();
 		_tau = _epsilon->complex_shadow();
 
 		// init prescribed strain and stress
@@ -15007,14 +15005,25 @@ public:
 
 	void init_fft()
 	{
-		//if (_fft) return;
+#ifdef USE_MANY_FFT
+#else
+		get_fft(1);
+#endif
+	}
 
+	boost::shared_ptr< FFT3<T> > get_fft(std::size_t howmany)
+	{
+		if (_ffts.count(howmany) > 0) {
+			return _ffts[howmany];
+		}
+		
 		Timer __t("init_fft", true);
+		LOG_COUT << "howmany=" << howmany << " nx=" << _nx << " ny=" << _ny << " nz=" << _nz << std::endl;
 
-		LOG_COUT << "nx=" << _nx << " ny=" << _ny << " nz=" << _nz << std::endl;
-
-		// init FFT
-		_fft.reset(new FFT3<T>(_nx, _ny, _nz, (*_epsilon)[0], _fft_planner_flag));
+		boost::shared_ptr< FFT3<T> > fft;
+		fft.reset(new FFT3<T>(howmany, _nx, _ny, _nz, (*_epsilon)[0], _fft_planner_flag));
+		_ffts[howmany] = fft;
+		return fft;
 	}
 
 	inline void setConvergenceCallback(ConvergenceCallback cb)
@@ -17679,13 +17688,21 @@ public:
 	void fftVector(const RealTensor& x, ComplexTensor& y, std::size_t dims=3)
 	{
 		Timer __t("fftVector", false);
-
-		const T scale = 1/(T)_nxyz;
 		Timer dt_fft;
 
+		const T scale = 1/(T)_nxyz;
+
+#ifdef USE_MANY_FFT
+		get_fft(dims)->forward(x.t, y.t);
+
+		#pragma omp parallel for schedule (static)
+		for (std::size_t i = 0; i < y.ne; i++) {
+			y.t[i] *= scale;
+		}
+#else
 		#pragma omp parallel for schedule (static) if(_parallel_fft)
 		for (std::size_t i = 0; i < dims; i++) {
-			_fft->forward(x[i], y[i]);
+			get_fft(1)->forward(x[i], y[i]);
 		}
 
 		#pragma omp parallel for schedule (static) collapse(2)
@@ -17694,6 +17711,7 @@ public:
 				y[i][j] *= scale;
 			}
 		}
+#endif
 
 		_fft_time += dt_fft;
 	}
@@ -17702,13 +17720,16 @@ public:
 	void fftInvVector(const ComplexTensor& x, RealTensor& y, std::size_t dims=3)
 	{
 		Timer __t("fftInvVector", false);
-
 		Timer dt_fft;
 
+#ifdef USE_MANY_FFT
+		get_fft(dims)->backward(x.t, y.t);
+#else
 		#pragma omp parallel for schedule (static) if(_parallel_fft)
 		for (std::size_t i = 0; i < dims; i++) {
-			_fft->backward(x[i], y[i]);
+			get_fft(1)->backward(x[i], y[i]);
 		}
+#endif
 
 		_fft_time += dt_fft;
 	}
@@ -17717,17 +17738,22 @@ public:
 	void fftTensor(const RealTensor& x, ComplexTensor& y, bool zero_trace = false)
 	{
 		Timer __t("fftTensor", false);
-
-		const T scale = 1/(T)_nxyz;
 		Timer dt_fft;
 
+		const T scale = 1/(T)_nxyz;
+		std::size_t i0 = (zero_trace ? 1 : 0);
+
+#ifdef USE_MANY_FFT
+		get_fft(x.dim - i0)->forward(x[i0], y[i0]);
+#else
 		#pragma omp parallel for schedule (static) if(_parallel_fft)
-		for (std::size_t i = zero_trace ? 1 : 0; i < x.dim; i++) {
-			_fft->forward(x[i], y[i]);
+		for (std::size_t i = i0; i < x.dim; i++) {
+			get_fft(1)->forward(x[i], y[i]);
 		}
+#endif
 
 		#pragma omp parallel for schedule (static) collapse(2)
-		for (std::size_t i = zero_trace ? 1 : 0; i < x.dim; i++) {
+		for (std::size_t i = i0; i < x.dim; i++) {
 			for (std::size_t j = 0; j < y.n; j++) {
 				y[i][j] *= scale;
 			}
@@ -17746,10 +17772,16 @@ public:
 		Timer __t("fftInvTensor", false);
 		Timer dt_fft;
 
+		std::size_t i0 = (zero_trace ? 1 : 0);
+
+#ifdef USE_MANY_FFT
+		get_fft(x.dim - i0)->backward(x[i0], y[i0]);
+#else
 		#pragma omp parallel for schedule (static) if(_parallel_fft)
-		for (std::size_t i = zero_trace ? 1 : 0; i < x.dim; i++) {
-			_fft->backward(x[i], y[i]);
+		for (std::size_t i = i0; i < x.dim; i++) {
+			get_fft(1)->backward(x[i], y[i]);
 		}
+#endif
 
 		_fft_time += dt_fft;
 
@@ -22559,7 +22591,7 @@ public:
 		std::complex<T>* uc = (std::complex<T>*) u;
 
 		// compute FFT of rhs
-		_fft->forward(f, uc);
+		get_fft(1)->forward(f, uc);
 
 		// calculate solution if Fourier domain
 		const T xi0_0 = 2.0*M_PI/_nx, xi1_0 = 2.0*M_PI/_ny, xi2_0 = 2.0*M_PI/_nz;
@@ -22599,7 +22631,7 @@ public:
 		uc[0] = (T)0;
 
 		// transform solution to spatial domain
-		_fft->backward(uc, u);
+		get_fft(1)->backward(uc, u);
 	}
 
 	void check_tol(const std::string& test, T r, T tol = 0)
