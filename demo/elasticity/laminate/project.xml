@@ -18,6 +18,7 @@
 		<materials>
 			<layer1 E="100" nu="0.4" law="iso" />
 			<layer2 E="25" nu="0.25" law="iso" />
+			<layer3 E="50" nu="0.3" law="iso" />
 		</materials>
 		
 		<mode>elasticity</mode>
@@ -31,12 +32,15 @@
 		<place_fiber type="halfspace" cx="0.0" />
 		<select_material name="layer2" />
 		<place_fiber type="halfspace" cx="0.2*dx" ax="-1" />
+		<select_material name="layer3" />
+		<place_fiber type="halfspace" cx="0.5*dx" ax="-1" />
 		<calc_effective_properties />
 	
 		<!-- compute laminate using analytic formulae for comparison -->
 		<calc_isotropic_laminate>
 			<layer1 phi="0.2" E="100" nu="0.4" />
-			<layer2 phi="0.8" E="25" nu="0.25" />
+			<layer2 phi="0.3" E="25" nu="0.25" />
+			<layer2 phi="0.5" E="50" nu="0.3" />
 		</calc_isotropic_laminate>
 
 	</actions>

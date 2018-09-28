@@ -43,7 +43,7 @@
 
 		<materials>
 			<matrix E="1" nu="0.1" />
-			<fiber E="10" nu="0.4" />
+			<fiber E="10" nu="0.3" />
 		</materials>
 
 		<method>cg</method>

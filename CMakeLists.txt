@@ -7,6 +7,7 @@ set(CMAKE_VERBOSE_MAKEFILE 1)
 # http://stackoverflow.com/questions/22931147/stdisinf-does-not-work-with-ffast-math-how-to-check-for-infinity
 
 SET(RELEASE_BUILD TRUE)
+#SET(RELEASE_BUILD FALSE)
 
 IF(RELEASE_BUILD)
 	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNAN_FILL")

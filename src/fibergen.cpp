@@ -213,6 +213,13 @@ namespace py = boost::python;
 #define END_TRIPLE_LOOP(var) var++; }}}
 
 
+#ifdef __GNUC__
+	#define noinline __attribute__ ((noinline))
+#else
+	#define noinline
+#endif
+
+
 #if 0
 class TTYOnly
 {
@@ -2540,7 +2547,7 @@ protected:
 	ublas::c_vector<T, 3> _bi;
 
 	// compute distribution covariance matrix B from A
-	void compute_B_from_A()
+	noinline void compute_B_from_A()
 	{
 		Timer __t("angular central gaussian initialization");
 
@@ -5946,7 +5953,7 @@ public:
 	}
 
 	// run the fiber generator
-	void run(T V = 0, std::size_t N = 0, std::size_t M = 0, T dmin = -STD_INFINITY(T), T dmax = STD_INFINITY(T), int intersecting = -1, int intersecting_materials = -1)
+	noinline void run(T V = 0, std::size_t N = 0, std::size_t M = 0, T dmin = -STD_INFINITY(T), T dmax = STD_INFINITY(T), int intersecting = -1, int intersecting_materials = -1)
 	{
 		Timer __t("generating fiber distribution");
 
@@ -6872,7 +6879,7 @@ public:
 		: FFT3Base<double>(howmany, nx, ny, nz, planner_flag)
 	{
 		// TODO: test other planner flags http://www.fftw.org/doc/Planner-Flags.html#Planner-Flags
-		if (howmany > 1) {
+		if (howmany >= 1) {
 			int n[3]; n[0] = (int)nx; n[1] = (int)ny; n[2] = (int)nz;
 			int nzc = nz/2+1;
 			int nzp = 2*nzc;
@@ -6890,14 +6897,14 @@ public:
 		fftw_destroy_plan(_bplan);
 	}
 	
-	void forward(const double* x, std::complex<double>* y)
+	noinline void forward(const double* x, std::complex<double>* y)
 	{
 		Timer __t("forward FFT double", false);
 		copy_inplace(x, y);
 		fftw_execute_dft_r2c(_fplan, reinterpret_cast<double*>(y), reinterpret_cast<fftw_complex*>(y));
 	}
 	
-	void backward(const std::complex<double>* x, double* y)
+	noinline void backward(const std::complex<double>* x, double* y)
 	{
 		Timer __t("backward FFT double", false);
 		copy_inplace(x, y);
@@ -6934,14 +6941,14 @@ public:	FFT3(std::size_t howmany, std::size_t nx, std::size_t ny, std::size_t nz
 		fftwf_destroy_plan(_bplan);
 	}
 	
-	void forward(const float* x, std::complex<float>* y)
+	noinline void forward(const float* x, std::complex<float>* y)
 	{
 		Timer __t("forward FFT float", false);
 		copy_inplace(x, y);
 		fftwf_execute_dft_r2c(_fplan, reinterpret_cast<float*>(y), reinterpret_cast<fftwf_complex*>(y));
 	}
 	
-	void backward(const std::complex<float>* x, float* y)
+	noinline void backward(const std::complex<float>* x, float* y)
 	{
 		Timer __t("backward FFT float", false);
 		copy_inplace(x, y);
@@ -8752,6 +8759,7 @@ class Tensor3x3 : public Tensor<T, 9>
 {
 public:
 	static inline T det(const T* A);
+	static inline T trace(const T* A);
 	static inline T dot(const T* A, const T* B);
 	static inline T dotT(const T* A, const T* B);
 
@@ -8952,6 +8960,11 @@ public:
 		this->E[3] = this->E[4] = this->E[5] = this->E[6] = this->E[7] = this->E[8] = 0;
 	}
 
+	inline T trace() const
+	{
+		return Tensor3x3<T>::trace(this->E);
+	}
+
 	inline T det() const
 	{
 		return Tensor3x3<T>::det(this->E);
@@ -8987,6 +9000,13 @@ inline T Tensor3x3<T>::det(const T* A)
 		-A[5]*(A[8]*A[2]-A[3]*A[7])
 		+A[4]*(A[8]*A[6]-A[1]*A[7]);
 }
+
+template<typename T>
+inline T Tensor3x3<T>::trace(const T* A)
+{
+	return (A[0] + A[1] + A[2]);
+}
+
 
 // the components: e11, e22, e33, e23, e13, e12
 template<typename T>
@@ -9285,7 +9305,7 @@ public:
 		}
 	}
 
-	void copyTo(TensorField<T,S>& t)
+	noinline void copyTo(TensorField<T,S>& t)
 	{
 		Timer __timer("copy tensor", false);
 
@@ -9315,6 +9335,11 @@ public:
 		boost::shared_ptr< TensorField<T,S> > f(new TensorField<T,S>(*this));
 		f->is_shadow = true;
 		f->t = this->t;
+#ifdef USE_MANY_FFT
+		f->ne = ne;
+		f->page_size = page_size;
+#endif
+
 		return f;
 	}
 
@@ -9324,12 +9349,14 @@ public:
 		f->is_shadow = true;
 #ifdef USE_MANY_FFT
 		f->t = (std::complex<T>*) this->t;
+		f->ne = ne/2;
+		f->page_size = page_size/2;
 #else
 		f->t = (std::complex<T>**) this->t;
 #endif
 		// adjust the size of the tensor
 		f->nz = f->nzc;
-		f->n /= 2;
+		f->n = n/2;
 		return f;
 	}
 
@@ -9388,7 +9415,7 @@ public:
 		}
 	}
 
-	void invalidatePadding()
+	noinline void invalidatePadding()
 	{
 		Timer __t("invalidatePadding", false);
 
@@ -9408,7 +9435,7 @@ public:
 	}
 
 	// compute t = t + x
-	void add(const TensorField<T,S>& x)
+	noinline void add(const TensorField<T,S>& x)
 	{
 		Timer __t("add", false);
 
@@ -9428,7 +9455,7 @@ public:
 	}
 	
 	// compute r = x + a*y
-	void xpay(const TensorField<T,S>& x, T a, const TensorField<T,S>& y)
+	noinline void xpay(const TensorField<T,S>& x, T a, const TensorField<T,S>& y)
 	{
 		Timer __t("xpay", false);
 
@@ -9450,7 +9477,7 @@ public:
 	}
 	
 	// add constant to each component of tensor
-	void add(const ublas::vector<T>& c)
+	noinline void add(const ublas::vector<T>& c)
 	{
 		Timer __t("add", false);
 
@@ -9464,7 +9491,7 @@ public:
 		}
 	}
 	
-	void swap(TensorField<T,S>& x)
+	noinline void swap(TensorField<T,S>& x)
 	{
 		Timer __t("add", false);
 
@@ -9484,7 +9511,7 @@ public:
 	}
 	
 	// scale tensor component wise
-	void scale(const ublas::vector<T>& c)
+	noinline void scale(const ublas::vector<T>& c)
 	{
 		Timer __t("scale", false);
 
@@ -9528,7 +9555,7 @@ public:
 	}
 
 	// init tensor with random values
-	void random()
+	noinline void random()
 	{
 		Timer __t("random", false);
 
@@ -9542,7 +9569,7 @@ public:
 		}
 	}
 
-	void zero()
+	noinline void zero()
 	{
 		Timer __t("zero", false);
 
@@ -9557,7 +9584,7 @@ public:
 	}
 
 	// absolute value
-	void abs()
+	noinline void abs()
 	{
 		Timer __t("abs", false);
 
@@ -9577,7 +9604,7 @@ public:
 	}
 
 	// scale tensor by constant
-	void scale(T s)
+	noinline void scale(T s)
 	{
 		Timer __t("scale", false);
 
@@ -9597,7 +9624,7 @@ public:
 	}
 
 	// compute r = x + a*(y - z)
-	void xpaymz(const TensorField<T,S>& x, T a, const TensorField<T,S>& y, const TensorField<T,S>& z)
+	noinline void xpaymz(const TensorField<T,S>& x, T a, const TensorField<T,S>& y, const TensorField<T,S>& z)
 	{
 		Timer __t("xpaymz", false);
 
@@ -9616,7 +9643,7 @@ public:
 #endif
 	}
 
-	void adjustResidual(const ublas::vector<T>& E, const TensorField<T,S>& z)
+	noinline void adjustResidual(const ublas::vector<T>& E, const TensorField<T,S>& z)
 	{
 		Timer __t("adjustResidual", false);
 
@@ -9630,7 +9657,7 @@ public:
 
 	// set tensor values to constant
 	// NOTE: we also write to the padding, this does not matter
-	void setConstant(T c)
+	noinline void setConstant(T c)
 	{
 		Timer __t("setConstant", false);
 
@@ -9651,7 +9678,7 @@ public:
 
 	// set tensor values to constant
 	// NOTE: we also write to the padding, this does not matter
-	void setConstant(const ublas::vector<T>& c)
+	noinline void setConstant(const ublas::vector<T>& c)
 	{
 		Timer __t("setConstant", false);
 
@@ -9673,7 +9700,7 @@ public:
 	}
 
 	// set tensor values to constant 1
-	void setOne(std::size_t index)
+	noinline void setOne(std::size_t index)
 	{
 		Timer __t("setOne", false);
 
@@ -9692,7 +9719,7 @@ public:
 		}
 	}
 
-	ublas::vector<T> component_dot(const TensorField<T,S>& b)
+	noinline ublas::vector<T> component_dot(const TensorField<T,S>& b)
 	{
 		Timer __t("component_dot", false);
 
@@ -9731,7 +9758,7 @@ public:
 		return a;
 	}
 
-	ublas::vector<T> component_norm()
+	noinline ublas::vector<T> component_norm()
 	{
 		Timer __t("component_norm", false);
 
@@ -9745,7 +9772,7 @@ public:
 	}
 
 /*
-	T dot(const TensorField<T,S>& b)
+	noinline T dot(const TensorField<T,S>& b)
 	{
 		Timer __t("dot", false);
 
@@ -9775,7 +9802,7 @@ public:
 */
 
 	// returns the average value for each component of the tensor
-	ublas::vector<T> average() const
+	noinline ublas::vector<T> average() const
 	{
 		Timer __t("average", false);
 
@@ -9815,7 +9842,7 @@ public:
 	}
 
 	// returns the max value for each component of the tensor
-	ublas::vector<T> max() const
+	noinline ublas::vector<T> max() const
 	{
 		Timer __t("max", false);
 
@@ -9862,7 +9889,7 @@ public:
 	}
 
 	// 
-	long checksum() const
+	noinline long checksum() const
 	{
 		Timer __t("checksum", false);
 
@@ -11517,7 +11544,7 @@ class MixedMaterialLaw : public MixedMaterialLawBase<T, P>
 {
 public:
 	// comupute (lambda_min + lambda_max)/2 for dP/dF
-	void getRefMaterial(TensorField<T>& F, T& mu_0, T& lambda_0, bool zero_trace) const
+	noinline void getRefMaterial(TensorField<T>& F, T& mu_0, T& lambda_0, bool zero_trace) const
 	{
 		Timer __t("getRefMaterial", false);
 
@@ -11594,7 +11621,7 @@ br:
 	}
 
 	// mean quantities for W 
-	T meanW(const TensorField<T>& F) const
+	noinline T meanW(const TensorField<T>& F) const
 	{
 		Timer __t("meanW", false);
 
@@ -11621,7 +11648,7 @@ br:
 	}
 
 	// mean quantities for PK1 
-	ublas::vector<T> meanCauchy(const TensorField<T>& F, T alpha) const
+	noinline ublas::vector<T> meanCauchy(const TensorField<T>& F, T alpha) const
 	{
 		Timer __t("meanCauchy", false);
 
@@ -11663,7 +11690,7 @@ br:
 	}
 
 	// mean quantities for PK1 
-	ublas::vector<T> meanPK1(const TensorField<T>& F, T alpha) const
+	noinline ublas::vector<T> meanPK1(const TensorField<T>& F, T alpha) const
 	{
 		Timer __t("meanPK1", false);
 
@@ -11705,7 +11732,7 @@ br:
 	}
 
 	// mean quantities for PK1 
-	T maxStress(const TensorField<T>& F) const
+	noinline T maxStress(const TensorField<T>& F) const
 	{
 		Timer __t("maxStress", false);
 		
@@ -11767,7 +11794,7 @@ br:
 	}
 
 	// mean quantities for PK1 
-	T minEig(const TensorField<T>& F, bool zero_trace) const
+	noinline T minEig(const TensorField<T>& F, bool zero_trace) const
 	{
 		Timer __t("minEig", false);
 
@@ -13556,7 +13583,7 @@ public:
 
 
 template<typename T>
-void prolongate_to_dfg(const TensorField<T>& c, const TensorField<T>& f)
+noinline void prolongate_to_dfg(const TensorField<T>& c, const TensorField<T>& f)
 {
 	Timer __t("prolongate_to_dfg", false);
 
@@ -13612,7 +13639,7 @@ void prolongate_to_dfg(const TensorField<T>& c, const TensorField<T>& f)
 
 
 template<typename T>
-void restrict_from_dfg(const TensorField<T>& f, const TensorField<T>& c)
+noinline void restrict_from_dfg(const TensorField<T>& f, const TensorField<T>& c)
 {
 	Timer __t("restrict_from_dfg", false);
 
@@ -15011,7 +15038,7 @@ public:
 #endif
 	}
 
-	boost::shared_ptr< FFT3<T> > get_fft(std::size_t howmany)
+	noinline boost::shared_ptr< FFT3<T> > get_fft(std::size_t howmany)
 	{
 		if (_ffts.count(howmany) > 0) {
 			return _ffts[howmany];
@@ -16063,7 +16090,7 @@ public:
 	classinfo;
 
 
-	void initMultiphase(TensorField<P>& t, P discretization, std::map<std::size_t, std::size_t>& value_to_material_map, std::size_t default_mat)
+	noinline void initMultiphase(TensorField<P>& t, P discretization, std::map<std::size_t, std::size_t>& value_to_material_map, std::size_t default_mat)
 	{
 		Timer __t("init_multiphase", true);
 
@@ -16618,7 +16645,7 @@ public:
 		initVectorField("normals", FiberGenerator<T, DIM>::SampleDataTypes::NORMALS, fg, normals);
 	}
 
-	void initRawOrientation(RealTensor& field)
+	noinline void initRawOrientation(RealTensor& field)
 	{
 		std::string name = "Orientation";
 		Timer __t(name + " initialization");
@@ -16679,7 +16706,7 @@ public:
 	}
 
 
-	void initVectorField(const std::string& name, typename FiberGenerator<T, DIM>::SampleDataType type,
+	noinline void initVectorField(const std::string& name, typename FiberGenerator<T, DIM>::SampleDataType type,
 		const FiberGenerator<T, DIM>& fg, RealTensor& field)
 	{
 		Timer __t(name + " initialization");
@@ -16792,7 +16819,7 @@ public:
 		LOG_COUT << "adjusted num_threads to " << n_min << std::endl;
 	}
 
-	void initPhi(const FiberGenerator<T, DIM>& fg, std::vector<pPhase>& mat, std::size_t matrix_mat, int smooth_levels, T smooth_tol, bool fast = false)
+	noinline void initPhi(const FiberGenerator<T, DIM>& fg, std::vector<pPhase>& mat, std::size_t matrix_mat, int smooth_levels, T smooth_tol, bool fast = false)
 	{
 		Timer __t("phase initialization");
 
@@ -16891,7 +16918,7 @@ public:
 		normalizePhi(_mat->phases);
 	}
 
-	void normalizePhi(std::vector<pPhase>& mat)
+	noinline void normalizePhi(std::vector<pPhase>& mat)
 	{
 		Timer __t("normalize_phi");
 
@@ -16951,7 +16978,7 @@ public:
 		}
 	}
 
-	void initFullStageredRawPhases()
+	noinline void initFullStageredRawPhases()
 	{
 		if (!this->use_dfg()) {
 			return;
@@ -17116,7 +17143,7 @@ public:
 		return mean;
 	}
 
-	T calcMinEigH(const RealTensor& epsilon) const
+	noinline T calcMinEigH(const RealTensor& epsilon) const
 	{
 		Timer __t("calcMinEigH", false);
 
@@ -17175,7 +17202,7 @@ public:
 
 	// compute <(C-C0):epsilon>
 	// mu_0, lambda_0: referenece material (C_0)
-	T calcMinDetF(const RealTensor& epsilon) const
+	noinline T calcMinDetF(const RealTensor& epsilon) const
 	{
 		Timer __t("calcMinDetF", false);
 
@@ -17281,7 +17308,7 @@ public:
 	// compute C0:epsilon for isotropic material
 	// mu_0, lambda_0: referenece material (C_0)
 	// the result is stored to sigma
-	void calcStressConst(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma)
+	noinline void calcStressConst(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma)
 	{
 		Timer __t("calcStressConst", false);
 
@@ -17343,7 +17370,12 @@ public:
 		calcStress(_mu_0, _lambda_0, epsilon, tau, alpha);
 	}
 
-	void calcStress(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma, T alpha = 1)
+	inline T C0dot(T mu_0, T lambda_0, const Tensor3x3<T>& a, const Tensor3x3<T>& b)
+	{
+		return 2*mu_0*a.dot(b.E) + lambda_0*a.trace()*b.trace();
+	}
+
+	noinline void calcStress(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma, T alpha = 1)
 	{
 		Timer __t("calc stress", false);
 
@@ -17387,6 +17419,11 @@ public:
 				(*ptau)[k][i] = _P[k];
 			}
 
+			// TODO: compute quantities for error estimator
+			// Matti: NHaR.pdf 4.3.13
+			//_eps_C0_norm_square += C0dot(F, F);
+			//_mean_sigma_eps += F.dot(_P.E);
+			//_mean_sigma_E += _P.dot(_E);
 		}
 		END_TRIPLE_LOOP(i)
 
@@ -17555,7 +17592,7 @@ public:
 	}
 
 	// 
-	void calcDetF(RealTensor& F, T* detF)
+	noinline void calcDetF(RealTensor& F, T* detF)
 	{
 		Timer __t("calc detF", false);
 
@@ -17572,7 +17609,7 @@ public:
 	}
 
 	// 
-	void calcDetC(RealTensor& F, T* detC)
+	noinline void calcDetC(RealTensor& F, T* detC)
 	{
 		Timer __t("calc detC", false);
 
@@ -17629,7 +17666,7 @@ public:
 	}
 
 	// compute sigma = alpha*(dP/dF(F) - C0) : W
-	void calcStressDeriv(T mu_0, T lambda_0, RealTensor& F, RealTensor& W, RealTensor& sigma, T alpha = 1)
+	noinline void calcStressDeriv(T mu_0, T lambda_0, RealTensor& F, RealTensor& W, RealTensor& sigma, T alpha = 1)
 	{
 		Timer __t("calc stress deriv", false);
 
@@ -17685,7 +17722,7 @@ public:
 	}
 
 	// perform inplace forward FFT of vector (first 3 compontents of x)
-	void fftVector(const RealTensor& x, ComplexTensor& y, std::size_t dims=3)
+	noinline void fftVector(const RealTensor& x, ComplexTensor& y, std::size_t dims=3)
 	{
 		Timer __t("fftVector", false);
 		Timer dt_fft;
@@ -17717,7 +17754,7 @@ public:
 	}
 
 	// perform inplace backward FFT of vector (first 3 compontents of x)
-	void fftInvVector(const ComplexTensor& x, RealTensor& y, std::size_t dims=3)
+	noinline void fftInvVector(const ComplexTensor& x, RealTensor& y, std::size_t dims=3)
 	{
 		Timer __t("fftInvVector", false);
 		Timer dt_fft;
@@ -17735,7 +17772,7 @@ public:
 	}
 
 	// perform inplace forward FFT of tensor
-	void fftTensor(const RealTensor& x, ComplexTensor& y, bool zero_trace = false)
+	noinline void fftTensor(const RealTensor& x, ComplexTensor& y, bool zero_trace = false)
 	{
 		Timer __t("fftTensor", false);
 		Timer dt_fft;
@@ -17767,7 +17804,7 @@ public:
 	}
 
 	// perform inplace backward FFT of tensor
-	void fftInvTensor(const ComplexTensor& x, RealTensor& y, bool zero_trace = false)
+	noinline void fftInvTensor(const ComplexTensor& x, RealTensor& y, bool zero_trace = false)
 	{
 		Timer __t("fftInvTensor", false);
 		Timer dt_fft;
@@ -17818,7 +17855,7 @@ public:
 	// compute the symmetric gradient of the vector x (first 3 components) add E
 	// and store result in tensor y
 	// x and y may be the same for inplace operation
-	void epsOperatorStaggered(const ublas::vector<T>& E, const RealTensor& x, const RealTensor& y)
+	noinline void epsOperatorStaggered(const ublas::vector<T>& E, const RealTensor& x, const RealTensor& y)
 	{
 		Timer __t("epsOperatorStaggered", false);
 
@@ -17901,7 +17938,7 @@ public:
 	// compute the gradient of the vector x (first 3 components) add E
 	// and store result in tensor y
 	// x and y may be the same for inplace operation
-	void epsOperatorStaggeredHeat(const ublas::vector<T>& E, const RealTensor& x, const RealTensor& y)
+	noinline void epsOperatorStaggeredHeat(const ublas::vector<T>& E, const RealTensor& x, const RealTensor& y)
 	{
 		Timer __t("epsOperatorStaggeredHeat", false);
 
@@ -17967,7 +18004,7 @@ public:
 	// compute the gradient of the vector x (first 3 components) add E
 	// and store result in tensor y
 	// x and y may be the same for inplace operation
-	void epsOperatorStaggeredHyper(const ublas::vector<T>& E, const RealTensor& x, const RealTensor& y)
+	noinline void epsOperatorStaggeredHyper(const ublas::vector<T>& E, const RealTensor& x, const RealTensor& y)
 	{
 		Timer __t("epsOperatorStaggeredHyper", false);
 
@@ -18057,7 +18094,7 @@ public:
 	// and forward differences for the off-diagonal elements
 	// the result is stored in the first 3 components of y, however the other 3 components are used internally
 	// x and y may be the same for inplace operation
-	void divOperatorStaggered(const RealTensor& x, const RealTensor& y)
+	noinline void divOperatorStaggered(const RealTensor& x, const RealTensor& y)
 	{
 		Timer __t("divOperatorStaggered", false);
 
@@ -18118,7 +18155,7 @@ public:
 	// and forward differences for the off-diagonal elements
 	// the result is stored in the first 3 components of y, however the other 3 components are used internally
 	// x and y may be the same for inplace operation
-	void divOperatorStaggeredHeat(const RealTensor& x, const RealTensor& y)
+	noinline void divOperatorStaggeredHeat(const RealTensor& x, const RealTensor& y)
 	{
 		Timer __t("divOperatorStaggeredHeat", false);
 
@@ -18220,7 +18257,7 @@ public:
 	// and forward differences for the off-diagonal elements
 	// the result is stored in the first 3 components of y, however the other 3 components are used internally
 	// x and y may be the same for inplace operation
-	void divOperatorStaggeredHyper(const RealTensor& x, const RealTensor& y)
+	noinline void divOperatorStaggeredHyper(const RealTensor& x, const RealTensor& y)
 	{
 		Timer __t("divOperatorStaggeredHyper", false);
 
@@ -18287,7 +18324,7 @@ public:
 	}
 
 	// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
-	void GammaOperatorFourierWillotR(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
+	noinline void GammaOperatorFourierWillotR(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		T alpha = -1, T beta = 0)
 	{
 		Timer __t("GammaOperatorFourierWillotR", false);
@@ -18506,7 +18543,7 @@ public:
 	}
 
 	// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
-	void GammaOperatorFourierCollocatedHeat(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
+	noinline void GammaOperatorFourierCollocatedHeat(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		T alpha = -1, T beta = 0)
 	{
 		Timer __t("GammaOperatorFourierCollocatedHeat", false);
@@ -18585,7 +18622,7 @@ public:
 
 
 	// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
-	void GammaOperatorFourierCollocated(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
+	noinline void GammaOperatorFourierCollocated(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		T alpha = -1, T beta = 0)
 	{
 		Timer __t("GammaOperatorFourierCollocated", false);
@@ -18814,7 +18851,7 @@ public:
 		}
 	}
 
-	void GammaOperatorFourierStaggeredHyper(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
+	noinline void GammaOperatorFourierStaggeredHyper(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		T alpha = -1, T beta = 0)
 	{
 		Timer __t("GammaOperatorFourierStaggeredHyper", false);
@@ -18823,7 +18860,7 @@ public:
 	}
 
 	// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
-	void GammaOperatorFourierCollocatedHyper(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
+	noinline void GammaOperatorFourierCollocatedHyper(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		T alpha = -1, T beta = 0)
 	{
 		Timer __t("GammaOperatorFourierCollocatedHyper", false);
@@ -18982,7 +19019,7 @@ public:
 
 	// compute eta_hat = alpha*G0_hat(tau_hat)
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
-	void G0OperatorFourierStaggeredGeneralHeat(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T c10)
+	noinline void G0OperatorFourierStaggeredGeneralHeat(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T c10)
 	{
 		Timer __t("G0OperatorFourierStaggeredHeat", false);
 		
@@ -19039,7 +19076,7 @@ public:
 
 	// compute eta_hat = alpha*G0_hat(tau_hat)
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
-	void G0OperatorFourierStaggeredGeneral(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T c10, T c20)
+	noinline void G0OperatorFourierStaggeredGeneral(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T c10, T c20)
 	{
 		Timer __t("G0OperatorFourierStaggered", false);
 		
@@ -19136,7 +19173,7 @@ public:
 
 	// solve Laplace x = b
 	// r: temporary vector for residual
-	void mg_solve(T* r, T* x, T* b)
+	noinline void mg_solve(T* r, T* x, T* b)
 	{
 		Timer __t(_mg_scheme + " poisson solver");
 
@@ -19186,7 +19223,7 @@ public:
 
 	// compute eta_hat = alpha*G0_hat(tau_hat)
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
-	void divVector(const RealTensor& tau, T* b, T alpha = 1)
+	noinline void divVector(const RealTensor& tau, T* b, T alpha = 1)
 	{
 		Timer __t("divVector", false);
 
@@ -19358,7 +19395,7 @@ public:
 		}
 	}
 
-	void G0DivOperatorFourierHyper(T mu_0, T lambda_0, ComplexTensor& tau_hat, ComplexTensor& eta_hat, T alpha = 1)
+	noinline void G0DivOperatorFourierHyper(T mu_0, T lambda_0, ComplexTensor& tau_hat, ComplexTensor& eta_hat, T alpha = 1)
 	{
 		Timer __t("G0DivOperatorFourierHyper", false);
 
@@ -19431,7 +19468,7 @@ public:
 		}
 	}
 
-	void initBCProjector(const RealTensor& tau)
+	noinline void initBCProjector(const RealTensor& tau)
 	{
 		Timer __t("initBCProjector", false);
 
@@ -19466,7 +19503,7 @@ public:
 		return _bc_relax*Voigt::dyad4(_BC_MQ, _F0) - (1-_bc_relax)*Voigt::dyad4(_BC_M, Voigt::dyad4(_BC_QC0, _F00));
 	}
 
-	void applyBCProjector(RealTensor& eta, T alpha)
+	noinline void applyBCProjector(RealTensor& eta, T alpha)
 	{
 		Timer __t("applyBCProjector", false);
 
@@ -19904,7 +19941,7 @@ public:
 	}
 
 	// calculate |norm1 - norm2|
-	T calcNormDiff(const RealTensor& a, const RealTensor& b)
+	noinline T calcNormDiff(const RealTensor& a, const RealTensor& b)
 	{
 		Timer __t("calcNormDiff", false);
 
@@ -19936,7 +19973,7 @@ public:
 	}
 
 	// compute sum over a:(b - c)
-	T innerProduct(RealTensor& a, RealTensor& b, RealTensor& c)
+	noinline T innerProduct(RealTensor& a, RealTensor& b, RealTensor& c)
 	{
 		Timer __t("innerProductDiff", false);
 
@@ -19952,7 +19989,7 @@ public:
 	}
 
 	// compute sum over a:b
-	T innerProduct(RealTensor& a, RealTensor& b)
+	noinline T innerProduct(RealTensor& a, RealTensor& b)
 	{
 		Timer __t("innerProduct", false);
 
@@ -19967,7 +20004,7 @@ public:
 		}
 	}
 
-	T innerProductEnergyC0(RealTensor& a, RealTensor& b)
+	noinline T innerProductEnergyC0(RealTensor& a, RealTensor& b)
 	{
 		BOOST_THROW_EXCEPTION(std::runtime_error("not implemented"));
 
@@ -20007,7 +20044,7 @@ public:
 		return s;
 	}
 
-	T innerProductEnergyC0(RealTensor& a, RealTensor& b, RealTensor& c)
+	noinline T innerProductEnergyC0(RealTensor& a, RealTensor& b, RealTensor& c)
 	{
 		BOOST_THROW_EXCEPTION(std::runtime_error("not implemented"));
 
@@ -20048,7 +20085,7 @@ public:
 	}
 
 	// compute sum over a:(b - c)
-	T innerProductL2(RealTensor& a, RealTensor& b, RealTensor& c)
+	noinline T innerProductL2(RealTensor& a, RealTensor& b, RealTensor& c)
 	{
 		Timer __t("innerProductL2", false);
 
@@ -20132,7 +20169,7 @@ public:
 	}
 
 	// compute sum over a:b
-	T innerProductL2(RealTensor& a, RealTensor& b)
+	noinline T innerProductL2(RealTensor& a, RealTensor& b)
 	{
 		Timer __t("innerProductL2", false);
 
@@ -20217,7 +20254,7 @@ public:
 
 
 	// calculate t:t pointwise
-	void calcNorm(RealTensor& t, T* norm)
+	noinline void calcNorm(RealTensor& t, T* norm)
 	{
 		BOOST_THROW_EXCEPTION(std::runtime_error("not implemented"));
 
@@ -20263,7 +20300,7 @@ public:
 	}
 
 	// general method for convergence check
-	void printMeanValues() const
+	noinline void printMeanValues() const
 	{
 		Timer __t("printMeanValues", false);
 
@@ -20354,7 +20391,7 @@ public:
 	}
 
 	// general method for convergence check
-	bool _converged(std::size_t& iter, T abs_err, T rel_err, bool check_bc = true)
+	noinline bool _converged(std::size_t& iter, T abs_err, T rel_err, bool check_bc = true)
 	{
 		Timer __t("converged", false);
  
@@ -20423,7 +20460,7 @@ public:
 		return false;
 	}
 
-	bool run()
+	noinline bool run()
 	{
 		Timer __t("running solver");
 
@@ -20758,7 +20795,7 @@ public:
 	}
 
 	// solver with loadstepping
-	bool runLoadsteppingSolver(const ublas::vector<T>& Emax, const ublas::vector<T>& Smax)
+	noinline bool runLoadsteppingSolver(const ublas::vector<T>& Emax, const ublas::vector<T>& Smax)
 	{
 		std::list<loadstep_data> last_loadsteps;
 
@@ -20862,7 +20899,7 @@ public:
 	}
 
 	// compute sum over a:b
-	T l2_norm(const RealTensor& a) const
+	noinline T l2_norm(const RealTensor& a) const
 	{
 		Timer __t("l2_norm", false);
 
@@ -20982,7 +21019,7 @@ public:
 	}
 
 
-	T calcStep(const RealTensor& epsilon, RealTensor& depsilon) const
+	noinline T calcStep(const RealTensor& epsilon, RealTensor& depsilon) const
 	{
 		Timer __t("calc step", false);
 
@@ -21201,7 +21238,7 @@ public:
 	}
 
 	// compute W_hat = GRAD_hat q_hat
-	void GradOperatorFourierHyper(ComplexTensor& q_hat, ComplexTensor& W_hat)
+	noinline void GradOperatorFourierHyper(ComplexTensor& q_hat, ComplexTensor& W_hat)
 	{
 		Timer __t("GradOperatorFourierHyper", false);
 
@@ -21415,7 +21452,7 @@ public:
 
 
 	// compute reference material parameters
-	void calcRefMaterial(T& mu_0, T& lambda_0, RealTensor& F)
+	noinline void calcRefMaterial(T& mu_0, T& lambda_0, RealTensor& F)
 	{
 		Timer __t("calc ref material");
 
@@ -21457,7 +21494,7 @@ public:
 	}
 
 	// compute sum_xi |xi|**2 q:conj(r)
-	std::complex<T> innerProductHyper(ComplexTensor& q, ComplexTensor& r)
+	noinline std::complex<T> innerProductHyper(ComplexTensor& q, ComplexTensor& r)
 	{
 		Timer __t("innerProductHyper", false);
 
@@ -21506,7 +21543,7 @@ public:
 	}
 
 	// compute innerProductHyper(q, q-r)
-	std::complex<T> innerProductDiffHyper(ComplexTensor& q, ComplexTensor& r)
+	noinline std::complex<T> innerProductDiffHyper(ComplexTensor& q, ComplexTensor& r)
 	{
 		Timer __t("innerProductDiffHyper", false);
 
@@ -21831,7 +21868,7 @@ public:
 
 	// run the CG algorithm
 	// NRCGsolver2
-	void runCGHyper(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
+	noinline void runCGHyper(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
 	{
 		Timer __t("runCGHyper", false);
 
@@ -22265,7 +22302,7 @@ public:
 	}
 
 
-	void ApplyOperator(RealTensor& F, RealTensor& Q, RealTensor& W, ComplexTensor& W_hat)
+	noinline void ApplyOperator(RealTensor& F, RealTensor& Q, RealTensor& W, ComplexTensor& W_hat)
 	{
 		Timer __t("ApplyOperator", false);
 
@@ -22287,7 +22324,7 @@ public:
 
 
 	// run the CG algorithm
-	void runCGElasticity(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
+	noinline void runCGElasticity(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
 	{
 		Timer __t("runCGElasticity", false);
 
@@ -23907,7 +23944,7 @@ public:
 		PY::instance().add_local(key, value);
 	}
 
-	void init_python()
+	noinline void init_python()
 	{
 		const ptree::ptree& pt = xml_root->get_child("settings", empty_ptree);
 		const ptree::ptree& variables = pt.get_child("variables", empty_ptree);
@@ -24291,6 +24328,9 @@ public:
 			", num_threads=" << num_threads_omp <<
 			", fft_threads=" << num_threads_fft <<
 			", max_threads=" << max_threads <<
+#ifdef USE_MANY_FFT
+			", many_fft" <<
+#endif
 			std::endl;
 
 		LOG_COUT << "numeric bounds:" <<
@@ -24309,7 +24349,7 @@ public:
 		return ret;
 	}
 
-	int run_actions(const ptree::ptree& settings, const std::string& path)
+	noinline int run_actions(const ptree::ptree& settings, const std::string& path)
 	{
 		// read output format
 		bool binary = (pt_get<std::string>(settings, "res_format", "binary") == "binary");
@@ -25522,6 +25562,7 @@ void signal_handler(int signum)
 {
 	LOG_COUT << std::endl;
 	LOG_CERR << (boost::format("Program aborted: Signal %d received") % signum).str() << std::endl;
+	print_stacktrace(LOG_CERR);
 	exit(signum);  
 }
 
@@ -25543,6 +25584,7 @@ public:
 		// register signal SIGINT handler and exit handler
 		atexit(exit_handler);
 		signal(SIGINT, signal_handler);
+		signal(SIGSEGV, signal_handler);
 
 		reset();
 	}
@@ -25772,7 +25814,7 @@ public:
 		read_xml(filename, *xml_root, 0*ptree::xml_parser::trim_whitespace);
 	}
 
-	int exec(int argc, char* argv[])
+	noinline int exec(int argc, char* argv[])
 	{
 		Timer __t("application");
 

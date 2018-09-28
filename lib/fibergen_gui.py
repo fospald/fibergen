@@ -2090,11 +2090,12 @@ p ~ p {
 						attr += '<td><b>' + a.get("name") + "</b></td>"
 					attr += "<td>" + a.get("type") + "</td>"
 					attr += "<td>" + default + "</td>"
-					help = cgi.escape(a.get("help"))
-					values = cgi.escape(a.get("values"))
-					if not values is None:
-						help += " (%s)" % values
-					attr += "<td>" + help + "</td>"
+					help = a.get("help")
+					if not help is None:
+						values = a.get("values")
+						if not values is None:
+							help += " (%s)" % cgi.escape(values)
+						attr += "<td>" + help + "</td>"
 					attr += "</tr>"
 				if attr != "":
 					html += "<h3>Available attributes:</h3>"
