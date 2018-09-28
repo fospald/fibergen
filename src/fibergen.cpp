@@ -46,7 +46,7 @@ multigrid improvements:
 - combine last smoothing with restriction operation
 */
 
-#define USE_MANY_FFT
+//#define USE_MANY_FFT
 
 #include <Python.h>
 #include <fftw3.h>
