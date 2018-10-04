@@ -1,0 +1,23 @@
+{
+  "@context": "https://raw.githubusercontent.com/codemeta/codemeta/master/codemeta.jsonld",
+  "@type": "Code",
+  "author": [
+    {
+      "@id": "http://orcid.org/0000-0001-8372-9179",
+      "@type": "Person",
+      "email": "felix.ospald@gmail.com",
+      "name": "Felix Ospald",
+      "affiliation": "TU Chemnitz"
+    }
+  ],
+  "identifier": "",
+  "codeRepository": "https://github.com/fospald/fibergen",
+  "datePublished": "2018-10-02",
+  "dateModified": "2018-10-02",
+  "dateCreated": "2018-10-02",
+  "description": "fibergen: An introductory tool for FFT-based material homogenization",
+  "keywords": "material homogenization, FFT, Python, C++, heat equation, Stokes flow, Darcy flow, linear elasticity, hyperelasticity",
+  "license": "GPL",
+  "title": "fibergen",
+  "version": "2018.1"
+}

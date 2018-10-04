@@ -10,7 +10,7 @@ A FFT-based homogenization tool.
 * generation of fibers distributions
 * use of tetrahedrical mesh geometries
 * arbitrarily many materials
-* reading of raw CT data (LZ compressed)
+* reading of raw CT data (gzip compressed)
 * identification of homogenized material parameters
 * ...
 
@@ -21,7 +21,7 @@ A FFT-based homogenization tool.
 * [boost](https://www.boost.org/) incl. boost.python 3 and [boost-numeric-bindings](https://mathema.tician.de/software/boost-numeric-bindings/)
 * [Python 3](https://www.python.org/)
 * [scipy](https://www.scipy.org/) incl. numpy headers
-* [PyQT5](https://www.riverbankcomputing.com/software/pyqt/download5) incl. QWebEngine (QWebKiat also works)
+* [PyQt5](https://www.riverbankcomputing.com/software/pyqt/download5) incl. QWebEngine (QWebKit also works)
 * [lapack](www.netlib.org/lapack/) library
 
 
@@ -76,7 +76,6 @@ cd install_dir
 git clone http://git.tiker.net/trees/boost-numeric-bindings.git
 export BOOSTNUMERICBINDINGS_DIR=$(pwd)/boost-numeric-bindings
 ```
-
 
 ## Acknowledgements
 
