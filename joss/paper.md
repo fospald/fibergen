@@ -33,6 +33,7 @@ The voxel-based spectral method relies on the fast Fourier transform (FFT) and O
 # Relation to similar projects
 
 There exists a number of similar projects for the homogenization of materials, developed by well-known people in this research area:
+
 * [AMITEX](http://www.maisondelasimulation.fr/projects/amitex/html), Lionel Gélébart, 
 Atomic Energy and Alternative Energies Commission, France, (Fortran)
 * [morphhom](http://cmm.ensmp.fr/morphhom), François Willot, Université Paris, France, (Fortran/C)
@@ -59,6 +60,7 @@ Projects are stored as XML configuration files, which may be executed over the c
 Furthermore ``fibergen`` provides a Python library, which can be used to create solver objects, modify settings, run the solver and extract results in an automated fashion.
 
 ![``fibergen`` GUI, showing the main screen for selecing one of the predefined demos.](../page/images/screenshot_1.png)
+
 ![``fibergen`` GUI, showing the project editor on the left and the postprocessing view on the right.](../page/images/screenshot_2.png)
 
 # Development
