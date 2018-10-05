@@ -48,8 +48,8 @@ It is also written in object-oriented C++ and provides a simple Python interface
 # Features
 
 ``fibergen`` implements FFT-based homogenization based on the Lippmann-Schwinger equation.
-It includes the original method by [@MoulinecSuquet1994] and the more recent discretizations [@Willot2015] and [@SchneiderOspaldKabel2015]. Especially the staggered grid method is not implemented by any other of the listed tools, although it is the superior method. ``fibergen`` also implements efficient fixed point and Newton-Krylov solvers for FFT-based homogenization of elasticity at large deformations as described in [@KabelBöhlkeSchneider2014].
-Further it implements so called composite voxels, for the linear [@KabelMerkertSchneider2014] and nonlinear case [@SchneiderOspaldKabel2015], which increases the accuracy and/or speed of the method enormously.
+It includes the original method by [@MoulinecSuquet1994] and the more recent finite difference discretizations by [@Willot2015] and [@SchneiderOspaldKabel2015]. Especially the staggered grid method is not implemented by any other of the listed tools, although it is the superior method [@SchneiderOspaldKabel2015]. ``fibergen`` also implements efficient fixed point and Newton-Krylov solvers for FFT-based homogenization of elasticity at large deformations as described in [@KabelBöhlkeSchneider2014].
+Further it implements so called composite voxels, for the linear [@KabelMerkertSchneider2015] and nonlinear case [@SchneiderOspaldKabel2015], which increases the accuracy and/or speed of the method enormously.
 Also mixed boundary conditions [@Kabel2016] are supported.
 Further homogenization solvers for the effective thermal conductivity, porosity and viscosity are provided.
 Geometry can be loaded from (gzip compressed) raw data (e.g. CT scans) or also be generated from simple sphere, cylinder and capsule-like objects, but also tetrahedral meshes can be used as input geometry.
@@ -65,7 +65,7 @@ Furthermore ``fibergen`` provides a Python library, which can be used to create 
 
 # Development
 
-The ``fibergen`` core was developed in C++ heavily using the [Boost](http://www.boost.org) and [boost-numeric-bindings](http://mathema.tician.de/software/boost-numeric-bindings/) for Boost uBLAS library.
+The ``fibergen`` core was developed in C++, heavily using the [Boost](http://www.boost.org) and [boost-numeric-bindings](http://mathema.tician.de/software/boost-numeric-bindings/) for Boost uBLAS libraries.
 Parallelization is realized through [OpenMP](http://www.openmp.org/).
 The Python 2/3 compatible interface is provided using [Boost.Python](http://www.boost.org/doc/libs/release/libs/python/), where computed results are returned as [numpy](http://www.numpy.org/)-array.
 The graphical user interface was developed using [PyQt5](http://pypi.org/project/PyQt5/), the Python bindings of [Qt5](http://doc.qt.io/qt-5/qt5-intro.html), including the [QWebEngine](http://doc.qt.io/qt-5.11/qtwebengine-index.html) (or QWebKit) for browsing demos as well as the Qt back-end of [matplotlib](http://matplotlib.org/) for embedding plots. A small amount of [scipy](http://www.scipy.org/) functionality is used to write images.
