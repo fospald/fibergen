@@ -176,6 +176,7 @@ class WriteVTKWidget(QtWidgets.QDialog):
 
 		# https://bitbucket.org/pauloh/pyevtk
 
+		app = QtWidgets.QApplication.instance()
 		binary = True
 		loadstep = 0
 		dtype = "float"
@@ -185,7 +186,7 @@ class WriteVTKWidget(QtWidgets.QDialog):
 			def write(s):
 				f.write(s.encode("ascii"))
 
-			write("# vtk DataFile Version 2.0\nfibergen\n")
+			write("# vtk DataFile Version 2.0\n" + app.applicationName() + "\n")
 
 			if binary:
 				write("BINARY\n")
@@ -2289,7 +2290,7 @@ img {
 			html += '<tr>'
 			if path == self.demodir:
 				html += '<td>'
-				html += '<h1>fibergen</h1>'
+				html += '<h1>' + app.applicationName() + '</h1>'
 				html += '<p>A FFT-based homogenization tool.</p>'
 				html += '</td>'
 				img = xml.find("image")
@@ -2434,7 +2435,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		#self.setMinimumSize(1000, 800)
 		dir_path = os.path.dirname(os.path.realpath(__file__))
-		self.setWindowTitle("FFT Homogenization Tool")
+		self.setWindowTitle(app.applicationName() + " - FFT Homogenization Tool")
 		self.setWindowIcon(QtGui.QIcon(dir_path + "/../gui/icons/logo1/icon32.png"))
 
 
@@ -2601,7 +2602,8 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.textEdit.redo()
 
 	def openAbout(self):
-		webbrowser.open('https://fospald.github.io/fibergen/')
+		app = QtWidgets.QApplication.instance()
+		webbrowser.open('https://fospald.github.io/' + app.applicationName() + '/')
 
 	def openHelp(self):
 		if self.docTabIndex is None:
@@ -3137,6 +3139,10 @@ class App(QtWidgets.QApplication):
 
 		QtWidgets.QApplication.__init__(self, list(args) + ["--disable-web-security"])
 
+		self.setApplicationName("fibergen")
+		self.setApplicationVersion("2018.1")
+		self.setOrganizationName("NumaPDE")
+
 		print("matplotlib:", matplotlib.__version__, "numpy:", np.__version__)
 
 		#self.setStyle('windows')
@@ -3165,7 +3171,7 @@ class App(QtWidgets.QApplication):
 		})
 		#print(rcParams)
 
-		self.settings = QtCore.QSettings("NumaPDE", "fibergen")
+		self.settings = QtCore.QSettings(self.organizationName(), self.applicationName())
 		self.window = MainWindow()
 
 		print("settings:", self.settings.fileName())
