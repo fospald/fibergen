@@ -15,7 +15,7 @@ authors:
     orcid: 0000-0001-8372-9179
     affiliation: "1"
 affiliations:
- - name: Research Group Numerical Mathematics (Partial Differential Equations), TU Chemnitz, Chemnitz, Germany
+ - name: Research Group Numerical Mathematics (Partial Differential Equations), Faculty of Mathematics, TU Chemnitz, Chemnitz, Germany
    index: 1
 date: 2 October 2018
 bibliography: paper.bib
