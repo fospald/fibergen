@@ -15,7 +15,7 @@ authors:
     orcid: 0000-0001-8372-9179
     affiliation: "1"
 affiliations:
- - name: Research Group Numerical Mathematics, TU Chemnitz, Chemnitz, Germany
+ - name: Research Group Numerical Mathematics (Partial Differential Equations), TU Chemnitz, Chemnitz, Germany
    index: 1
 date: 2 October 2018
 bibliography: paper.bib
@@ -23,7 +23,7 @@ bibliography: paper.bib
 
 # Summary
 
-Many engineering applications require material properties of heterogeneous media. For instance elasticity constants and thermal conductivity of fiber reinforced plastics, the viscosity of a suspension, permeability of porous media, electrical conductivity of sintered metals, ...
+Many engineering applications require material properties of heterogeneous media. For instance elasticity constants and thermal conductivity of fiber reinforced plastics, the viscosity of a suspension, permeability of porous media and the electrical conductivity of sintered metals.
 Laboratory experiments for determining these properties are often difficult, expensive and error-prone.
 Therefore, increasingly computer simulations are used instead, both for the computation of effective properties and the generation of the geometry of such materials in order to avoid the use of expensive computer tomography (CT) scans.
 
@@ -48,18 +48,18 @@ It is also written in object-oriented C++ and provides a simple Python interface
 # Features
 
 ``fibergen`` implements FFT-based homogenization based on the Lippmann-Schwinger equation.
-It includes the original method by [@MoulinecSuquet1994] and the more recent finite difference discretizations by [@Willot2015] and [@SchneiderOspaldKabel2015]. Especially the staggered grid method is not implemented by any other of the listed tools, although it is the superior method [@SchneiderOspaldKabel2015]. ``fibergen`` also implements efficient fixed point and Newton-Krylov solvers for FFT-based homogenization of elasticity at large deformations as described in [@KabelBöhlkeSchneider2014].
+It includes the original method by [@MoulinecSuquet1994] and the more recent finite difference discretizations on a rotated grid by [@Willot2015] and on a staggered grid by [@SchneiderOspaldKabel2015]. Especially the staggered grid method is not implemented by any other of the listed tools, although it is the superior method [@SchneiderOspaldKabel2015]. ``fibergen`` also implements efficient fixed point and Newton-Krylov solvers for FFT-based homogenization of elasticity at large deformations, as described in [@KabelBöhlkeSchneider2014].
 Further it implements so called composite voxels, for the linear [@KabelMerkertSchneider2015] and nonlinear case [@SchneiderOspaldKabel2015], which increases the accuracy and/or speed of the method enormously.
 Also mixed boundary conditions [@Kabel2016] are supported.
 Further homogenization solvers for the effective thermal conductivity, porosity and viscosity are provided.
 Geometry can be loaded from (gzip compressed) raw data (e.g. CT scans) or also be generated from simple sphere, cylinder and capsule-like objects, but also tetrahedral meshes can be used as input geometry.
 For cylinder and capsule objects a orientation distribution can be selected for the generation, as well as distributions for the spatial position, length- and diameter.
-Here we provide the angular central Gaussian distribution as employed by [@Montgomery-SmithJackSmith2011] beside others. 
+Here we provide the angular central Gaussian distribution as employed by [@Montgomery-SmithJackSmith2011] amongst other.
 
 Projects are stored as XML configuration files, which may be executed over the command-line or using the GUI.
 Furthermore ``fibergen`` provides a Python library, which can be used to create solver objects, modify settings, run the solver and extract results in an automated fashion.
 
-![``fibergen`` GUI, showing the main screen for selecing one of the predefined demos.](../page/images/screenshot_1.png)
+![``fibergen`` GUI, showing the main screen for selecting one of the predefined demos.](../page/images/screenshot_1.png)
 
 ![``fibergen`` GUI, showing the project editor on the left and the postprocessing view on the right.](../page/images/screenshot_2.png)
 
