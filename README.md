@@ -1,3 +1,8 @@
+<p align="center">
+  <a href="LICENSE" alt="GPLv3 license"><img src="https://img.shields.io/badge/license-GPLv3-brightgreen.svg" /></a>
+  <a href="#" alt="no warranty"><img src="https://img.shields.io/badge/warranty-no-red.svg" /></a>
+</p>
+
 # fibergen
 
 A FFT-based homogenization tool.
