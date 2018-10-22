@@ -22,12 +22,15 @@ A FFT-based homogenization tool.
 
 ## Requirements
 
-* gcc
+The following libraries are required, which are likely already installed on your system:
+* [CMake](https://cmake.org/)
+* [gcc](https://gcc.gnu.org/)
 * [boost](https://www.boost.org/) incl. boost.python 3 and [boost-numeric-bindings](https://mathema.tician.de/software/boost-numeric-bindings/)
 * [Python 3](https://www.python.org/)
 * [scipy](https://www.scipy.org/) incl. numpy headers
 * [PyQt5](https://www.riverbankcomputing.com/software/pyqt/download5) incl. QWebEngine (QWebKit also works)
 * [lapack](www.netlib.org/lapack/) library
+If unsure, continue with the installation and check the error messages of CMake.
 
 
 ## Installation
@@ -38,7 +41,7 @@ git clone https://github.com/fospald/fibergen.git
 ```
 2. run build.sh, on error probably a library is missing
 ```
-sh build.sh
+sh build.sh [optional CMake parameters]
 ```
 3. after successful build update your envirnoment variables:
 ```
