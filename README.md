@@ -30,6 +30,7 @@ The following libraries are required, which are likely already installed on your
 * [scipy](https://www.scipy.org/) incl. numpy headers
 * [PyQt5](https://www.riverbankcomputing.com/software/pyqt/download5) incl. QWebEngine (QWebKit also works)
 * [lapack](www.netlib.org/lapack/) library
+
 If unsure, continue with the installation and check the error messages of CMake.
 
 
