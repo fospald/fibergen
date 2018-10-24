@@ -7,11 +7,11 @@
 
 A FFT-based homogenization tool.
 
-* FFT-based homogenization based on Lippmann-Schwinger equation with staggered grid approach \cite{SchneiderOspaldKabel2015:1}
+* FFT-based homogenization based on Lippmann-Schwinger equation with staggered grid approach ([SchneiderOspaldKabel2015:1](http://dx.doi.org/10.1002/nme.5008))
 * homogenization for linear elasticity, large deformations, Stokes flow and heat equation
 * C++, OpenMP multiprocessing, XML + Python scripting interface
-* laminate mixing for interfaces \cite{KabelMerkertSchneider2014,SchneiderOspaldKabel2015:2}
-* mixed boundary conditions \cite{Kabel2016}
+* laminate mixing for interfaces ([KabelMerkertSchneider2014](http://dx.doi.org/10.1016/j.cma.2015.06.003), [SchneiderOspaldKabel2015:2](http://dx.doi.org/10.1016/j.cma.2016.06.021))
+* mixed boundary conditions ([Kabel2016](http://dx.doi.org/10.1007/s00466-015-1227-1))
 * generation of fibers distributions
 * use of tetrahedrical mesh geometries
 * arbitrarily many materials
