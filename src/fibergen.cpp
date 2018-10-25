@@ -22671,7 +22671,7 @@ public:
 		get_fft(1)->backward(uc, u);
 	}
 
-	void check_tol(const std::string& test, T r, T tol = 0)
+	int check_tol(const std::string& test, T r, T tol = 0)
 	{
 		if (tol == 0) {
 			tol = std::sqrt(std::numeric_limits<T>::epsilon());
@@ -22683,10 +22683,12 @@ public:
 #else
 			LOG_COUT << RED_TEXT << ((((boost::format("TEST FAILED: '%s' test exceeds tolerance (%g) by %g%% (residual=%g)") % test) % tol) % (100*(r-tol)/tol)) % r).str() << DEFAULT_TEXT << std::endl;
 #endif
-			return;
+			// BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Test failed")).str()));
+			return 1;
 		}
 
-		LOG_COUT << GREEN_TEXT << "TEST PASSED: " << test << " (residual=" << r << ")" << DEFAULT_TEXT << std::endl;
+		//LOG_COUT << GREEN_TEXT << "TEST PASSED: " << test << " (residual=" << r << ")" << DEFAULT_TEXT << std::endl;
+		return 0;
 	}
 
 	T error(T a, T b, T c)
@@ -22694,8 +22696,12 @@ public:
 		return std::abs(a - b)/c;
 	}
 
-	void test_law(MaterialLaw<T>& law, bool second_deriv = true)
+	int test_law(MaterialLaw<T>& law, bool second_deriv = true)
 	{
+		return 0;
+
+		int nfail = 0;
+
 		T delta = 1e-5;
 		T tol = 1e-2;
 		T alpha = 3.2345;
@@ -22783,17 +22789,17 @@ public:
 			law.PK1_fd(0, eps, alpha, gamma, sigma2, 9, delta);
 			T norm_sigma = ublas::norm_2(sigma2);
 
-			LOG_COUT << "F = " << eps << " dF = " << deps << std::endl;
-			LOG_COUT << "det(F) = " << eps.det() << " W(F) = " << W << std::endl;
+			//LOG_COUT << "F = " << eps << " dF = " << deps << std::endl;
+			//LOG_COUT << "det(F) = " << eps.det() << " W(F) = " << W << std::endl;
 
-			sigma1.print("P(F)");
-			sigma2.print("P(F) (FD)");
+			//sigma1.print("P(F)");
+			//sigma2.print("P(F) (FD)");
 
 			T max_err = 0;
 			for (int i = 0; i < 9; i++) {
 				max_err = std::max(max_err, error(sigma1[i], sigma2[i], norm_sigma));
 			}
-			check_tol(law.str() + " material derivative", max_err, tol);
+			nfail += check_tol(law.str() + " material derivative", max_err, tol);
 
 			if (second_deriv)
 			{
@@ -22801,32 +22807,37 @@ public:
 				law.dPK1_fd(0, eps, alpha, gamma, deps, sigma2, 1, 9, delta);
 				norm_sigma = ublas::norm_2(sigma2);
 
-				sigma1.print("dP(F)");
-				sigma2.print("dP(F) (FD)");
+				//sigma1.print("dP(F)");
+				//sigma2.print("dP(F) (FD)");
 
 				T max_err = 0;
 				for (int i = 0; i < 9; i++) {
 					max_err = std::max(max_err, error(sigma1[i], sigma2[i], norm_sigma));
 				}
 
-				check_tol(law.str() + " material 2nd derivative", max_err, tol);
-				//check_tol(law.str() + " material 2nd derivative", ublas::norm_2(sigma1 - sigma2)/ublas::norm_2(sigma2), tol);
+				nfail += check_tol(law.str() + " material 2nd derivative", max_err, tol);
+				//nfail += check_tol(law.str() + " material 2nd derivative", ublas::norm_2(sigma1 - sigma2)/ublas::norm_2(sigma2), tol);
 			}
 		}
+
+		return nfail;
 	}
 	
 	// run test routines
-	void run_tests()
+	int run_tests()
 	{
-		this->run_tests_heat();
-		return;
-		this->run_tests_math();
-		this->run_tests_elasticity();
-		this->run_tests_hyperelasticity();
+		int nfail = 0;
+		nfail += this->run_tests_math();
+		nfail += this->run_tests_heat();
+		nfail += this->run_tests_elasticity();
+		nfail += this->run_tests_hyperelasticity();
+		return nfail;
 	}
 
-	void run_tests_math()
+	int run_tests_math()
 	{
+		int nfail = 0;
+
 		{
 			SymTensor3x3<T> ep, tau;
 			Tensor3x3<T> id;
@@ -22837,13 +22848,13 @@ public:
 			id[0] -= 1;
 			id[1] -= 1;
 			id[2] -= 1;
-			check_tol("symmetric left inverse", id.dot(id));
+			nfail += check_tol("symmetric left inverse", id.dot(id));
 
 			id.mult_sym_sym(tau, ep);
 			id[0] -= 1;
 			id[1] -= 1;
 			id[2] -= 1;
-			check_tol("symmetric right inverse", id.dot(id));
+			nfail += check_tol("symmetric right inverse", id.dot(id));
 		}
 
 		{
@@ -22855,18 +22866,18 @@ public:
 			id[0] -= 1;
 			id[1] -= 1;
 			id[2] -= 1;
-			check_tol("left inverse", id.dot(id));
+			nfail += check_tol("left inverse", id.dot(id));
 
 			id.mult(tau, ep);
 			id[0] -= 1;
 			id[1] -= 1;
 			id[2] -= 1;
-			check_tol("right inverse", id.dot(id));
+			nfail += check_tol("right inverse", id.dot(id));
 		}
 
 		// check matrix calculus
 	
-		for (std::size_t k = 0; k < 100; k ++)	
+		for (std::size_t k = 0; k < 10; k ++)	
 		{
 			Tensor3<T> n1, n2;
 			n1.random(); n1.normalize();
@@ -22880,11 +22891,11 @@ public:
 			RRT[0] -= 1;
 			RRT[1] -= 1;
 			RRT[2] -= 1;
-			check_tol("vector rotation I", RRT.dot(RRT));
+			nfail += check_tol("vector rotation I", RRT.dot(RRT));
 
 			Rn1.mult(R, n1);
 			Rn1 -= n2;
-			check_tol("vector rotation II", Rn1.dot(Rn1));
+			nfail += check_tol("vector rotation II", Rn1.dot(Rn1));
 		}
 
 		{
@@ -22892,7 +22903,7 @@ public:
 			eps.zero();
 			eps[0] = 1; eps[1] = 2; eps[2] = 3;
 
-			check_tol("sym determinant", eps.det() - 6);
+			nfail += check_tol("sym determinant", eps.det() - 6);
 		}
 
 		{
@@ -22904,7 +22915,7 @@ public:
 			c.mult(a, b);
 			c.sub(b);
 
-			check_tol("mul by identity", c.dot(c));
+			nfail += check_tol("mul by identity", c.dot(c));
 		}
 
 		{
@@ -22912,7 +22923,7 @@ public:
 			ep.zero();
 			ep[0] = 1; ep[1] = 2; ep[2] = 3;
 
-			check_tol("determinant", ep.det() - 6);
+			nfail += check_tol("determinant", ep.det() - 6);
 		}
 
 		// check box halfspace cutting algorithm
@@ -22925,7 +22936,7 @@ public:
 			ublas::c_vector<T, DIM> dim = ublas::zero_vector<T>(DIM);
 			RandomUniform01<T> rnd;
 
-			for (int k = 0; k < 1000; k++)
+			for (int k = 0; k < 100; k++)
 			{
 				for (int i = 0; i < 3; i++) {
 					dim[i] = 0.01 + rnd.rnd();
@@ -22938,7 +22949,7 @@ public:
 
 				T V1 = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
 				T V2 = halfspace_box_cut_volume_old<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
-				LOG_COUT << format(x) << " " << format(n) << " " << format(x0) << " " << format(dim) << " " << V1 << " " << V2 << std::endl;
+				//LOG_COUT << format(x) << " " << format(n) << " " << format(x0) << " " << format(dim) << " " << V1 << " " << V2 << std::endl;
 
 				/*
 				int res = 1000
@@ -22962,7 +22973,7 @@ public:
 				}
 				*/
 
-				check_tol("halfspace cutting XX", V1 - V2);
+				nfail += check_tol("halfspace cutting I", V1 - V2);
 			}
 		}
 		#endif
@@ -23003,7 +23014,7 @@ public:
 					x0[j] = -t;
 					T V = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
 					//LOG_COUT << format(x0) << " " << format(n) << " " << V << " " << std::min(std::max((T)0, t), dim[j])*dim[(j+1)%3]*dim[(j+2)%3] << std::endl;
-					check_tol("halfspace cutting I", V - std::min(std::max((T)0, t), dim[j])*dim[(j+1)%3]*dim[(j+2)%3]);
+					nfail += check_tol("halfspace cutting II", V - std::min(std::max((T)0, t), dim[j])*dim[(j+1)%3]*dim[(j+2)%3]);
 				}
 			}
 			
@@ -23018,22 +23029,26 @@ public:
 					x[j] += dim[j];
 					T V2 = halfspace_box_cut_volume<T, DIM>(x, n, x0, dim[0], dim[1], dim[2]);
 					//LOG_COUT << k << " " << j << " " << V1 << " " << V2 << std::endl;
-					check_tol("halfspace cutting II", V1 - V2);
+					nfail += check_tol("halfspace cutting III", V1 - V2);
 				}
 			}
 		}
+
+		return nfail;
 	}
 
 	// run test routines
-	void run_tests_heat()
+	int run_tests_heat()
 	{
+		int nfail = 0;
+
 		// TODO: perform separate tests for elastic and hyperelastic case
 		omp_set_num_threads(1);
 
 		_method = "cg";
 		_mode = "heat";
 		_gamma_scheme = "collocated";
-		_debug = true;
+		//_debug = true;
 		_G0_solver = "fft";
 
 		_mat.reset(new VoigtMixedMaterialLaw<T, P, 3>());
@@ -23042,6 +23057,9 @@ public:
 		_epsilon.reset(new RealTensor(_nx, _ny, _nz, _mat->dim()));
 		init_fft();
 		_tau = _epsilon->complex_shadow();
+		this->setBCProjector(Voigt::Id4<T>(_mat->dim()));
+		_F0 = ublas::zero_vector<T>(_mat->dim());
+		_F00 = ublas::zero_vector<T>(_mat->dim());
 		_E = ublas::zero_vector<T>(_mat->dim());
 		_Id = ublas::zero_vector<T>(_mat->dim());
 		_Id(0) = _Id(1) = _Id(2) = 1;
@@ -23104,7 +23122,7 @@ public:
 
 			tau.random();
 			//printTensor("tau", tau, 1);
-			epsOperatorStaggeredHeat(ublas::zero_vector<T>(tau.dim), tau, tau);
+			GammaOperatorStaggeredHeat(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
 			tau.copyTo(tau_org);
 			//printTensor("eps", tau, 3);
 
@@ -23123,21 +23141,25 @@ public:
 			tau.xpay(tau, -1, tau_org);
 			tau.abs();
 			//printTensor("tau-tau_org", tau, 3);
-			check_tol("staggered epsG0div identity", ublas::norm_2(tau.max()));
+			nfail += check_tol("staggered epsG0div identity", ublas::norm_2(tau.max()));
 		}
+
+		return nfail;
 	}
 
 
 	// run test routines
-	void run_tests_elasticity()
+	int run_tests_elasticity()
 	{
+		int nfail = 0;
+
 		// TODO: perform separate tests for elastic and hyperelastic case
 		omp_set_num_threads(1);
 
 		_method = "cg";
 		_mode = "elasticity";
 		_gamma_scheme = "collocated";
-		_debug = true;
+		//_debug = true;
 		_G0_solver = "fft";
 
 		_mat.reset(new VoigtMixedMaterialLaw<T, P, 6>());
@@ -23147,6 +23169,9 @@ public:
 		init_fft();
 		_tau = _epsilon->complex_shadow();
 		_E = ublas::zero_vector<T>(_mat->dim());
+		this->setBCProjector(Voigt::Id4<T>(_mat->dim()));
+		_F0 = ublas::zero_vector<T>(_mat->dim());
+		_F00 = ublas::zero_vector<T>(_mat->dim());
 		_Id = ublas::zero_vector<T>(_mat->dim());
 		_Id(0) = _Id(1) = _Id(2) = 1;
 		_matrix_mat = 0;
@@ -23225,7 +23250,7 @@ public:
 		//	LOG_COUT << sigma2 << std::endl;
 		//	LOG_COUT << sigma3 << std::endl;
 		
-			check_tol("isotropic material derivative", ublas::norm_2(sigma1 - sigma2) + ublas::norm_2(sigma1 - sigma3), 12*std::sqrt(delta));
+			nfail += check_tol("isotropic material derivative", ublas::norm_2(sigma1 - sigma2) + ublas::norm_2(sigma1 - sigma3), 12*std::sqrt(delta));
 		}
 
 		// checking collocated operators for elasticity
@@ -23247,7 +23272,7 @@ public:
 
 			tau.xpay(tau, -1, tau_org);
 			tau.abs();
-			check_tol("collocated epsG0div identity", ublas::norm_2(tau.max()));
+			nfail += check_tol("collocated epsG0div identity", ublas::norm_2(tau.max()));
 		}
 
 		// checking WillotR operators for elasticity
@@ -23269,7 +23294,7 @@ public:
 
 			tau.xpay(tau, -1, tau_org);
 			tau.abs();
-			check_tol("WillotR epsG0div identity", ublas::norm_2(tau.max()));
+			nfail += check_tol("WillotR epsG0div identity", ublas::norm_2(tau.max()));
 		}
 
 		// checking staggered grid operators for elasticity
@@ -23293,7 +23318,7 @@ public:
 
 			tau.xpay(tau, -1, tau_org);
 			tau.abs();
-			check_tol("staggered epsG0div identity", ublas::norm_2(tau.max()));
+			nfail += check_tol("staggered epsG0div identity", ublas::norm_2(tau.max()));
 		}
 
 		// check full staggered grid scheme
@@ -23324,21 +23349,24 @@ public:
 
 			tau.xpay(tau, -1, tau_org);
 			tau.abs();
-			check_tol("full_staggered epsG0div identity", ublas::norm_2(tau.max()));
+			nfail += check_tol("full_staggered epsG0div identity", ublas::norm_2(tau.max()));
 		}
 
+		return nfail;
 	}
 
 	// run test routines
-	void run_tests_hyperelasticity()
+	int run_tests_hyperelasticity()
 	{
+		int nfail = 0;
+
 		// TODO: perform separate tests for elastic and hyperelastic case
 		omp_set_num_threads(1);
 
 		_method = "cg";
 		_mode = "hyperelasticity";
 		_gamma_scheme = "collocated";
-		_debug = true;
+		//_debug = true;
 		_G0_solver = "fft";
 
 		_mat.reset(new VoigtMixedMaterialLaw<T, P, 9>());
@@ -23347,6 +23375,9 @@ public:
 		_epsilon.reset(new RealTensor(_nx, _ny, _nz, _mat->dim()));
 		init_fft();
 		_tau = _epsilon->complex_shadow();
+		this->setBCProjector(Voigt::Id4<T>(_mat->dim()));
+		_F0 = ublas::zero_vector<T>(_mat->dim());
+		_F00 = ublas::zero_vector<T>(_mat->dim());
 		_E = ublas::zero_vector<T>(_mat->dim());
 		_Id = ublas::zero_vector<T>(_mat->dim());
 		_Id(0) = _Id(1) = _Id(2) = 1;
@@ -23413,7 +23444,7 @@ public:
 			//law.f3 = 34.5;
 			//law.f4 = 47.7;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23423,7 +23454,7 @@ public:
 			//law.m3 = 34.5;
 			//law.m4 = 47.7;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23431,7 +23462,7 @@ public:
 			law.lambda = 1.0;
 			law.mu = 10.0;
 			
-			test_law(law);
+			nfail += test_law(law);
 		}
 
 		{
@@ -23441,7 +23472,7 @@ public:
 			//law.f3 = 34.5;
 			//law.f4 = 47.7;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23449,7 +23480,7 @@ public:
 			//law.m1 = 1234.3;
 			//law.m2 = 134.4;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23459,7 +23490,7 @@ public:
 			//law.m3 = 34.5;
 			//law.m4 = 47.7;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23469,7 +23500,7 @@ public:
 			//law.m3 = 34.5;
 			//law.m4 = 47.7;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23477,7 +23508,7 @@ public:
 			//law.f1 = 1234.3;
 			//law.f2 = 134.4;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23486,7 +23517,7 @@ public:
 			//law.f2 = 134.4;
 			//law.f3 = 34.5;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23496,7 +23527,7 @@ public:
 			//law.f3 = 34.5;
 			//law.f4 = 47.7;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23506,14 +23537,14 @@ public:
 			//law.f3 = 34.5;
 			//law.f4 = 47.7;
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		for (int coef = 1; coef < 4; coef++)
 		{
 			CheckGoldbergMaterialLaw<T> law(coef);
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		// check laminate mixing law
@@ -23547,7 +23578,7 @@ public:
 			law.add_phase(p1);
 			law.add_phase(p2);
 			
-			test_law(law, true);
+			nfail += test_law(law, true);
 		}
 
 		{
@@ -23567,15 +23598,15 @@ public:
 			G[5] = G[8];
 			
 			law1.dPK1(0, F, 1, false, G, sigma, 1);
-			LOG_COUT << format(sigma) << std::endl;
+			//LOG_COUT << format(sigma) << std::endl;
 
 			T delta = std::sqrt(std::numeric_limits<T>::epsilon());
 			law1.dPK1_fd(0, F, 1, false, G, sigma, 1, 9, delta);
-			LOG_COUT << format(sigma) << std::endl;
+			//LOG_COUT << format(sigma) << std::endl;
 
 			sigma.zero();
 			law2.PK1(0, G, 1, false, sigma);
-			LOG_COUT << format(sigma) << std::endl;
+			//LOG_COUT << format(sigma) << std::endl;
 		}
 
 		// check material laws
@@ -23584,7 +23615,7 @@ public:
 			law.mu = 134.4;
 			law.K = 1234.3;
 			
-			test_law(law);
+			nfail += test_law(law);
 		}
 
 		// check material laws
@@ -23593,7 +23624,7 @@ public:
 			law.lambda = 1234.3;
 			law.mu = 134.4;
 			
-			test_law(law);
+			nfail += test_law(law);
 		}
 
 		// checking staggered grid operators for hyperelasticity
@@ -23617,14 +23648,14 @@ public:
 
 			tau.xpay(tau, -1, tau_org);
 			tau.abs();
-			check_tol("staggered epsG0divHyper identity", ublas::norm_2(tau.max()));
+			nfail += check_tol("staggered epsG0divHyper identity", ublas::norm_2(tau.max()));
 
 			calcStressConst(_mu_0, _lambda_0, tau_org, tau);
 			GammaOperatorStaggeredHyper(ublas::zero_vector<T>(tau.dim), _mu_0, _lambda_0, tau, tau_hat, tau_hat, tau, 1);
 
 			tau.xpay(tau, -1, tau_org);
 			tau.abs();
-			check_tol("staggered GammaHyper identity", ublas::norm_2(tau.max()));
+			nfail += check_tol("staggered GammaHyper identity", ublas::norm_2(tau.max()));
 		}
 
 		// checking staggered grid dfg operators
@@ -23651,7 +23682,7 @@ public:
 
 			c1.xpay(c1, -1, c2);
 			c1.abs();
-			check_tol("staggered dfg operator", ublas::norm_2(c1.max()));
+			nfail += check_tol("staggered dfg operator", ublas::norm_2(c1.max()));
 		}
 
 		// checking operators for hyperelasticity
@@ -23691,7 +23722,7 @@ public:
 			
 			W.xpay(W, -1, W_org);
 			W.abs();
-			check_tol("G0DivHyper identity", ublas::norm_2(W.max()));
+			nfail += check_tol("G0DivHyper identity", ublas::norm_2(W.max()));
 		}
 
 		// checking operators for hyperelasticity
@@ -23719,7 +23750,7 @@ public:
 			
 			W2.xpay(W2, -1, W1);
 			W2.abs();
-			check_tol("GammaHyper identity", ublas::norm_2(W2.max()));
+			nfail += check_tol("GammaHyper identity", ublas::norm_2(W2.max()));
 		}
 
 
@@ -23871,6 +23902,8 @@ public:
 		mg->zero(mg->x);
 		mg->run_direct(mg->r, mg->b, mg->x, 1e-10);
 		#endif
+
+		return nfail;
 	}
 };
 
@@ -26304,28 +26337,44 @@ void exception_handler()
 template<typename T, typename P, int DIM>
 int run_tests()
 {
+	int nfail = 0;
+
+	LOG_COUT << "Running tests for T=" << typeid(T).name() << " P=" << typeid(P).name() << " DIM=" << DIM << "..." << std::endl;
+
 	{
-		LOG_COUT << "########## Test 0" << std::endl;
+		LOG_COUT << "\n# Test 1" << std::endl;
 		LSSolver<T, P, DIM> lss(2, 1, 1, 1, 1, 1);
-		lss.run_tests();
+		nfail += lss.run_tests();
 	}
 	{
-		LOG_COUT << "########## Test 1" << std::endl;
+		LOG_COUT << "\n# Test 2" << std::endl;
 		LSSolver<T, P, DIM> lss(41, 33, 11, 1, 1, 1);
-		lss.run_tests();
+		nfail += lss.run_tests();
 	}
 	{
-		LOG_COUT << "########## Test 2" << std::endl;
+		LOG_COUT << "\n# Test 3" << std::endl;
 		LSSolver<T, P, DIM> lss(41, 33, 11, 41, 33, 11);
-		lss.run_tests();
+		nfail += lss.run_tests();
 	}
+#if 0
 	{
-		LOG_COUT << "########## Test 3" << std::endl;
+		LOG_COUT << "\n# Test 4" << std::endl;
 		LSSolver<T, P, DIM> lss(42, 33, 11, 1.1, 10.4, 2.23);
-		lss.run_tests();
+		nfail += lss.run_tests();
+	}
+#endif
+
+	if (nfail == 0) {
+		LOG_COUT << GREEN_TEXT << "ALL TESTS PASSED" << DEFAULT_TEXT << std::endl;
+	}
+	else if (nfail == 1) {
+		LOG_COUT << RED_TEXT << "1 TEST FAILED" << DEFAULT_TEXT << std::endl;
+	}
+	else {
+		LOG_COUT << RED_TEXT << nfail << " TESTS FAILED" << DEFAULT_TEXT << std::endl;
 	}
 
-	return 0;
+	return nfail;
 }
 
 

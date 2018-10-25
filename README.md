@@ -62,6 +62,12 @@ In order to run a project file from the command line run
 ```
 fibergen project.xml
 ```
+You can also run some test routines using
+```
+fibergen --test
+```
+in order to perform some internal tests of math and operators.
+
 
 ## Troubleshooting
 
