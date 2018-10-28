@@ -92,11 +92,13 @@ multigrid improvements:
 #include <boost/numeric/ublas/io.hpp> 
 #include <boost/numeric/conversion/bounds.hpp>
 
+#include <boost/numeric/bindings/traits/ublas_vector2.hpp>
 #include <boost/numeric/bindings/traits/ublas_matrix.hpp>
 #include <boost/numeric/bindings/lapack/gesvd.hpp>
 #include <boost/numeric/bindings/lapack/geev.hpp>
 #include <boost/numeric/bindings/lapack/gesv.hpp>
 #include <boost/numeric/bindings/lapack/syev.hpp>
+#include <boost/numeric/bindings/lapack/sysv.hpp>
 
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
@@ -9485,6 +9487,7 @@ public:
 
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < m; j++) {
+			//if (c[j] == 0) continue;
 			for (std::size_t i = 0; i < n; i++) {
 				(*this)[j][i] += c[j];
 			}
@@ -9519,6 +9522,7 @@ public:
 		
 		#pragma omp parallel for schedule (static) collapse(2)
 		for (std::size_t j = 0; j < m; j++) {
+			//if (c[j] == 1) continue;
 			for (std::size_t i = 0; i < n; i++) {
 				(*this)[j][i] *= c[j];
 			}
@@ -9607,6 +9611,8 @@ public:
 	noinline void scale(T s)
 	{
 		Timer __t("scale", false);
+
+		if (s == 1) return;
 
 #ifdef USE_MANY_FFT
 		#pragma omp parallel for schedule (static)
@@ -11485,7 +11491,7 @@ public:
 
 	std::vector<pPhase> phases;
 
-	virtual void getRefMaterial(TensorField<T>& F, T& mu_0, T& lambda_0, bool zero_trace) const = 0;
+	virtual void getRefMaterial(TensorField<T>& F, T& mu_0, T& lambda_0, bool zero_trace, bool polarization) const = 0;
 	virtual T meanW(const TensorField<T>& F) const = 0;
 	virtual T minEig(const TensorField<T>& F, bool zero_trace) const = 0;
 	virtual void eig(std::size_t i, const T* F, T& lambda_min_p, T& lambda_max_p, bool zero_trace) const = 0;
@@ -11544,7 +11550,7 @@ class MixedMaterialLaw : public MixedMaterialLawBase<T, P>
 {
 public:
 	// comupute (lambda_min + lambda_max)/2 for dP/dF
-	noinline void getRefMaterial(TensorField<T>& F, T& mu_0, T& lambda_0, bool zero_trace) const
+	noinline void getRefMaterial(TensorField<T>& F, T& mu_0, T& lambda_0, bool zero_trace, bool polarization) const
 	{
 		Timer __t("getRefMaterial", false);
 
@@ -11616,8 +11622,15 @@ br:
 			lambda_min = 0;
 		}
 
-		mu_0 = 0.5*(lambda_min + lambda_max);
-		lambda_0 = 0.5*(lambda_max - lambda_min);
+		if (polarization) {
+			mu_0 = std::sqrt(lambda_min*lambda_max);
+		}
+		else {
+			mu_0 = 0.5*(lambda_min + lambda_max);
+			//lambda_0 = 0.5*(lambda_max - lambda_min);
+		}
+
+		lambda_0 = 0.0;
 	}
 
 	// mean quantities for W 
@@ -14038,7 +14051,7 @@ protected:
 	std::string _update_ref;	// reference media update interval, "always", "loadstep"
 	std::string _error_estimator;	// method for convergence check (at the moment the basic scheme uses "quick" and cg uses the residual)
 	std::string _outer_error_estimator;	// method for convergence check (at the moment the basic scheme uses "quick" and cg uses the residual)
-	std::string _method;		// solver method "basic" or "cg" or "nesterov" or "basic+el"
+	std::string _method;		// solver method "basic" or "cg" or "nesterov" or "basic+el", "polarization"
 	std::string _cg_inner_product;	// inner product for CG solver "l2" or "energy"
 	std::size_t _cg_reinit;		// perform exact residual computation each _cg_reinit iteration, if ==0 residual is updated classically each iteration
 	std::string _nl_cg_beta_scheme;	// 
@@ -17375,6 +17388,86 @@ public:
 		return 2*mu_0*a.dot(b.E) + lambda_0*a.trace()*b.trace();
 	}
 
+	// Eyre, D. J., & Milton, G. W. (1999). A fast numerical scheme for computing the response of composites using grid refinement. The European Physical Journal Applied Physics, 6(1), 41–47. doi:10.1051/epjap:1999150
+	// compute sigma = (C0 + C)(C0 - C)^{-1} epsilon, C0 = 2*mu_0
+	// if inv is true then: sigma = -(C0 - C)^{-1} epsilon
+	noinline void calcPolarization(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma, bool inv = false)
+	{
+		Timer __t("calc polarization", false);
+
+		const RealTensor* eps = &epsilon;
+		RealTensor* ptau = &sigma;
+
+		if (this->use_dfg()) {
+			// transfer eps to doubly fine grid
+			eps = _temp_dfg_1.get();
+			ptau = _temp_dfg_1.get();
+			prolongate_to_dfg(epsilon, *eps);
+			_mat->select_dfg(true);
+		}
+
+		ublas::c_matrix<T, 6, 6> C0 = 2.0*mu_0*ublas::identity_matrix<T>(6);
+
+		#pragma omp parallel for schedule (dynamic) collapse(2)
+		BEGIN_TRIPLE_LOOP(i, eps->nx, eps->ny, eps->nz, eps->nzp)
+		{
+			ublas::c_vector<T,6> F, Q;
+			eps->assign(i, F.data());
+
+			ublas::c_matrix<T,6,6> C, C1, C2, C2inv, z;
+
+			// note: for linear problems independent of F
+			_mat->dPK1(i, F.data(), 1, false, TensorIdentity<T,6>::Id, C.data(), 6);
+
+			// L0 = 2*mu_0
+			C1 = C - C0;
+			C2 = C + C0;
+
+#if 1
+			// Solve C2*Q = F
+			//ublas::c_matrix<T,6,1> B;
+			//std::copy(F.begin(), F.end(), B.begin1());
+			Q = F;
+			lapack::gesv(C2, Q);
+			//std::copy(B.begin1(), B.end1(), Q.begin());
+			//lapack::sysv('U', C2, Q, F, lapack::optimal_workspace());
+
+			if (inv) {
+			}
+			else {
+				Q = ublas::prod(C1, Q);
+			}
+#else
+			InvertMatrix<T,6>(C2, C2inv);
+
+			if (inv) {
+				Q = ublas::prod(C2inv, F);
+			}
+			else {
+				z = ublas::prod(C1, C2inv);
+				Q = ublas::prod(z, F);
+			}
+#endif
+
+			for (std::size_t k = 0; k < ptau->dim; k++) {
+				(*ptau)[k][i] = Q[k];
+			}
+
+			// TODO: compute quantities for error estimator
+			// Matti: NHaR.pdf 4.3.13
+			//_eps_C0_norm_square += C0dot(F, F);
+			//_mean_sigma_eps += F.dot(_P.E);
+			//_mean_sigma_E += _P.dot(_E);
+		}
+		END_TRIPLE_LOOP(i)
+
+		if (this->use_dfg()) {
+			// get sigma from doubly fine grid
+			restrict_from_dfg(*ptau, sigma);
+			_mat->select_dfg(false);
+		}
+	}
+
 	noinline void calcStress(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma, T alpha = 1)
 	{
 		Timer __t("calc stress", false);
@@ -19529,7 +19622,7 @@ public:
 	}
 
 	void GammaOperatorStaggered(const ublas::vector<T>& E, T mu_0, T lambda_0,
-		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1, T beta = 0)
 	{
 		initBCProjector(tau);
 		printTensor("tau", tau);
@@ -19543,47 +19636,47 @@ public:
 	}
 
 	void GammaOperatorCollocated(const ublas::vector<T>& E, T mu_0, T lambda_0,
-		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1, T beta = 0)
 	{
 		fftTensor(tau, tau_hat);
 		initBCProjector(tau_hat);
-		GammaOperatorFourierCollocated(E, mu_0, lambda_0, tau_hat, eta_hat, alpha);
+		GammaOperatorFourierCollocated(E, mu_0, lambda_0, tau_hat, eta_hat, alpha, beta);
 		applyBCProjector(eta_hat, alpha);
 		fftInvTensor(eta_hat, eta);
 	}
 
 	void GammaOperatorCollocatedHeat(const ublas::vector<T>& E, T mu_0, T lambda_0,
-		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1, T beta = 0)
 	{
 		fftTensor(tau, tau_hat);
 		initBCProjector(tau_hat);
-		GammaOperatorFourierCollocatedHeat(E, mu_0, lambda_0, tau_hat, eta_hat, alpha);
+		GammaOperatorFourierCollocatedHeat(E, mu_0, lambda_0, tau_hat, eta_hat, alpha, beta);
 		applyBCProjector(eta_hat, alpha);
 		fftInvTensor(eta_hat, eta);
 	}
 
 	void GammaOperatorWillotR(const ublas::vector<T>& E, T mu_0, T lambda_0,
-		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1, T beta = 0)
 	{
 		fftTensor(tau, tau_hat);
 		initBCProjector(tau_hat);
-		GammaOperatorFourierWillotR(E, mu_0, lambda_0, tau_hat, eta_hat, alpha);
+		GammaOperatorFourierWillotR(E, mu_0, lambda_0, tau_hat, eta_hat, alpha, beta);
 		applyBCProjector(eta_hat, alpha);
 		fftInvTensor(eta_hat, eta);
 	}
 
 	void GammaOperatorCollocatedHyper(const ublas::vector<T>& E, T mu_0, T lambda_0,
-		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1, T beta = 0)
 	{
 		fftTensor(tau, tau_hat);
 		initBCProjector(tau_hat);
-		GammaOperatorFourierCollocatedHyper(E, mu_0, lambda_0, tau_hat, eta_hat, alpha);
+		GammaOperatorFourierCollocatedHyper(E, mu_0, lambda_0, tau_hat, eta_hat, alpha, beta);
 		applyBCProjector(eta_hat, alpha);
 		fftInvTensor(eta_hat, eta);
 	}
 
 	void GammaOperatorStaggeredHeat(const ublas::vector<T>& E, T mu_0, T lambda_0,
-		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1, T beta = 0)
 	{
 #if 1
 		initBCProjector(tau);
@@ -19601,7 +19694,7 @@ public:
 	}
 
 	void GammaOperatorStaggeredHyper(const ublas::vector<T>& E, T mu_0, T lambda_0,
-		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1, T beta = 0)
 	{
 #if 1
 		initBCProjector(tau);
@@ -19715,6 +19808,20 @@ public:
 		//if (!zero_trace) fixTrace(eta);
 	}
 
+	void DeltaOperator(const ublas::vector<T>& E, T mu_0, T lambda_0,
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+	{
+		if (_gamma_scheme == "collocated") {
+			DeltaOperatorCollocated(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+		}
+		else if (_gamma_scheme == "staggered" || _gamma_scheme == "half_staggered" || _gamma_scheme == "full_staggered") {
+			DeltaOperatorStaggered(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+		}
+		else if (_gamma_scheme == "willot") {
+			DeltaOperatorWillotR(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+		}
+	}
+
 	void GammaOperator(const ublas::vector<T>& E, T mu_0, T lambda_0,
 		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
 	{
@@ -19743,18 +19850,7 @@ public:
 			}
 		}
 		else if (_mode == "viscosity") {
-			if (_gamma_scheme == "collocated") {
-				DeltaOperatorCollocated(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
-				return;
-			}
-			else if (_gamma_scheme == "staggered" || _gamma_scheme == "half_staggered" || _gamma_scheme == "full_staggered") {
-				DeltaOperatorStaggered(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
-				return;
-			}
-			else if (_gamma_scheme == "willot") {
-				DeltaOperatorWillotR(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
-				return;
-			}
+			DeltaOperator(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
 		}
 		else if (_mode == "heat" || _mode == "porous") {
 			if (_gamma_scheme == "collocated") {
@@ -19768,6 +19864,34 @@ public:
 		}
 
 		BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Unknown gamma scheme '%s'") % _gamma_scheme).str()));
+	}
+
+	// wrapper for polarization scheme
+	// operation depends on the current mode of operation
+	// Eyre, D. J., & Milton, G. W. (1999). A fast numerical scheme for computing the response of composites using grid refinement. The European Physical Journal Applied Physics, 6(1), 41–47. doi:10.1051/epjap:1999150
+	void polarizationScheme(const ublas::vector<T>& P0, const RealTensor& epsilon,
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta)
+	{
+		if (_bc_relax != 1.0) {
+			_F00 = epsilon.average();
+		}
+
+		calcPolarization(_mu_0, 0, epsilon, tau);	// tau = Q
+
+		ublas::vector<T> P00 = tau.average();
+
+		fftTensor(tau, tau_hat);
+
+		//initBCProjector(tau_hat);
+		// L0 = 2*mu_0
+		// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
+		
+		//LOG_COUT << "MEAN " << format(P00 + P0) << std::endl;
+
+		GammaOperatorFourierCollocated(P00 + P0, _mu_0, _lambda_0, tau_hat, eta_hat, -4*_mu_0, 1.0);
+		//applyBCProjector(eta_hat, 4*_mu_0);
+
+		fftInvTensor(eta_hat, eta);
 	}
 
 	// wrapper for basic scheme
@@ -20626,6 +20750,9 @@ public:
 		if (_method == "basic") {
 			runBasic(E, S);
 		}
+		else if (_method == "polarization") {
+			runPolarization(E, S);
+		}
 		else if (_method == "basic+el") {
 			runBasicEL(E, S);
 		}
@@ -21018,6 +21145,56 @@ public:
 		}
 	}
 
+	// run the polarization algorithm with load E
+	void runPolarization(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
+	{
+		std::size_t iter = 1;
+
+		RealTensor& epsilon = *_epsilon;
+		ComplexTensor& tau = *_tau;
+		boost::shared_ptr< ErrorEstimator<T> > ee(create_error_estimator());
+
+		// TODO: bc checking disabled, because bc_error does need epsilon and not polarization
+		// in general mixed bc need to be done correctly
+
+		bool check_bc = false;
+		bool update_ref = false;
+		ublas::vector<T> E, P0;
+
+		calcRefMaterial(_mu_0, _lambda_0, *_epsilon);
+		E = calcBCMean(E0, S0);
+
+		epsilon.setConstant(4*_mu_0*E);
+
+		// convert epsilon to polarization: eps <- (C + C0) : eps
+		//calcStress(_mu_0, _lambda_0, epsilon, epsilon, -1);
+
+		for(;;)
+		{
+			if (update_ref) {
+				calcRefMaterial(_mu_0, _lambda_0, *_epsilon);
+				E = calcBCMean(E0, S0);
+				//LOG_COUT << "F(0) = " << format(E) << std::endl;
+				update_ref = false;
+			}
+
+			// compute mean polarization 2*C0:E
+			P0 = 4*_mu_0*E;
+
+			polarizationScheme(P0, epsilon, epsilon, tau, tau, epsilon);
+
+			ee->update();
+
+			// check convergence 
+			if (converged(iter, ee->abs_error(), ee->rel_error(), check_bc)) {
+				break;
+			}
+		}
+
+		// convert polarization to epsilon
+
+		calcPolarization(_mu_0, 0, epsilon, epsilon, true);
+	}
 
 	noinline T calcStep(const RealTensor& epsilon, RealTensor& depsilon) const
 	{
@@ -21468,7 +21645,7 @@ public:
 		lambda_0 *= 0.5*_ref_scale;
 #else
 		T x;
-		_mat->getRefMaterial(F, mu_0, x, _mode == "viscosity");
+		_mat->getRefMaterial(F, mu_0, x, _mode == "viscosity", _method == "polarization");
 		mu_0 *= 0.5*_ref_scale;
 #endif
 
@@ -24839,7 +25016,7 @@ public:
 			{
 				init_fibers();
 				ublas::c_matrix<T, DIM, DIM> A2 = gen->getA2();
-				LOG_COUT << "A2:\n" << format(A2) << std::endl;
+				LOG_COUT << "A2:" << format(A2) << std::endl;
 			}
 			else if (v.first == "set_radius_distribution")
 			{
