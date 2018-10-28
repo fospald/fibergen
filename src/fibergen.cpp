@@ -11622,6 +11622,8 @@ br:
 			lambda_min = 0;
 		}
 
+		LOG_COUT << "lambda_min = " << lambda_min << " lambda_max = " << lambda_max << std::endl;
+
 		if (polarization) {
 			mu_0 = std::sqrt(lambda_min*lambda_max);
 		}
