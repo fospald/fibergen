@@ -92,6 +92,7 @@ multigrid improvements:
 #include <boost/numeric/ublas/io.hpp> 
 #include <boost/numeric/conversion/bounds.hpp>
 
+#include <boost/numeric/bindings/traits/ublas_vector2.hpp>
 #include <boost/numeric/bindings/traits/ublas_matrix.hpp>
 #include <boost/numeric/bindings/lapack/gesvd.hpp>
 #include <boost/numeric/bindings/lapack/geev.hpp>
@@ -11621,6 +11622,8 @@ br:
 			lambda_min = 0;
 		}
 
+		LOG_COUT << "lambda_min = " << lambda_min << " lambda_max = " << lambda_max << std::endl;
+
 		if (polarization) {
 			mu_0 = std::sqrt(lambda_min*lambda_max);
 		}
@@ -17424,10 +17427,11 @@ public:
 
 #if 1
 			// Solve C2*Q = F
-			ublas::c_matrix<T,6,1> B;
-			std::copy(F.begin(), F.end(), B.begin());
-			lapack::gesv(C2, B);
-			std::copy(B.begin(), B.end(), Q.begin());
+			//ublas::c_matrix<T,6,1> B;
+			//std::copy(F.begin(), F.end(), B.begin1());
+			Q = F;
+			lapack::gesv(C2, Q);
+			//std::copy(B.begin1(), B.end1(), Q.begin());
 			//lapack::sysv('U', C2, Q, F, lapack::optimal_workspace());
 
 			if (inv) {
@@ -21179,7 +21183,6 @@ public:
 			// compute mean polarization 2*C0:E
 			P0 = 4*_mu_0*E;
 
-			LOG_COUT << "P0 = " << format(P0) << std::endl;
 			polarizationScheme(P0, epsilon, epsilon, tau, tau, epsilon);
 
 			ee->update();
