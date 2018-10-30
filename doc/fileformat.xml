@@ -97,7 +97,7 @@
 		<bc_relax help="relaxation of boundary condition mean value adjustment" type="float">1.0</bc_relax>
 
 		<mode help="problem type to solve" type="str" values="elasticity,hyperelasticity,viscosity,heat,porous">elasticity</mode>
-		<method help="solver method" type="str" values="basic,cg,nesterov,basic+el">cg</method>
+		<method help="solver method" type="str" values="basic,cg,polarization,nesterov,basic+el">cg</method>
 		
 		<cg_inner_product help="inner product for CG" type="str" values="l2,energy">l2</cg_inner_product>
 		<cg_reinit help="perform exact residual computation each cg_reinit iteration, if zero residual is updated classically each iteration" type="int">0</cg_reinit>
