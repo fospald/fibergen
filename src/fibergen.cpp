@@ -10044,6 +10044,42 @@ public:
 		}
 	}
 
+	// Eyre, D. J., & Milton, G. W. (1999). A fast numerical scheme for computing the response of composites using grid refinement. The European Physical Journal Applied Physics, 6(1), 41–47. doi:10.1051/epjap:1999150
+	// compute sigma = (C0 + C)(C0 - C)^{-1} epsilon, C0 = 2*mu_0
+	// if inv is true then: sigma = -(C0 - C)^{-1} epsilon
+	virtual void calcPolarization(std::size_t i, T mu_0, const ublas::vector<T>& F, ublas::vector<T>& P,
+		std::size_t dim, bool inv) const
+	{
+		ublas::matrix<T> C(dim, dim), C2;
+
+		// note: for linear problems independent of F
+		const T* Id;
+		if (dim == 3) {
+			Id = TensorIdentity<T,3>::Id;
+		}
+		else if (dim == 6) {
+			Id = TensorIdentity<T,6>::Id;
+		}
+		else {
+			Id = TensorIdentity<T,9>::Id;
+		}
+
+		this->dPK1(i, F.data().begin(), 1, false, Id, C.data().begin(), dim);
+
+		// L0 = 2*mu_0
+		// C1 = C - 2*mu_0*ublas::identity_matrix<T>(dim);
+		C2 = C + 2.0*mu_0*ublas::identity_matrix<T>(dim);
+
+		// Solve C2*Q = F
+		P = F;
+		lapack::gesv(C2, P);
+
+		if (!inv) {
+			// P = C1*C2inv*F
+			P = ublas::prod(C, P) - 2.0*mu_0*P;
+		}
+	}
+
 	virtual std::string str() const = 0;
 
 	virtual void readSettings(const ptree::ptree& pt) { }
@@ -10893,6 +10929,49 @@ public:
 		}
 	}
 
+	void calcPolarization(std::size_t i, T mu_0, const ublas::vector<T>& F, ublas::vector<T>& P,
+		std::size_t dim, bool inv) const
+	{
+		// C = 2*mu*Id + lambda*I*I
+
+		// L0 = 2*mu_0
+		// C1 = 2*(mu-mu_0)*Id + lambda*II
+		// C2 = 2*(mu+mu_0)*Id + lambda*II
+
+		// The inverse of C2 is:
+		// Simplify[Inverse[{{2*mu + L, L, L, 0, 0, 0}, {L, 2*mu + L, L, 0, 0, 0}, {L, L, 2*mu + L, 0, 0, 0}, {0, 0, 0, 2*mu, 0, 0}, {0, 0, 0, 0, 2*mu, 0}, {0, 0, 0, 0, 0, 2*mu}}]]
+		// Simplify[(L + mu)/(3 L mu + 2 mu^2) - 1/(2 mu)]
+		// inv(C2) = 1/(2*m)*Id - (lambda/(2*m*(3*lambda + 2*m)))*II
+		// where m = mu+mu_0
+
+		// Solve C2*P = F
+
+		T m = 2.0*(mu+mu_0);
+		T a = 1.0/m;
+		T b = lambda/(m*(3.0*lambda + m));
+		T tr_F = F[0] + F[1] + F[2];
+
+		P[0] = a*F[0] - b*tr_F;
+		P[1] = a*F[1] - b*tr_F;
+		P[2] = a*F[2] - b*tr_F;
+		P[3] = a*F[3];
+		P[4] = a*F[4];
+		P[5] = a*F[5];
+
+		if (!inv) {
+			// P = C1*C2inv*F
+			m = 2.0*(mu-mu_0);
+			T tr_P = P[0] + P[1] + P[2];
+			P[0] = m*P[0] + lambda*tr_P;
+			P[1] = m*P[1] + lambda*tr_P;
+			P[2] = m*P[2] + lambda*tr_P;
+			P[3] = m*P[3];
+			P[4] = m*P[4];
+			P[5] = m*P[5];
+		}
+	}
+
+
 	std::string str() const
 	{
 		return (boost::format("linear isotropic lambda=%g mu=%g") % lambda % mu).str();
@@ -11499,6 +11578,20 @@ public:
 	virtual ublas::vector<T> meanPK1(const TensorField<T>& F, T alpha) const = 0;
 	virtual ublas::vector<T> meanCauchy(const TensorField<T>& F, T alpha) const = 0;
 	virtual int dim() const = 0;
+
+	void calcPolarization(std::size_t i, T mu_0, const ublas::vector<T>& F, ublas::vector<T>& _P,
+		std::size_t dim, bool inv) const
+	{
+		for (std::size_t p = 0; p < this->phases.size(); p++) {
+			P phi = this->phases[p]->phi[i];
+			if (phi == 1) {
+				this->phases[p]->law->calcPolarization(i, mu_0, F, _P, dim, inv);
+				return;
+			}
+		}
+
+		MaterialLaw<T>::calcPolarization(i, mu_0, F, _P, dim, inv);
+	}
 
 	void select_dfg(bool yes)
 	{
@@ -14440,6 +14533,11 @@ public:
 		else if (_gamma_scheme == "auto") {
 			_gamma_scheme = "staggered";
 			//if (_mode == "heat" || _mode == "porous") _gamma_scheme = "collocated";
+			if (_method == "polarization") _gamma_scheme = "collocated";
+		}
+		if (_method == "polarization" && _gamma_scheme.find("staggered") >= 0) {
+			_gamma_scheme = "collocated";
+			LOG_COUT << "WARNING: switching to collocated discretization for polarization method!" << std::endl;
 		}
 		_bc_relax = pt_get<T>(pt, "bc_relax", _bc_relax);
 		_freq_hack = pt_get(pt, "freq_hack", _freq_hack);
@@ -17393,7 +17491,8 @@ public:
 	// Eyre, D. J., & Milton, G. W. (1999). A fast numerical scheme for computing the response of composites using grid refinement. The European Physical Journal Applied Physics, 6(1), 41–47. doi:10.1051/epjap:1999150
 	// compute sigma = (C0 + C)(C0 - C)^{-1} epsilon, C0 = 2*mu_0
 	// if inv is true then: sigma = -(C0 - C)^{-1} epsilon
-	noinline void calcPolarization(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma, bool inv = false)
+	template<int N>
+	noinline void calcPolarizationDim(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma, bool inv = false)
 	{
 		Timer __t("calc polarization", false);
 
@@ -17408,18 +17507,23 @@ public:
 			_mat->select_dfg(true);
 		}
 
-		ublas::c_matrix<T, 6, 6> C0 = 2.0*mu_0*ublas::identity_matrix<T>(6);
+		ublas::c_matrix<T, N, N> C0 = 2.0*mu_0*ublas::identity_matrix<T>(N);
 
 		#pragma omp parallel for schedule (dynamic) collapse(2)
 		BEGIN_TRIPLE_LOOP(i, eps->nx, eps->ny, eps->nz, eps->nzp)
 		{
-			ublas::c_vector<T,6> F, Q;
+			ublas::c_vector<T,N> F;
+			ublas::vector<T> Q(N);
 			eps->assign(i, F.data());
 
-			ublas::c_matrix<T,6,6> C, C1, C2, C2inv, z;
+#if 1
+			_mat->calcPolarization(i, mu_0, F, Q, eps->dim, inv);
+
+#else
+			ublas::c_matrix<T,N,N> C, C1, C2, C2inv, z;
 
 			// note: for linear problems independent of F
-			_mat->dPK1(i, F.data(), 1, false, TensorIdentity<T,6>::Id, C.data(), 6);
+			_mat->dPK1(i, F.data(), 1, false, TensorIdentity<T,N>::Id, C.data(), N);
 
 			// L0 = 2*mu_0
 			C1 = C - C0;
@@ -17450,16 +17554,10 @@ public:
 				Q = ublas::prod(z, F);
 			}
 #endif
-
+#endif
 			for (std::size_t k = 0; k < ptau->dim; k++) {
 				(*ptau)[k][i] = Q[k];
 			}
-
-			// TODO: compute quantities for error estimator
-			// Matti: NHaR.pdf 4.3.13
-			//_eps_C0_norm_square += C0dot(F, F);
-			//_mean_sigma_eps += F.dot(_P.E);
-			//_mean_sigma_E += _P.dot(_E);
 		}
 		END_TRIPLE_LOOP(i)
 
@@ -17470,6 +17568,20 @@ public:
 		}
 	}
 
+	inline void calcPolarization(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma, bool inv = false)
+	{
+		if (epsilon.dim == 3) {
+			calcPolarizationDim<3>(mu_0, lambda_0, epsilon, sigma, inv);
+		}
+		else if (epsilon.dim == 6) {
+			calcPolarizationDim<6>(mu_0, lambda_0, epsilon, sigma, inv);
+		}
+		else if (epsilon.dim == 9) {
+			calcPolarizationDim<9>(mu_0, lambda_0, epsilon, sigma, inv);
+		}
+	}
+
+	
 	noinline void calcStress(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma, T alpha = 1)
 	{
 		Timer __t("calc stress", false);
@@ -17719,8 +17831,8 @@ public:
 			_mat->dPK1(i, Fi, 1, false, TensorIdentity<T,9>::Id, dP.data(), 9);
 
 			ublas::c_vector<std::complex<T>, 9> e;
-			ublas::matrix<double, ublas::column_major> vl(9,9);
-			ublas::matrix<double, ublas::column_major> vr(9,9);
+			ublas::matrix<T, ublas::column_major> vl(9,9);
+			ublas::matrix<T, ublas::column_major> vr(9,9);
 
 			lapack::geev(dP, e, &vl, &vr, lapack::optimal_workspace());
 
@@ -19825,29 +19937,29 @@ public:
 	}
 
 	void GammaOperator(const ublas::vector<T>& E, T mu_0, T lambda_0,
-		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
+		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1, T beta = 0)
 	{
 		if (_mode == "elasticity") {
 			if (_gamma_scheme == "collocated") {
-				GammaOperatorCollocated(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+				GammaOperatorCollocated(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha, beta);
 				return;
 			}
 			else if (_gamma_scheme == "staggered" || _gamma_scheme == "half_staggered" || _gamma_scheme == "full_staggered") {
-				GammaOperatorStaggered(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+				GammaOperatorStaggered(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha, beta);
 				return;
 			}
 			else if (_gamma_scheme == "willot") {
-				GammaOperatorWillotR(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+				GammaOperatorWillotR(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha, beta);
 				return;
 			}
 		}
 		else if (_mode == "hyperelasticity") {
 			if (_gamma_scheme == "collocated") {
-				GammaOperatorCollocatedHyper(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+				GammaOperatorCollocatedHyper(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha, beta);
 				return;
 			}
 			else if (_gamma_scheme == "staggered" || _gamma_scheme == "half_staggered" || _gamma_scheme == "full_staggered") {
-				GammaOperatorStaggeredHyper(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+				GammaOperatorStaggeredHyper(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha, beta);
 				return;
 			}
 		}
@@ -19856,11 +19968,11 @@ public:
 		}
 		else if (_mode == "heat" || _mode == "porous") {
 			if (_gamma_scheme == "collocated") {
-				GammaOperatorCollocatedHeat(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+				GammaOperatorCollocatedHeat(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha, beta);
 				return;
 			}
 			else if (_gamma_scheme == "staggered" || _gamma_scheme == "half_staggered" || _gamma_scheme == "full_staggered") {
-				GammaOperatorStaggeredHeat(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+				GammaOperatorStaggeredHeat(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha, beta);
 				return;
 			}
 		}
@@ -19874,6 +19986,8 @@ public:
 	void polarizationScheme(const ublas::vector<T>& P0, const RealTensor& epsilon,
 		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta)
 	{
+		printTensor("eps", epsilon);
+
 		if (_bc_relax != 1.0) {
 			_F00 = epsilon.average();
 		}
@@ -19882,18 +19996,11 @@ public:
 
 		ublas::vector<T> P00 = tau.average();
 
-		fftTensor(tau, tau_hat);
-
-		//initBCProjector(tau_hat);
 		// L0 = 2*mu_0
 		// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
-		
-		//LOG_COUT << "MEAN " << format(P00 + P0) << std::endl;
 
-		GammaOperatorFourierCollocated(P00 + P0, _mu_0, _lambda_0, tau_hat, eta_hat, -4*_mu_0, 1.0);
-		//applyBCProjector(eta_hat, 4*_mu_0);
-
-		fftInvTensor(eta_hat, eta);
+		printTensor("sigma", tau);
+		GammaOperator(P00 + P0, _mu_0, _lambda_0, tau, tau_hat, eta_hat, eta, -4*_mu_0, 1.0);
 	}
 
 	// wrapper for basic scheme
