@@ -92,6 +92,12 @@ git clone http://git.tiker.net/trees/boost-numeric-bindings.git
 export BOOSTNUMERICBINDINGS_DIR=$(pwd)/boost-numeric-bindings
 ```
 
+## Contributing
+
+If you have any question, idea or issue please create an new issue in the issue tracker.
+If you want to contribute anything (e.g. demos) please contact me.
+
+
 ## Acknowledgements
 
 [Felix Ospald](https://www.tu-chemnitz.de/mathematik/part_dgl/people/ospald) gratefully acknowledges financial support by the [German Research Foundation](http://www.dfg.de/en/) (DFG), [Federal Cluster of Excellence EXC 1075](https://www.tu-chemnitz.de/MERGE/) "MERGE Technologies for Multifunctional Lightweight Structures". Many thanks to [Matti Schneider](https://www.itm.kit.edu/cm/287_3957.php) for his helpful introduction to FFT-based homogenization and ideas regarding the ACG distribution.
