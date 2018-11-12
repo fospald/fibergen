@@ -92,6 +92,17 @@ git clone http://git.tiker.net/trees/boost-numeric-bindings.git
 export BOOSTNUMERICBINDINGS_DIR=$(pwd)/boost-numeric-bindings
 ```
 
+
+## Generating source code documentation
+
+You can generate a [Doxygen](http://www.doxygen.org/)-based documentation by running 
+```
+cd doc/doxygen
+make (or just doxygen)
+firefox html/index.html
+```
+
+
 ## Contributing
 
 If you have any question, idea or issue please create an new issue in the issue tracker.

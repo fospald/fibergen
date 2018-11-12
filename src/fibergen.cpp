@@ -1,3 +1,10 @@
+/**
+
+\brief fibergen
+
+
+
+*/
 
 // http://de.mathworks.com/company/newsletters/articles/the-watershed-transform-strategies-for-image-segmentation.html
 
@@ -241,7 +248,7 @@ std::ostream& operator<<(std::ostream& os, const TTYOnly& tto)
 #endif
 
 
-// Class for logging to cout
+//! Class for logging
 class Logger
 {
 protected:
@@ -289,13 +296,13 @@ public:
 		_stream.reset(new std::ostream(_tee_stream->rdbuf()));
 	}
 
-	// increase indent
+	//! Increase indent
 	void incIndent() { _indent++; }
 
-	// decrease indent
+	//! Decrease indent
 	void decIndent() { _indent = (size_t) std::max(((int)_indent)-1, 0); }
 
-	// write indent to stream
+	//! Write indent to stream
 	void indent(std::ostream& stream) const
 	{
 		std::string space(2*_indent, ' ');
@@ -312,7 +319,7 @@ public:
 		_stream->flush();
 	}
 
-	// return cout stream
+	//! Return standard output stream
 	std::ostream& cout()
 	{
 		std::ostream& stream = *_stream;
@@ -322,7 +329,7 @@ public:
 		return stream;
 	}
 
-	// return cerr stream
+	//! Return error stream
 	std::ostream& cerr() const
 	{
 		std::ostream& stream = std::cerr;
@@ -331,7 +338,7 @@ public:
 		return stream;
 	}
 
-	// return static instance
+	//! Return static instance
 	static Logger& instance()
 	{
 		if (!_instance) {
@@ -342,14 +349,18 @@ public:
 	}
 };
 
+// Static logger instance
 boost::shared_ptr<Logger> Logger::_instance;
 
+// Shortcut macros for cout and cerr
 #define LOG_COUT Logger::instance().cout()
 #define LOG_CERR Logger::instance().cerr()
 
-
+// Static exception object
 boost::shared_ptr<std::exception> _except;
 
+
+//! Set current exception message and print message to cerr
 void set_exception(const std::string& msg)
 {
 	#pragma omp critical
@@ -362,8 +373,7 @@ void set_exception(const std::string& msg)
 	}
 }
 
-
-
+//! Print backtrace of current function calls
 inline void print_stacktrace(std::ostream& stream)
 {
 	// print stack trace
@@ -433,10 +443,11 @@ inline void print_stacktrace(std::ostream& stream)
 
 
 
-
+// Static empty ptree object
 static ptree::ptree empty_ptree;
 
 
+//! Open file for output, truncate file if already exists
 inline void open_file(std::ofstream& fs, const std::string& filename)
 {
 	fs.open(filename.c_str(), std::ofstream::out | std::ofstream::trunc | std::ofstream::binary);
@@ -447,9 +458,13 @@ inline void open_file(std::ofstream& fs, const std::string& filename)
 }
 
 
+//! Class with math operations for Voigt's notation
 class Voigt
 {
 public:
+	//! Identity matrix for dimension dim
+	//! \param dim the dimension (3, 6 or 9)
+	//! \return matrix
 	template <typename T>
 	static inline ublas::matrix<T> Id4(std::size_t dim) 
 	{
@@ -464,6 +479,9 @@ public:
 		return Id;
 	}
 
+	//! Outer product of rank 2 identity matrices as Voigt matrix
+	//! \param dim the dimension (3, 6 or 9)
+	//! \return matrix
 	template <typename T>
 	static inline ublas::matrix<T> II4(std::size_t dim) 
 	{
@@ -474,6 +492,8 @@ public:
 		return II;
 	}
 
+	//! 2-norm of a vector
+	//! \param v the vector
 	template <typename T>
 	static inline T norm_2(const ublas::vector<T>& v)
 	{
@@ -484,6 +504,10 @@ public:
 		return std::sqrt(ublas::inner_prod(v, v) + v(3)*v(3) + v(4)*v(4) + v(5)*v(5));
 	}
 
+	//! Dyadic product of Voigt vectors
+	//! \param a first operand
+	//! \param b second operand
+	//! \return result scalar
 	template <typename T>
 	static inline T dyad(const ublas::vector<T>& a, const ublas::vector<T>& b)
 	{
@@ -499,6 +523,10 @@ public:
 		return ublas::inner_prod(ac, b);
 	}
 
+	//! Dyadic product of Voigt matrix and Voigt vector
+	//! \param M matrix
+	//! \param v vector
+	//! \return result vector
 	template <typename T>
 	static inline ublas::vector<T> dyad4(const ublas::matrix<T>& M, const ublas::vector<T>& v)
 	{
@@ -514,6 +542,10 @@ public:
 		return ublas::prod(M, vc);
 	}
 
+	//! Dyadic product of Voigt matrices
+	//! \param A first operand
+	//! \param B second operand
+	//! \return result matrix
 	template <typename T>
 	static inline ublas::matrix<T> dyad4(const ublas::matrix<T>& A, const ublas::matrix<T>& B)
 	{
@@ -534,7 +566,9 @@ public:
 };
 
 
-// Compute orthonormal vector to v
+//! Compute a orthonormal vector to v
+//! \param v vector
+//! \return orthonormal vector
 template <typename T, int DIM>
 inline ublas::c_vector<T, DIM> orthonormal_vector(const ublas::c_vector<T, DIM>& v)
 {
@@ -556,6 +590,11 @@ inline ublas::c_vector<T, DIM> orthonormal_vector(const ublas::c_vector<T, DIM>&
 	return x;
 }
 
+
+//! Compute cross product between two vectors
+//! \param lhs first vector
+//! \param rhs second vector
+//! \return cross product vector
 template <class V1, class V2>
 inline boost::numeric::ublas::vector<typename boost::numeric::ublas::promote_traits<typename V1::value_type, typename V2::value_type>::promote_type>
 cross_prod(const V1& lhs, const V2& rhs)
@@ -575,6 +614,9 @@ cross_prod(const V1& lhs, const V2& rhs)
 }
 
 
+//! Remove common leading whitespace from (multi-line) string
+//! \param s string to dedent
+//! \return dedented string
 std::string dedent(const std::string& s)
 {
 	std::vector<std::string> lines;
@@ -614,7 +656,7 @@ std::string dedent(const std::string& s)
 }
 
 
-// Class for evaluating python code
+//! Class for evaluating python code and managing local variables accross evaluations
 class PY
 {
 protected:
@@ -640,6 +682,9 @@ public:
 	}
 #endif
 
+	//! Execute python code
+	//! \param code the python code
+	//! \return result of executing the code
 	py::object exec(const std::string& code)
 	{
 		if (enabled) {
@@ -650,6 +695,9 @@ public:
 		return py::object();
 	}
 
+	//! Evaluate python expression as type T
+	//! \param expr the expression string
+	//! \return result converted to type T
 	template <class T>
 	T eval(const std::string& expr)
 	{
@@ -664,6 +712,11 @@ public:
 		return boost::lexical_cast<T>(expr);
 	}
 
+	//! Get string from ptree and eval as python expression to type T
+	//! \param pt the ptree
+	//! \param prop the path of the property
+	//! \param default_value the default value, if the property does not exists
+	//! \return the poperty value
 	template <class T>
 	T get(const ptree::ptree& pt, const std::string& prop, T default_value)
 	{
@@ -676,6 +729,11 @@ public:
 		return eval<T>(*value);
 	}
 
+	//! Get string from ptree and eval as python expression to type T
+	//! \param pt the ptree
+	//! \param prop the path of the property
+	//! \return the poperty value
+	//! \exception if the property does not exists
 	template <class T>
 	T get(const ptree::ptree& pt, const std::string& prop)
 	{
@@ -688,22 +746,28 @@ public:
 		return eval<T>(*value);
 	}
 
+	//! Enable/Disable python evaluation
+	//! If python evaluation is disabled strings are cast to the requested type by a lexical cast
 	void set_enabled(bool enabled)
 	{
 		this->enabled = enabled;
 	}
 
+	//! Clear all local variables
 	void clear_locals()
 	{
 		this->locals = py::dict();
 	}
 
+	//! Add a local variable
+	//! \param key the variable name
+	//! \param value the variable value
 	void add_local(const std::string& key, const py::object& value)
 	{
 		this->locals[key] = value;
 	}
 
-	// return static instance
+	//! Return static instance of class
 	static PY& instance()
 	{
 		if (!_instance) {
@@ -713,28 +777,43 @@ public:
 		return *_instance;
 	}
 
-	// release static instance
+	//! Release static instance of class
 	static void release()
 	{
 		_instance.reset();
 	}
 };
 
+// Static instance of PY class
 boost::shared_ptr<PY> PY::_instance;
 
 
+//! Shortcut for getting a property from a ptree with python evaluation
+//! \param pt the ptree
+//! \param prop the property path
+//! \return the property
 template <class T>
 T pt_get(const ptree::ptree& pt, const std::string& prop)
 {
 	return PY::instance().get<T>(pt, prop);
 }
 
+//! Shortcut for getting a property from a ptree with python evaluation and default value
+//! \param pt the ptree
+//! \param prop the property path
+//! \param default_value the default value, if property was not found
+//! \return the property
+template <class T>
 template <class T>
 T pt_get(const ptree::ptree& pt, const std::string& prop, T default_value)
 {
 	return PY::instance().get<T>(pt, prop, default_value);
 }
 
+//! Shortcut for getting a property from a ptree as std::string
+//! \param pt the ptree
+//! \param prop the property path
+//! \return the property
 template <>
 std::string pt_get(const ptree::ptree& pt, const std::string& prop)
 {
@@ -747,6 +826,11 @@ std::string pt_get(const ptree::ptree& pt, const std::string& prop)
 	return *value;
 }
 
+//! Shortcut for getting a property from a ptree as std::string with default value
+//! \param pt the ptree
+//! \param prop the property path
+//! \param default_value the default value, if property was not found
+//! \return the property
 template <>
 std::string pt_get(const ptree::ptree& pt, const std::string& prop, std::string default_value)
 {
@@ -759,7 +843,10 @@ std::string pt_get(const ptree::ptree& pt, const std::string& prop, std::string 
 	return *value;
 }
 
-
+//! Format a vector expression as string (for console output)
+//! \param v the vector expression
+//! \param indent enable line indentation using the current logger indent
+//! \return the formatted text
 template <class VE>
 std::string format(const ublas::vector_expression<VE>& v, bool indent = false)
 {
@@ -790,6 +877,9 @@ std::string format(const ublas::vector_expression<VE>& v, bool indent = false)
 }
 
 
+//! Format a matrix expression as string (for console output), lines are indented using the current logger indent
+//! \param m the matrix expression
+//! \return the formatted text
 template <class ME>
 std::string format(const ublas::matrix_expression<ME>& m)
 {
@@ -833,6 +923,13 @@ std::string format(const ublas::matrix_expression<ME>& m)
 }
 
 
+//! Format a 3d tensor as string (for console output)
+//! \param data pointer to the data, adressed as data[i*ny*nzp + j*nzp + k] for (i,j,k)-th element
+//! \param nx number of elements in x (index i)
+//! \param ny number of elements in y (index j)
+//! \param nz number of elements in z (index k)
+//! \param nzp number of elements in z including padding
+//! \return the formatted text
 template <typename T>
 std::string format(const T* data, std::size_t nx, std::size_t ny, std::size_t nz, std::size_t nzp)
 {
@@ -853,6 +950,9 @@ std::string format(const T* data, std::size_t nx, std::size_t ny, std::size_t nz
 }
 
 
+//! Compute square of 2-norm of vector
+//! \param v the vector
+//! \return the norm
 template <typename T>
 inline T norm_2_sqr(const ublas::vector<T>& v)
 {
@@ -860,6 +960,11 @@ inline T norm_2_sqr(const ublas::vector<T>& v)
 }
 
 
+//! Set components of a vector
+//! \param v the vector
+//! \param x0 the value for v[0]
+//! \param x1 the value for v[1]
+//! \param x2 the value for v[2]
 template <class V, typename T>
 inline void set_vector(V& v, T x0, T x1, T x2)
 {
@@ -868,7 +973,15 @@ inline void set_vector(V& v, T x0, T x1, T x2)
 	if (v.size() >= 3) v[2] = x2;
 }
 
-
+//! Set components of a vector
+//! \param attr ptree with settings
+//! \param v the vector
+//! \param name0 settings name for component 0
+//! \param name1 settings name for component 1
+//! \param name2 settings name for component 2
+//! \param def0 default value for component 0
+//! \param def1 default value for component 1
+//! \param def2 default value for component 2
 template <class V, typename T>
 inline void read_vector(const ptree::ptree& attr, V& v, const char* name0, const char* name1, const char* name2, T def0, T def1, T def2)
 {
@@ -877,7 +990,11 @@ inline void read_vector(const ptree::ptree& attr, V& v, const char* name0, const
 	if (v.size() >= 3) v[2] = pt_get<T>(attr, name2, def2);
 }
 
-
+//! Set components of a matrix
+//! \param attr ptree with settings
+//! \param m the matrix
+//! \param prefix prefix for the component names "prefix%d%d"
+//! \param symmetric set to true for symmetric matrix
 template <typename T>
 inline void read_matrix(const ptree::ptree& attr, ublas::matrix<T>& m, const std::string& prefix, bool symmetric)
 {
@@ -899,7 +1016,11 @@ inline void read_matrix(const ptree::ptree& attr, ublas::matrix<T>& m, const std
 	}
 }
 
-
+//! Set components of a Voigt vector
+//! \param attr ptree with settings
+//! \param v the vector
+//! \param prefix prefix for the component names "prefix%d"
+t
 template <typename T>
 inline void read_voigt_vector(const ptree::ptree& attr, ublas::vector<T>& v, const std::string& prefix)
 {
@@ -915,8 +1036,9 @@ inline void read_voigt_vector(const ptree::ptree& attr, ublas::vector<T>& v, con
 }
 
 
-// Matrix inversion routine.
-// Uses lu_factorize and lu_substitute in uBLAS to invert a matrix
+//! Matrix inversion routine. Uses gesv in uBLAS to invert a matrix.
+//! \param input input matrix
+//! \param inverse inverse ouput matrix
 template<typename T, int DIM>
 void InvertMatrix(const ublas::c_matrix<T,DIM,DIM>& input, ublas::c_matrix<T,DIM,DIM>& inverse)
 {
@@ -1151,9 +1273,13 @@ inline T halfspace_box_cut_volume_old(const ublas::c_vector<T, DIM>& x, const ub
 }
 
 
-
-// x, n: plane parameters
-// x0, dx, dy, dz: box parameters
+//! Volume of cut between a box and a halfspace
+//! \param x point in plane
+//! \param n plane normal
+//! \param x0 vertex of box
+//! \param dx box dimensions x
+//! \param dy box dimensions y
+//! \param dz box dimensions z
 template <typename T, int DIM>
 inline T halfspace_box_cut_volume(const ublas::c_vector<T, DIM>& x, const ublas::c_vector<T, DIM>& n, const ublas::c_vector<T, DIM>& x0, T dx, T dy, T dz)
 {
@@ -1349,32 +1475,43 @@ inline T halfspace_box_cut_volume(const ublas::c_vector<T, DIM>& x, const ublas:
 	return V;
 }
 
-
+//! A progress bar for console output
 template <typename T>
 class ProgressBar
 {
 public:
+
+	//! Create progress bar with maximum value and a number of update steps
+	//! \param max the maximum value for the progress parameter
+	//! \param steps number of update steps (the number of times the progress text is updated)
 	ProgressBar(T max = 100, T steps = 100)
 		: _max(max), _dp(100/steps), _p(0), _p_old(-1)
 	{
 	}
 
+	//! Increment the progress by one
+	//! \return true if you should print the progress message
 	bool update()
 	{
 		return update(_p + 1);
 	}
 
+	//! Update the progress to value p
+	//! \return true if you should print the progress message
 	bool update(T p)
 	{
 		_p = std::min(std::max(p, (T)0), _max);
 		return (std::abs(_p - _p_old) > _dp) || complete();
 	}
 
+	//! Returns true if the progress is complete
 	bool complete()
 	{
 		return (_p >= _max);
 	}
 
+	//! Returns text for the end of the progress message, i.e.
+	//! cout << pb.message() << "saving..." << pb.end();
 	const char* end()
 	{
 		Logger::instance().flush();
@@ -1385,6 +1522,7 @@ public:
 		return _DEFAULT_TEXT _CLEAR_EOL "\r";
 	}
 
+	//! Returns the current progress message as stream to cout
 	std::ostream& message()
 	{
 		T percent = _p/_max*100;
@@ -1400,7 +1538,7 @@ protected:
 
 
 
-// Class for measuring elasped time between construction and destruction
+//! Class for measuring elasped time between construction and destruction and console output of timings
 class Timer
 {
 protected:
@@ -1425,6 +1563,10 @@ public:
 		start();
 	}
 
+	//! Constructor. The timer is started automatically.
+	//! \param text text for display in the console, when timer starts/finishes and the statistics
+	//! \param print enable console output 
+	//! \param log enable logging for statistics of function calls etc. 
 	Timer(const std::string& text, bool print = true, bool log = true) : _text(text), _print(print), _log(log)
 	{
 #ifdef DEBUG
@@ -1449,22 +1591,26 @@ public:
 		}
 	}
 
+	//! Start the timer
 	void start()
 	{
 		_t0 = pt::microsec_clock::universal_time();
 	}
 	
+	//! Return current elaspsed time
 	pt::time_duration duration()
 	{
 		pt::ptime t = pt::microsec_clock::universal_time();
 		return (t - _t0);
 	}
 
+	//! Return current elasped time in seconds
 	double seconds()
 	{
 		return duration().total_milliseconds()*1e-3;
 	}
 
+	//! Return current elasped time in seconds
 	operator double() { return seconds(); }
 
 	~Timer()
@@ -1482,7 +1628,10 @@ public:
 		}
 	}
 
+	//! Print statistics
 	static void print_stats();
+
+	//! Clear statistics
 	static void reset_stats();
 };
 
@@ -1560,10 +1709,15 @@ void Timer::reset_stats()
 }
 
 
+//! Class for reading a tetrahedron mesh from a ASCII VTK file
 template <typename T>
 class TetVTKReader
 {
 public:
+	//! Read data from file
+	//! \param filename the VTK filename
+	//! \param points
+	//! \param tets
 	void read(const std::string& filename, std::vector< ublas::c_vector<T,3> >& points, std::vector< ublas::c_vector<std::size_t,4> >& tets)
 	{
 		/*
