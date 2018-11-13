@@ -1716,8 +1716,8 @@ class TetVTKReader
 public:
 	//! Read data from file
 	//! \param filename the VTK filename
-	//! \param points
-	//! \param tets
+	//! \param points output of the vertices
+	//! \param tets output of vector of 4-tupes describing the vertex indices of each tetrahedron
 	void read(const std::string& filename, std::vector< ublas::c_vector<T,3> >& points, std::vector< ublas::c_vector<std::size_t,4> >& tets)
 	{
 		/*
@@ -1848,6 +1848,7 @@ public:
 
 
 
+//! Class for reading a tetrahedron mesh from a Dolfin/FEniCS XLM mesh file
 template <typename T>
 class TetDolfinXMLReader
 {
@@ -1894,6 +1895,7 @@ public:
 };
 
 
+//! Class for reading a triangle surface mesh from a STL file
 template <typename T>
 class STLReader
 {
@@ -1967,7 +1969,7 @@ public:
 	}
 };
 
-// Standard normal (mu=0, sigma=1) distributed number generator
+//! Standard normal (mu=0, sigma=1) distributed number generator
 template<typename T>
 class RandomNormal01
 {
@@ -1987,16 +1989,17 @@ public:
 	{
 	}
 	
+	//! change random seed
 	void seed(int s) {
 		// http://stackoverflow.com/questions/4778797/setting-seed-boostrandom
 		_rnd.engine().seed(s);
 		_rnd.distribution().reset();
 	}
 	
-	// return random number
+	//! return random number
 	T rnd() { return _rnd(); }
 	
-	// return static instance
+	//! return static instance
 	static RandomNormal01& instance() { return _instance; }	
 };
 
@@ -2004,7 +2007,7 @@ template<typename T>
 RandomNormal01<T> RandomNormal01<T>::_instance;
 
 
-// Uniform number generator in [0,1]
+//! Uniform number generator in [0,1]
 template<typename T>
 class RandomUniform01
 {
@@ -2024,16 +2027,17 @@ public:
 	{
 	}
 	
+	//! change random seed
 	void seed(int s) {
 		// http://stackoverflow.com/questions/4778797/setting-seed-boostrandom
 		_rnd.engine().seed(s);
 		_rnd.distribution().reset();
 	}
 	
-	// return random number
+	//! return random number
 	T rnd() { return _rnd(); }
 	
-	// return static instance
+	//! return static instance
 	static RandomUniform01& instance() { return _instance; }	
 };
 
@@ -2082,6 +2086,10 @@ void stable_A(ublas::c_vector<T, DIM>& a)
 }
 
 
+
+//! Moments of angular central Gaussian distribution from distribution parameters
+//! \param b input ACG parameters
+//! \param a output moments
 template<typename T, int DIM>
 void A_from_B(const ublas::c_vector<T, DIM>& b, ublas::c_vector<T, DIM>& a)
 {
@@ -2091,6 +2099,13 @@ void A_from_B(const ublas::c_vector<T, DIM>& b, ublas::c_vector<T, DIM>& a)
 }
 
 
+//! Inversion of moments of angular central Gaussian distribution using fixed point method
+//! \param a input moments
+//! \param b output ACG parameters
+//! \param tol tolerance
+//! \param max_iter maximum number of iterations
+//! \param step step size
+//! \return number of required iterations
 template<typename T, int DIM>
 std::size_t compute_B_from_A_fixedpoint(const ublas::c_vector<T, DIM>& a, ublas::c_vector<T, DIM>& b, T tol, std::size_t max_iter = 1000000, T step = 0.5)
 {
@@ -2165,7 +2180,7 @@ std::size_t compute_B_from_A_fixedpoint(const ublas::c_vector<T, DIM>& a, ublas:
 }
 
 
-// evaluation of the derivative of the function R_D
+//! evaluation of the derivative of the function R_D
 // NOTE: there are probably some erroneous equations in here
 template<typename T>
 T RD_derivative(T x, T y, T z, T r, T s, T t)
@@ -2224,7 +2239,11 @@ T RD_derivative(T x, T y, T z, T r, T s, T t)
 	return value;
 }
 
-
+//! Inversion of moments of angular central Gaussian distribution using fixed point method
+//! \param ac input moments
+//! \param b output ACG parameters
+//! \param tol tolerance
+//! \return number of required iterations
 // TODO: some of the constants/tolerances in this routine are not appropiate for 32bit floats!
 template<typename T, int DIM>
 std::size_t compute_B_from_A_fixedpoint_II(const ublas::c_vector<T, DIM>& ac, ublas::c_vector<T, DIM>& b, T tol = 1e-10)
@@ -2275,9 +2294,14 @@ std::size_t compute_B_from_A_fixedpoint_II(const ublas::c_vector<T, DIM>& ac, ub
 	return iter;
 }
 
-
+//! Inversion of moments of angular central Gaussian distribution using Newton method
+//! \param a input moments
+//! \param b output ACG parameters
+//! \param tol tolerance
+//! \param max_iter maximum number of iterations
+//! \return number of required iterations
 template<typename T, int DIM>
-std::size_t compute_B_from_A_newton(const ublas::c_vector<T, DIM>& a, ublas::c_vector<T, DIM>& b, T tol, std::size_t max_iter = 1000000, T step = 1)
+std::size_t compute_B_from_A_newton(const ublas::c_vector<T, DIM>& a, ublas::c_vector<T, DIM>& b, T tol, std::size_t max_iter = 1000000)
 {
 	size_t perm[6][3] = {{0,1,2}, {0,2,1}, {1,0,2}, {1,2,0}, {2,1,0}, {2,0,1}};
 	size_t p = 0;
@@ -2355,7 +2379,11 @@ std::size_t compute_B_from_A_newton(const ublas::c_vector<T, DIM>& a, ublas::c_v
 	return iter;
 }
 
-
+//! Inversion of moments of angular central Gaussian distribution (default method stub)
+//! \param a input moments
+//! \param b output ACG parameters
+//! \param tol tolerance
+//! \return number of required iterations
 template<typename T, int DIM>
 std::size_t compute_B_from_A(const ublas::c_vector<T, DIM>& a, ublas::c_vector<T, DIM>& b, T tol)
 {
@@ -2364,7 +2392,7 @@ std::size_t compute_B_from_A(const ublas::c_vector<T, DIM>& a, ublas::c_vector<T
 
 
 
-// Abstract base class for fiber Distributions
+//! Abstract base class for fiber distributions
 template<typename T, int DIM>
 class DiscreteDistribution
 {
@@ -2374,10 +2402,12 @@ protected:
 public:
 	DiscreteDistribution() : _weight(1) { }
 	
-	// draw a random sample
+	//! draw a random sample
+	//! \param x output of the sample
+	//! \param index index of the sample (i.e. for list distributions)
 	virtual void drawSample(ublas::c_vector<T, DIM>& x, std::size_t index) = 0;
 
-	// read settings from ptree
+	//! read settings from ptree
 	virtual void readSettings(const ptree::ptree& pt)
 	{
 		const ptree::ptree& attr = pt.get_child("<xmlattr>", empty_ptree);
@@ -2385,12 +2415,12 @@ public:
 		_weight = pt_get<T>(attr, "weight", (T)1);
 	}
 	
-	// Distribution weight in combination with other Distributions
+	//! Distribution weight in combination with other Distributions
 	virtual T weight() const { return _weight; }
 };
 
 
-// Dirac Distribution
+//! Dirac distribution
 template<typename T, int DIM>
 class DiracDistribution : public DiscreteDistribution<T, DIM>
 {
@@ -2420,14 +2450,14 @@ protected:
 };
 
 
-// Normal Distribution
+//! Normal distribution
 template<typename T, int DIM>
 class NormalDistribution : public DiscreteDistribution<T, DIM>
 {
 };
 
 
-// Normal Distribution (on sphere)
+//! Normal distribution (on sphere)
 template<typename T>
 class NormalDistribution<T, 3> : public DiscreteDistribution<T, 3>
 {
@@ -2477,7 +2507,7 @@ protected:
 };
 
 
-// Normal Distribution specialized for DIM = 2 (circle)
+//! Normal distribution specialized for DIM = 2 (circle)
 template<typename T>
 class NormalDistribution<T, 2> : public DiscreteDistribution<T, 2>
 {
@@ -2510,7 +2540,7 @@ protected:
 };
 
 
-// Normal Distribution specialized for DIM = 1
+//! Normal distribution specialized for DIM = 1
 template<typename T>
 class NormalDistribution<T, 1> : public DiscreteDistribution<T, 1>
 {
@@ -2538,14 +2568,14 @@ protected:
 };
 
 
-// Uniform Distribution
+//! Uniform distribution
 template<typename T, int DIM>
 class UniformDistribution : public DiscreteDistribution<T, DIM>
 {
 };
 
 
-// Uniform Distribution (on sphere)
+//! Uniform distribution (on sphere)
 template<typename T>
 class UniformDistribution<T, 3> : public DiscreteDistribution<T, 3>
 {
@@ -2563,7 +2593,7 @@ public:
 };
 
 
-// Uniform Distribution specialized for DIM = 2 (circle)
+//! Uniform distribution specialized for DIM = 2 (circle)
 template<typename T>
 class UniformDistribution<T, 2> : public DiscreteDistribution<T, 2>
 {
@@ -2579,7 +2609,7 @@ public:
 };
 
 
-// Uniform Distribution specialized for DIM = 1 (interval)
+//! Uniform distribution specialized for DIM = 1 (interval)
 template<typename T>
 class UniformDistribution<T, 1> : public DiscreteDistribution<T, 1>
 {
@@ -2607,7 +2637,7 @@ protected:
 
 
 
-// Angular Central Gaussian Distribution
+//! Angular central Gaussian distribution
 template<typename T, int DIM>
 class AngularCentralGaussianDistribution : public DiscreteDistribution<T, DIM>
 {
@@ -2625,7 +2655,7 @@ public:
 };
 
 
-// Angular Central Gaussian Distribution
+//! Angular central Gaussian distribution (on sphere)
 template<typename T>
 class AngularCentralGaussianDistribution<T, 3> : public DiscreteDistribution<T, 3>
 {
@@ -2748,7 +2778,7 @@ protected:
 };
 
 
-// Distribution given by a list
+//! Distribution given by a list
 template<typename T, int DIM>
 class ListDistribution : public DiscreteDistribution<T, DIM>
 {
@@ -2796,7 +2826,7 @@ protected:
 };
 
 
-// A weighted sum of probability density functions
+//! A weighted sum of probability density functions
 template<typename T, int DIM>
 class CompositeDistribution : public DiscreteDistribution<T, DIM>
 {
@@ -2874,46 +2904,46 @@ public:
 };
 
 
-// Base class for a bounding box interface
+//! Base class for a bounding box interface
 template <typename T, int DIM>
 class IBoundingBox
 {
 public:
-	// radius of the bounding box
+	//! radius of the bounding box
 	virtual T bbRadius() const = 0;
 	
-	// center of the bounding box
+	//! center of the bounding box
 	virtual const ublas::c_vector<T, DIM>& bbCenter() const = 0;
 	
-	// check for intersection (i.e. minimum distance between bb and this bounding box is less or equal than tol)
+	//! check for intersection (i.e. minimum distance between bb and this bounding box is less or equal than tol)
 	inline bool bbIntersects(const IBoundingBox<T, DIM>& bb, T tol = 0) const
 	{
 		return (this->bbDistanceMin(bb) <= tol);
 	}
 	
-	// return center distance to point
+	//! return center distance to point
 	inline T bbDistance(const ublas::c_vector<T, DIM>& p) const
 	{
 		return ublas::norm_2(p - this->bbCenter());
 	}
 
-	// return maximum distance to point
-	// note: if the distance is less than zero the point is inside the bounding box
+	//! return maximum distance to point
+	//! note: if the distance is less than zero the point is inside the bounding box
 	inline T bbDistanceMax(const ublas::c_vector<T, DIM>& p) const
 	{
 		return (this->bbDistance(p) + this->bbRadius());
 	}
 
-	// return minimum distance to point
-	// note: if the distance is less than zero the point is inside the bounding box
+	//! return minimum distance to point
+	//! note: if the distance is less than zero the point is inside the bounding box
 	inline T bbDistanceMin(const ublas::c_vector<T, DIM>& p) const
 	{
 		return (this->bbDistance(p) - this->bbRadius());
 	}
 
-	// return minimum distance between bounding boxes
-	// note: the distance is correct for positive values only
-	// if the distance is less than zero, it indicates overlapping, but the distance has then no other meaning
+	//! return minimum distance between bounding boxes
+	//! note: the distance is correct for positive values only
+	//! if the distance is less than zero, it indicates overlapping, but the distance has then no other meaning
 	inline T bbDistanceMin(const IBoundingBox<T, DIM>& bb) const
 	{
 		return (this->bbDistanceMin(bb.bbCenter()) - bb.bbRadius());
@@ -2921,82 +2951,81 @@ public:
 };
 
 
-// Base class for all fiber objects
+//! Base class for all fiber (geometric) objects
 template <typename T, int DIM>
 class Fiber : public IBoundingBox<T, DIM>
 {
 public:
-	// Returns the gradient of the distance at the point p in g
+	//! Returns the gradient of the distance at the point p in g
 	virtual void distanceGrad(const ublas::c_vector<T, DIM>& p, ublas::c_vector<T, DIM>& g) const = 0;
 
-	// Returns the signed minimum distance between this fiber
-	// and the point p and the point of minimum distance x
+	//! Returns the signed minimum distance between this fiber
+	//! and the point p and the point of minimum distance x
 	virtual T distanceTo(const ublas::c_vector<T, DIM>& p, ublas::c_vector<T, DIM>& x) const = 0;
 
-	// Returns the signed minimum distance between this fiber
-	// and another fiber object and the points of minimum distance x and xf
+	//! Returns the signed minimum distance between this fiber
+	//! and another fiber object and the points of minimum distance x and xf
 	virtual T distanceTo(const Fiber<T, DIM>& fiber, ublas::c_vector<T, DIM>& x, ublas::c_vector<T, DIM>& xf) const = 0;
 	
-	// Returns the signed minimum distance between this fiber
-	// and the plane defined by the point p and normal n
+	//! Returns the signed minimum distance between this fiber
+	//! and the plane defined by the point p and normal n
 	virtual T distanceToPlane(const ublas::c_vector<T, DIM>& p, const ublas::c_vector<T, DIM>& n) const = 0;
 
-	// Returns true if p inside the fiber	
+	//! Returns true if p inside the fiber	
 	virtual bool inside(const ublas::c_vector<T, DIM>& p) const = 0;
 
-	// clone fiber
+	//! clone fiber
 	virtual boost::shared_ptr< Fiber<T, DIM> > clone() const = 0;
 	
-	// translate fiber
+	//! translate fiber
 	virtual void translate(const ublas::c_vector<T, DIM>& dx) = 0;
 
-	// maximal curvature of geometry
+	//! maximal curvature of geometry
 	virtual T curvature() const = 0;
 
-	// fiber volume
+	//! fiber volume
 	virtual T volume() const = 0;
 
-	// fiber orientation
+	//! fiber orientation
 	virtual const ublas::c_vector<T, DIM>& orientation() const = 0;
 
-	// set the material id
+	//! set the material id
 	inline void set_material(std::size_t id) const {
 		const_cast< Fiber<T,DIM>* >(this)->_material = id;
 		const_cast< Fiber<T,DIM>* >(this)->_material_bits = 1 << id;
 	}
 
-	// get the material id
+	//! get the material id
 	inline std::size_t material() const {
 		return _material;
 	}
 
-	// get the material id bits
+	//! get the material id bits
 	inline std::size_t material_bits() const {
 		return _material_bits;
 	}
 
-
-	// set the id
+	//! set the id
 	inline void set_id(std::size_t id) const {
 		const_cast< Fiber<T,DIM>* >(this)->_id = id;
 	}
 
-	// get the id
+	//! get the id
 	inline std::size_t id() const {
 		return _id;
 	}
 
-	// set the parent fiber (in case of ghost fibers)
+	//! set the parent fiber (in case of ghost fibers)
 	inline void set_parent(Fiber<T, DIM>* parent) const {
 		const_cast< Fiber<T,DIM>* >(this)->_parent = boost::shared_ptr< Fiber<T, DIM> >(parent, boost::serialization::null_deleter());
 	}
 
-	// get the parent fiber (in case of ghost fibers)
+	//! get the parent fiber (in case of ghost fibers)
 	inline boost::shared_ptr< Fiber<T, DIM> > parent() const {
 		return _parent;
 	}
 	
-	// write data to txt file
+	//! write fiber type and parameters to txt file
 	virtual void writeData(std::ofstream& fs) const { }
 
 protected:
@@ -3013,7 +3042,7 @@ static int g_dist_evals = 0;
 #endif
 
 
-// Class for efficiently computing fiber distances and intersections
+//! Class for efficiently computing fiber distances and intersections
 template <typename T, int DIM>
 class FiberCluster : public IBoundingBox<T, DIM>
 {
@@ -3032,10 +3061,10 @@ protected:
 	
 public:
 	
-	// constructor
-	// the fiber defines the initial cluster size and center,
-	// mcs defines the maximum number of fibers in this cluster, if the fiber number
-	// is larger than mcs, fibers are transfered into sub-clusters to increase performance
+	//! Constructor
+	//! \param fiber defines the initial cluster size and center by a fiber
+	//! \param mcs defines the maximum number of fibers in this cluster, if the fiber number
+	//! is larger than mcs, fibers are transfered into sub-clusters to increase performance
 	FiberCluster(const boost::shared_ptr< const Fiber<T, DIM> >& fiber, std::size_t mcs = 8)
 	{
 		if (!fiber) {
@@ -3054,7 +3083,9 @@ public:
 		_fiberCount = 1;
 	}
 
-	// returns true if inside some of the objects
+	//! Test if point is inside some of the objects of specified materials
+	//! \param p point
+	//! \param mat material bits (i.e. 1<<material_id)
 	virtual bool inside(const ublas::c_vector<T, DIM>& p, int mat) const
 	{
 		// check if point is close enough to bounding box
@@ -3078,9 +3109,9 @@ public:
 		return false;
 	}
 
-	// returns the signed minimum distance between any fiber and the point p within an approximate radius of r (actual radius might be larger)
-	// further returns the point of minimum distance x as well as the corresponding fiber
-	// if there is no such fiber within radius r, returns r and fiber will be set to NULL
+	//! returns the signed minimum distance between any fiber and the point p within an approximate radius of r (actual radius might be larger)
+	//! further returns the point of minimum distance x as well as the corresponding fiber
+	//! if there is no such fiber within radius r, returns r and fiber will be set to NULL
 	virtual T closestFiber(const ublas::c_vector<T, DIM>& p, T r, int mat, ublas::c_vector<T, DIM>& x, boost::shared_ptr< const Fiber<T, DIM> >& fiber) const
 	{
 		DEBP("p = " << format(p));
@@ -3184,17 +3215,14 @@ public:
 		return dMin;		
 	}
 
-	// returns the signed minimum distance between any fiber and the point p within an approximate radius of r (actual radius might be larger)
-	// further returns the point of minimum distance x as well as the corresponding fiber
-	// if there is no such fiber within radius r, returns r and fiber will be set to NULL
-	//virtual T closestFibers(const ublas::c_vector<T, DIM>& p, T r, int mat, ublas::c_vector<T, DIM>& x, boost::shared_ptr< const Fiber<T, DIM> >& fiber) const
-
+	//! Data structure holding fiber distance information
 	typedef struct {
-		ublas::c_vector<T, DIM> x;
-		boost::shared_ptr< const Fiber<T, DIM> > fiber;
-		T d;
+		ublas::c_vector<T, DIM> x;	// closest point of fiber
+		boost::shared_ptr< const Fiber<T, DIM> > fiber;	// the fiber
+		T d;	// distance to x
 	} ClosestFiberInfo;
 
+	//! returns all closest fibers to the point p within an approximate radius of r (actual radius might be larger)
 	virtual void closestFibers(const ublas::c_vector<T, DIM>& p, T r, int mat, std::vector<ClosestFiberInfo>& info_list) const
 	{
 		// check if point is close enough to bounding box
@@ -3222,8 +3250,8 @@ public:
 		}
 	}
 
-	// check for point intersection (i.e. minimum distance between point and fibers in this cluster is less than tol)
-	// in case of intersection the intersected fiber and intersection point xf are set, as well as the distance to the fiber d
+	//! check for point intersection (i.e. minimum distance between point and fibers in this cluster is less than tol)
+	//! in case of intersection the intersected fiber and intersection point xf are set, as well as the distance to the fiber d
 	bool intersects(const ublas::c_vector<T, DIM>& p, T tol, int mat, boost::shared_ptr< const Fiber<T, DIM> >& fiber, ublas::c_vector<T, DIM>& xf, T& d)
 	{
 #if 0
@@ -3298,8 +3326,8 @@ public:
 #endif
 	}
 	
-	// check for fiber intersection (i.e. minimum distance between fiber and fibers in this cluster is less than tol)
-	// in case of intersection the intersected fiber and the minimum points x and xf are set, as well as theier distance d
+	//! check for fiber intersection (i.e. minimum distance between fiber and fibers in this cluster is less than tol)
+	//! in case of intersection the intersected fiber and the minimum points x and xf are set, as well as theier distance d
 	bool intersects(const Fiber<T, DIM>& fiber, T tol, int mat, boost::shared_ptr< const Fiber<T, DIM> >& fiberi, ublas::c_vector<T, DIM>& x, ublas::c_vector<T, DIM>& xf, T& d)
 	{
 		// check if bounding boxes intersect
@@ -3360,7 +3388,10 @@ public:
 #endif
 	}
 	
-	// calculate new bounding box radius and center, if we would add fiber to cluster
+	//! calculate new bounding box radius and center, if we would add fiber to cluster
+	//! \param fiber the fiber
+	//! \param cnew new bounding box center
+	//! \return new bounding box radius
 	T calcNewBB(const Fiber<T, DIM>& fiber, ublas::c_vector<T, DIM>* cnew = NULL)
 	{
 		// calculate new bounding box
@@ -3397,7 +3428,7 @@ public:
 		}
 	}
 	
-	// distance measure between cluster and fiber
+	//! distance measure between cluster and fiber
 	T distanceMeasure(const Fiber<T, DIM>& fiber)
 	{
 #if 1
@@ -3411,7 +3442,7 @@ public:
 #endif
 	}
 	
-	// add fiber to cluster
+	//! add fiber to cluster
 	void add(const boost::shared_ptr< const Fiber<T, DIM> >& fiber)
 	{
 		if (!fiber) {
@@ -3452,7 +3483,7 @@ public:
 		_fiberCount ++;
 	}
 
-	// transfer all fibers into sub-clusters
+	//! transfer all fibers into sub-clusters
 	void performSubClustering()
 	{
 		for (typename fiber_ptr_list::const_iterator i = _fibers.begin(); i != _fibers.end(); i++) {
@@ -3463,7 +3494,7 @@ public:
 		_fibers.clear();
 	}
 
-	// return number of fibers in this cluster (including all nested clusters)
+	//! return number of fibers in this cluster (including all nested clusters)
 	inline std::size_t fiberCount()
 	{
 		return _fiberCount;
@@ -3503,7 +3534,7 @@ public:
 };
 
 
-// Cylindrical fiber with spherical end-caps
+//! Cylindrical fiber with spherical end-caps
 template <typename T, int DIM>
 class CylindricalFiber : public Fiber<T, DIM>
 {
@@ -3519,7 +3550,7 @@ protected:
 
 public:
 
-	// construct from center c, orientation a, length L and radius R
+	//! construct from center c, orientation a, length L and radius R
 	CylindricalFiber(const ublas::c_vector<T, DIM>& c, const ublas::c_vector<T, DIM>& a, T L, T R)
 	{
 		T norm_a = ublas::norm_2(a);
@@ -3843,7 +3874,7 @@ public:
 };
 
 
-// Tetrahedron Fiber
+//! Tetrahedron fiber (i.e. a single tetrahedron)
 template <typename T, int DIM>
 class TetrahedronFiber : public Fiber<T, DIM>
 {
@@ -4272,7 +4303,7 @@ public:
 };
 
 
-// Triangle Fiber
+//! Triangle fiber (i.e. a single triangle)
 template <typename T, int DIM>
 class TriangleFiber : public Fiber<T, DIM>
 {
@@ -4523,8 +4554,7 @@ public:
 };
 
 
-
-// Triangle Fiber
+//! Base class for tetrahedron meshes
 template <typename T, int DIM>
 class TetFiberBase : public Fiber<T, DIM>
 {
@@ -4535,7 +4565,12 @@ protected:
 	bool _fill_volume;
 
 public:
-	// construct from points
+	//! construct from points
+	//! \param start first index in tets
+	//! \param end last index in tets
+	//! \param fill fill volume of tetrahedrons (otherwise only a surface mesh)
+	//! \param points the vertices
+	//! \param tets the tetrahedrons (4 points each)
 	void init(std::size_t start, std::size_t end, bool fill,
 		std::vector< ublas::c_vector<T,3> >& points,
 		std::vector< ublas::c_vector<std::size_t,4> >& tets)
@@ -4764,11 +4799,18 @@ public:
 };
 
 
-// Tet Fiber
+//! Tetrahedron meshes from ASCII VTK file
 template <typename T, int DIM>
 class TetVTKFiber : public TetFiberBase<T, DIM>
 {
 public:
+	//! Constructor
+	//! \param filename VTK filename
+	//! \param start first index of tetrahedrons to use
+	//! \param end last index of tetrahedrons to use
+	//! \param fill fill volume of tetrahedrons (otherwise only a surface mesh)
+	//! \param a rotation matrix for points
+	//! \param t translation vector for points
 	TetVTKFiber(const std::string& filename, std::size_t start, std::size_t end, bool fill,
 		ublas::c_matrix<T,3,3> a, ublas::c_vector<T,3> t)
 	{
@@ -4787,11 +4829,18 @@ public:
 };
 
 
-// Tet Fiber
+//! Tetrahedron meshes from Dolfin XML file
 template <typename T, int DIM>
 class TetDolfinXMLFiber : public TetFiberBase<T, DIM>
 {
 public:
+	//! Constructor
+	//! \param filename Dolfin XML filename
+	//! \param start first index of tetrahedrons to use
+	//! \param end last index of tetrahedrons to use
+	//! \param fill fill volume of tetrahedrons (otherwise only a surface mesh)
+	//! \param a rotation matrix for points
+	//! \param t translation vector for points
 	TetDolfinXMLFiber(const std::string& filename, std::size_t start, std::size_t end, bool fill,
 		ublas::c_matrix<T,3,3> a, ublas::c_vector<T,3> t)
 	{
@@ -4810,8 +4859,7 @@ public:
 };
 
 
-
-// Triangle Fiber
+//! Tetrahedron meshes from STL file
 template <typename T, int DIM>
 class STLFiber : public Fiber<T, DIM>
 {
@@ -4821,7 +4869,13 @@ protected:
 	bool _fill_volume;
 public:
 
-	// construct from points
+	//! Constructor
+	//! \param filename STL filename
+	//! \param start first index of tetrahedrons to use
+	//! \param end last index of tetrahedrons to use
+	//! \param fill fill volume of tetrahedrons (otherwise only a surface mesh)
+	//! \param a rotation matrix for points
+	//! \param t translation vector for points
 	STLFiber(const std::string& filename, std::size_t start, std::size_t end, bool fill,
 		ublas::c_matrix<T,3,3> a, ublas::c_vector<T,3> t)
 	{
@@ -4957,7 +5011,7 @@ public:
 };
 
 
-// Point fiber
+//! Single point fiber
 template <typename T, int DIM>
 class PointFiber : public Fiber<T, DIM>
 {
@@ -4966,7 +5020,8 @@ protected:
 
 public:
 
-	// construct from center c, orientation a, length L and radius R
+	//! Constructor
+	//! \param p point
 	PointFiber(const ublas::c_vector<T, DIM>& p)
 	{
 		_p  = p;
@@ -5067,7 +5122,7 @@ public:
 
 
 
-// Cylindrical fiber with spherical end-caps
+//! Cylindrical fiber with spherical end-caps
 template <typename T, int DIM>
 class CapsuleFiber : public Fiber<T, DIM>
 {
@@ -5084,7 +5139,7 @@ protected:
 
 public:
 
-	// construct from center c, orientation a, length L and radius R
+	//! Construct from center c, orientation a, length L and radius R
 	CapsuleFiber(const ublas::c_vector<T, DIM>& c, const ublas::c_vector<T, DIM>& a, T L0, T R)
 	{
 		_L0  = std::abs(L0);
@@ -5359,7 +5414,7 @@ public:
 
 
 #if 1
-// half space (points with negative distance to plane are inside)
+//! Half space fiber (points with negative distance to plane are inside)
 template <typename T, int DIM>
 class HalfSpaceFiber : public Fiber<T, DIM>
 {
@@ -5369,7 +5424,7 @@ protected:
 
 public:
 
-	// construct from point p, normal n
+	//! Construct from point p, normal n
 	HalfSpaceFiber(const ublas::c_vector<T, DIM>& p, const ublas::c_vector<T, DIM>& n)
 	{
 		T norm_n = ublas::norm_2(n);
@@ -5473,6 +5528,7 @@ public:
 
 
 
+//! Geometry writer for paraview Python code
 template <typename T, int DIM>
 class PVPyWriter
 {
@@ -5543,7 +5599,7 @@ public:
 };
 
 
-// Class for writing VTK files with structured cube meshes.
+//! Class for writing VTK files with structured cube meshes.
 template <typename T>
 class VTKCubeWriter
 {
@@ -5903,7 +5959,7 @@ public:
 };
 
 
-// Class for generating random fiber distributions within a RVE.
+//! Class for generating random fiber distributions within a RVE.
 template <typename T, int DIM>
 class FiberGenerator
 {
@@ -5957,13 +6013,13 @@ public:
 
 	typedef typename SampleDataTypes::e SampleDataType;
 	
-	// constructor
+	//! constructor
 	FiberGenerator()
 	{
 		defaultSettings();
 	}
 	
-	// load default settings
+	//! load default settings
 	void defaultSettings()
 	{
 		_N = std::numeric_limits<std::size_t>::max();
@@ -6004,7 +6060,7 @@ public:
 		}
 	}
 	
-	// read settings from ptree
+	//! read settings from ptree
 	void readSettings(const ptree::ptree& pt)
 	{
 		_N = pt_get<std::size_t>(pt, "n", _N);
@@ -6108,7 +6164,7 @@ public:
 		}
 	}
 
-	// run the fiber generator
+	//! Run the fiber generator
 	noinline void run(T V = 0, std::size_t N = 0, std::size_t M = 0, T dmin = -STD_INFINITY(T), T dmax = STD_INFINITY(T), int intersecting = -1, int intersecting_materials = -1)
 	{
 		Timer __t("generating fiber distribution");
@@ -6519,7 +6575,7 @@ public:
 		return _A2 / trace(_A2);
 	}
 
-	// return A4
+	//! Return 4-th order orientation moment tensor
 	ublas::c_matrix<ublas::c_matrix<T,DIM,DIM>,DIM,DIM> getA4() const
 	{
 		ublas::c_matrix<ublas::c_matrix<T,DIM,DIM>,DIM,DIM> A4 = _A4;
@@ -6570,9 +6626,9 @@ public:
 		sampleSlice(a0, a1, a2, nz, ny, data, mat, type, rowPadding, fast, split);
 	}
 	
-	// sample a distance map, the pixel values are calulated as following:
-	// p[i,j] = min_distance_to_fiber(a0 + a1*i/h + a2*j/w)
-	// i=0...h-1, j=0..w-1
+	//! Sample a distance map, the pixel values are calulated as following:
+	//! p[i,j] = min_distance_to_fiber(a0 + a1*i/h + a2*j/w)
+	//! i=0...h-1, j=0..w-1
 	template< typename R >
 	void sampleSlice(
 		const ublas::c_vector<T, DIM>& a0, const ublas::c_vector<T, DIM>& a1, const ublas::c_vector<T, DIM>& a2,
@@ -6760,7 +6816,7 @@ public:
 		}
 	}
 		
-	// create a paraview python script
+	//! Write a ParaView Python script
 	void writePVPy(const std::string& filename, bool bbox = true, bool fibers = true, bool clusters = true) const
 	{
 		PVPyWriter<T, DIM> pw(filename, bbox, fibers, clusters);
@@ -6776,7 +6832,7 @@ public:
 		_cluster->writeData(fs);
 	}
 
-	// create a vtk distance map
+	//! Write a VTK distance map
 	template< typename R >
 	void writeVTK(const std::string& filename,
 		std::size_t nx, std::size_t ny, std::size_t nz,
@@ -6920,10 +6976,10 @@ public:
 		}
 	}
 
-	// sample a distance map, the pixel values are calulated as following:
-	// p[i,j] = min(pow(max(min_distance_to_fiber(a0 + a1*i/h + a2*j/w), 0), exponent)*255*scale, 255)
-	// i=0...h-1, j=0..w-1
-	// the image is written as png to filename
+	//! Sample a distance map, the pixel values are calulated as following:
+	//! p[i,j] = min(pow(max(min_distance_to_fiber(a0 + a1*i/h + a2*j/w), 0), exponent)*255*scale, 255)
+	//! i=0...h-1, j=0..w-1
+	//! the image is written as png to filename
 	void writeDistanceMap(const std::string& filename,
 		const ublas::c_vector<T, DIM>& a0, const ublas::c_vector<T, DIM>& a1, const ublas::c_vector<T, DIM>& a2,
 		std::size_t h, std::size_t w, T offset, T scale, T exponent, bool fast, int mat = -1) const
@@ -6970,6 +7026,7 @@ public:
 };
 
 
+//! Base class for 3-dimensional FFTs
 template<typename T>
 class FFT3Base
 {
@@ -7011,19 +7068,22 @@ public:
 };
 
 
-// Abstract class for performing FFT 
+//! Abstract class for performing FFT 
 template<typename T>
 class FFT3 : public FFT3Base<T>
 {
 public:
 	FFT3(std::size_t nx, std::size_t ny, std::size_t nz, T* data, const std::string& planner_flag);
 
+	//! Perform forward transformation
 	void forward(const T* x, std::complex<T>* y);
+
+	//! Perform backward transformation
 	void backward(const std::complex<T>* x, T* y);
 };
 
 
-// FFT specialization for double
+//! FFT specialization for double
 template<>
 class FFT3<double> : public FFT3Base<double>
 {
@@ -7068,7 +7128,7 @@ public:
 	}
 };
 
-// FFT specialization for float
+//! FFT specialization for float
 template<>
 class FFT3<float> : public FFT3Base<float>
 {
@@ -7113,7 +7173,7 @@ public:	FFT3(std::size_t howmany, std::size_t nx, std::size_t ny, std::size_t nz
 };
 
 
-// Class for isotropic material properties
+//! Class for isotropic material properties and constant conversion
 template<typename T, int DIM>
 class Material
 {
@@ -7279,6 +7339,7 @@ public:
 };
 
 
+//! Hashin bounds for a isotropic material
 template<class T>
 class HashinBounds
 {
@@ -7308,6 +7369,7 @@ public:
 };
 
 
+//! A Multigrid level for the multigrid solver
 template<class T>
 class MultiGridLevel
 {
@@ -7427,10 +7489,10 @@ public:
 		}
 	}
 
-	// return the result of the operator A*e_k for the row identified with the voxel (ii,jj,kk)
-	// where k has to be k = ii*nyzp + jj*nzp + kk and e_k is the k-th unit vector
-	// (i.e. returns the k-th diagonal element of A)
-	// diagA is essentially haxyz, however if nx or ny or nz == 1 then not!
+	//! return the result of the operator A*e_k for the row identified with the voxel (ii,jj,kk)
+	//! where k has to be k = ii*nyzp + jj*nzp + kk and e_k is the k-th unit vector
+	//! (i.e. returns the k-th diagonal element of A)
+	//! diagA is essentially haxyz, however if nx or ny or nz == 1 then not!
 	inline T diagA(std::size_t ii, std::size_t jj, std::size_t kk, std::size_t k)
 	{
 		return	hax*(((int)(ffd_x[ii] == 0)) + ((int)(bfd_x[ii] == 0))) +
@@ -7438,8 +7500,8 @@ public:
 			haz*(((int)(ffd_z[kk] == 0)) + ((int)(bfd_z[kk] == 0))) + haxyz;
 	}
 
-	// return the result of the operator A*x for the row identified with the voxel (ii,jj,kk)
-	// where k has to be k = ii*nyzp + jj*nzp + kk
+	//! return the result of the operator A*x for the row identified with the voxel (ii,jj,kk)
+	//! where k has to be k = ii*nyzp + jj*nzp + kk
 	inline T applyA(const T* x, std::size_t ii, std::size_t jj, std::size_t kk, std::size_t k)
 	{
 		return	hax*(x[k + ffd_x[ii]] + x[k + bfd_x[ii]]) +
@@ -7447,8 +7509,8 @@ public:
 			haz*(x[k + ffd_z[kk]] + x[k + bfd_z[kk]]) + haxyz*x[k];
 	}
 
-	// compute y = A*x
-	// this is actually never used in performance critical code
+	//! compute y = A*x
+	//! this is actually never used in performance critical code
 	void applyA(const T* x, T* y)
 	{
 		#pragma omp parallel for schedule (static) collapse(2)
@@ -7463,7 +7525,7 @@ public:
 		}
 	}
 
-	// compute the residual
+	//! compute the residual
 	void compute_residual(const T* x, const T* b, T* r)
 	{
 //		boost::shared_ptr<Timer> t;
@@ -7530,7 +7592,7 @@ public:
 		}
 	}
 
-	// restrict residual to coarser grid
+	//! restrict residual to coarser grid
 	void restrict_residual(const T* r, T* bc)
 	{
 		boost::shared_ptr<Timer> t;
@@ -7709,9 +7771,9 @@ IACA_END
 		}
 	}
 
-	// correct solution x by prolongating the error x from the coarser level
-	// to the finer level and adding it to the current solution x
-	// x = x + P_coarse x_coarse (where x_coarse is the approximate error)
+	//! correct solution x by prolongating the error x from the coarser level
+	//! to the finer level and adding it to the current solution x
+	//! x = x + P_coarse x_coarse (where x_coarse is the approximate error)
 	void correct_solution(const T* xc, T* x)
 	{
 		boost::shared_ptr<Timer> t;
@@ -7893,7 +7955,7 @@ IACA_END
 		}
 	}
 
-	// compute scaling constant for coarse grid operator
+	//! compute scaling constant for coarse grid operator
 	T compute_alpha()
 	{
 		if (!finer_level) return 1;
@@ -8047,8 +8109,8 @@ IACA_END
 		}
 	}
 
-	// apply gauss seidel smoother to x
-	// x = x - D^-1 * (b - A*x)
+	//! apply gauss seidel smoother to x
+	//! x = x - D^-1 * (b - A*x)
 	// FIXME: might not work in parallel
 	void smooth_gauss_seidel(const T* b, T* x, bool transpose = false)
 	{
@@ -8293,14 +8355,14 @@ IACA_END
 #endif
 	}
 
-	// apply gauss seidel smoother to x
-	// x = x - D^-1 * (b - A*x)
+	//! apply gauss seidel smoother to x
+	//! x = x - D^-1 * (b - A*x)
 	void smooth_gauss_seidel_backward(const T* b, T* x)
 	{
 		smooth_gauss_seidel(b, x, true);
 	}
 
-	// set current solution to zero
+	//! set current solution to zero
 	void zero(T* x)
 	{
 #if 1
@@ -8327,7 +8389,7 @@ IACA_END
 		}
 	}
 
-	// solve the equation A*x = b directly usig fft
+	//! solve the equation A*x = b directly usig fft
 	void solve_direct_fft(const T* b, T* x)
 	{
 		if (!_fft) {
@@ -8378,7 +8440,7 @@ IACA_END
 		_fft->backward(xc, x);
 	}
 
-	// solve the equation A*x = b directly usig LU factorization
+	//! solve the equation A*x = b directly usig LU factorization
 	void solve_direct_lu(const T* b, T* x)
 	{
 		// init matrix A
@@ -8431,13 +8493,13 @@ IACA_END
 		}
 	}
 
-	// perform V-cycle
+	//! perform V-cycle
 	void vcycle()
 	{
 		vcycle(_r, _b, _x);
 	}
 
-	// perform V-cycle
+	//! perform V-cycle
 	void vcycle(T* r, const T* b, T* x)
 	{
 		boost::shared_ptr<Timer> t;
@@ -8485,7 +8547,7 @@ IACA_END
 //		project_zero(x);
 	}
 
-	// compute x += a*y
+	//! compute x += a*y
 	void incTensor(T*x, T a, const T* y)
 	{
 		#pragma omp parallel for schedule (static)
@@ -8494,7 +8556,7 @@ IACA_END
 		}
 	}
 	
-	// compute r = x + a*y
+	//! compute r = x + a*y
 	void xpayTensor(T* r, const T* x, T a, const T* y)
 	{
 		#pragma omp parallel for schedule (static)
@@ -8508,11 +8570,12 @@ IACA_END
 		memcpy(b, a, sizeof(T)*n);
 	}
 
-	// run direct solver
-	// r: residual
-	// b: right hand side
-	// x: solution and initial guess
-	// tol: stopping tolerance (l2 norm of residual)
+	//! run direct solver
+	//! \param r residual
+	//! \param b right hand side
+	//! \param x solution and initial guess
+	//! \param tol stopping tolerance (l2 norm of residual)
+	//! \param maxiter maximum number of iterations
 	void run_direct(T* r, const T* b, T* x, T tol, std::size_t maxiter)
 	{
 		T small = boost::numeric::bounds<T>::smallest();
@@ -8544,13 +8607,15 @@ IACA_END
 		}
 	}
 
-	// run preconditioned CG solver
-	// z, d: temporary arrays
-	// r: residual
-	// h: predonditioned residual (C*r)
-	// b: right hand side
-	// x: solution and initial guess
-	// tol: stopping tolerance (C-norm of residual)
+	//! Run preconditioned CG solver
+	//! \param z temporary array
+	//! \param d temporary array
+	//! \param r residual
+	//! \param h predonditioned residual (C*r)
+	//! \param b right hand side
+	//! \param x solution and initial guess
+	//! \param tol stopping tolerance (C-norm of residual)
+	//! \param maxiter maximum number of iterations
 	void run_pcg(T* z, T* d, T* r, T* h, const T* b, T* x, T tol, std::size_t maxiter)
 	{
 		// r = b - A*x
@@ -8615,7 +8680,7 @@ IACA_END
 		}
 	}
 
-	// print the diagonal of A
+	//! print the diagonal of A
 	void print_diag()
 	{
 		for (std::size_t ii = 0; ii < nx; ii++) {
@@ -8646,7 +8711,6 @@ IACA_END
 
 		return s;
 	}
-
 
 	T norm(const T* x) const
 	{
@@ -8730,11 +8794,10 @@ IACA_END
 		// do recursive initaliization of coarser levels
 		coarser_level->init_levels(nmin);
 	}
-
-
 };
 
 
+//! Base class for tensors
 template<typename T, int DIM>
 class Tensor : public ublas::c_vector<T, DIM>
 {
@@ -8761,20 +8824,23 @@ public:
 
 	inline operator T*() const { return this->E; }
 
+	//! zero tensor and set one diagonal entry to one
 	inline void eye(std::size_t index)
 	{
 		std::memset(this->E, 0, DIM*sizeof(T));
 		(*this)[index] = 1;
 	}
 
+	//! return dimension of tensor
 	inline int dim() { return DIM; }
 
+	//! copy tensor data from pointer v
 	inline void copyFrom(const T* v)
 	{
 		memcpy(this->E, v, DIM*sizeof(T));
 	}
 
-	// computes the Greens strain tensor E = (F^T*F-I)/2
+	//! computes the Greens strain tensor E = (F^T*F-I)/2
 	inline void greenStrain(const T* F)
 	{
 		// 0 8 7  0 5 4 
@@ -8788,7 +8854,7 @@ public:
 		this->E[5] = 0.5*(F[0]*F[5] + F[8]*F[1] + F[7]*F[6]);
 	}
 
-	// computes the directional derivative dE/dF : W of Greens strain tensor E = (F^T*F-I)/2
+	//! computes the directional derivative dE/dF : W of Greens strain tensor E = (F^T*F-I)/2
 	inline void greenStrainDeriv(const T* F, const T* W)
 	{
 		this->E[0] = 0.5*(W[0]*F[0] + W[8]*F[8] + W[7]*F[7]  +  F[0]*W[0] + F[8]*W[8] + F[7]*W[7]);
@@ -8799,8 +8865,7 @@ public:
 		this->E[5] = 0.5*(W[0]*F[5] + W[8]*F[1] + W[7]*F[6]  +  F[0]*W[5] + F[8]*W[1] + F[7]*W[6]);
 	}
 
-
-	// computes the Greens strain tensor E = F^T*F
+	//! computes the Greens strain tensor E = F^T*F
 	inline void rightCauchyGreen(const T* F)
 	{
 		// 0 8 7  0 5 4 
@@ -8814,7 +8879,7 @@ public:
 		this->E[5] = (F[0]*F[5] + F[8]*F[1] + F[7]*F[6]);
 	}
 
-	// computes the Greens strain tensor directional derivative dE = dF^T*F + F^T*dF
+	//! computes the Greens strain tensor directional derivative dE = dF^T*F + F^T*dF
 	inline void rightCauchyGreenDeriv(const T* F, const T* W)
 	{
 		// 0 8 7  0 5 4 
@@ -8828,6 +8893,7 @@ public:
 		this->E[5] = (F[0]*W[5] + F[8]*W[1] + F[7]*W[6]) + (W[0]*F[5] + W[8]*F[1] + W[7]*F[6]);
 	}
 
+	//! fill tensor with random values
 	inline void random()
 	{
 		for (std::size_t j = 0; j < DIM; j++) {
@@ -8835,17 +8901,21 @@ public:
 		}
 	}
 
+	//! set tensor to zero
 	inline void zero()
 	{
 		std::memset(this->E, 0, DIM*sizeof(T));
 	}
 
+	//! print tensor data
 	inline void print(const char* name)
 	{
 		LOG_COUT << "tensor " << name << ": " << format(*this) << std::endl;
 	}
 };
 
+
+//! Identity tensor base class
 template<typename T, int DIM>
 class TensorIdentity
 {
@@ -8854,6 +8924,7 @@ public:
 };
 
 
+//! 3x3 identity matrix
 template<typename T>
 class TensorIdentity<T, 3>
 {
@@ -8869,6 +8940,7 @@ const T TensorIdentity<T, 3>::Id[9] = {
 };
 
 
+//! 6x6 identity matrix
 template<typename T>
 class TensorIdentity<T, 6>
 {
@@ -8886,13 +8958,14 @@ const T TensorIdentity<T, 6>::Id[36] = {
 	0, 0, 0, 0, 0, 1,
 };
 
+
+//! 9x9 identity matrix
 template<typename T>
 class TensorIdentity<T, 9>
 {
 public:
 	static const T Id[81];
 };
-
 
 template<typename T>
 const T TensorIdentity<T, 9>::Id[81] = {
@@ -8907,9 +8980,11 @@ const T TensorIdentity<T, 9>::Id[81] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 1,
 };
 
+
 template<typename T> class Tensor3;
 
-// the components: e11, e22, e33, e23, e13, e12, e32, e31, e21
+//! Class for 3x3 matrix
+// the components are stored as vector: e11, e22, e33, e23, e13, e12, e32, e31, e21
 template<typename T>
 class Tensor3x3 : public Tensor<T, 9>
 {
@@ -8935,6 +9010,7 @@ public:
 		this->E[8] = m(1,0);
 	}
 
+	//! copy to ublas matrix
 	inline void copyTo(ublas::matrix<T>& m) {
 		m(0,0) = this->E[0];
 		m(1,1) = this->E[1];
@@ -8947,6 +9023,7 @@ public:
 		m(1,0) = this->E[8];
 	}
 
+	//! compute inverse of A
 	inline void inv(const T* A)
 	{
 #if 0
@@ -8996,7 +9073,7 @@ public:
 		(*this) *= -1;
 	}
 
-	// multiply 3x3 by 3x3 transpose
+	//! multiply 3x3 by 3x3 transpose
 	inline void mult_t(const T* F, const T* S)
 	{
 		this->E[0] = F[0]*S[0] + F[5]*S[5] + F[4]*S[4];
@@ -9010,8 +9087,7 @@ public:
 		this->E[8] = F[8]*S[0] + F[1]*S[5] + F[3]*S[4];
 	}
 
-
-	// multiply 3x3 by symmetric 3x3
+	//! multiply 3x3 by symmetric 3x3
 	inline void mult_sym(const T* F, const T* S)
 	{
 		this->E[0] = F[0]*S[0] + F[5]*S[5] + F[4]*S[4];
@@ -9025,7 +9101,7 @@ public:
 		this->E[8] = F[8]*S[0] + F[1]*S[5] + F[3]*S[4];
 	}
 
-	// multiply symmetric 3x3 by symmetric 3x3
+	//! multiply symmetric 3x3 by symmetric 3x3
 	inline void mult_sym_sym(const T* F, const T* S)
 	{
 		this->E[0] = F[0]*S[0] + F[5]*S[5] + F[4]*S[4];
@@ -9039,9 +9115,8 @@ public:
 		this->E[8] = F[5]*S[0] + F[1]*S[5] + F[3]*S[4];
 	}
 
-
-	// create rotation matrix from n1 to n2 (http://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula)
-	// n1 and n2 must have length 1
+	//! create rotation matrix from n1 to n2 (http://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula)
+	//! n1 and n2 must have length 1
 	// https://github.com/OpenFOAM/OpenFOAM-2.1.x/blob/master/src/OpenFOAM/primitives/transform/transform.H#L45
 	inline void rot(const Tensor3<T>& n1, const Tensor3<T>& n2)
 	{
@@ -9164,7 +9239,8 @@ inline T Tensor3x3<T>::trace(const T* A)
 }
 
 
-// the components: e11, e22, e33, e23, e13, e12
+//! Symmetric 3x3 matrix
+// the components are stored as vector with components: e11, e22, e33, e23, e13, e12
 template<typename T>
 class SymTensor3x3 : public Tensor<T, 6>
 {
@@ -9174,8 +9250,10 @@ public:
 	inline SymTensor3x3(const T* data) : Tensor<T, 6>(data) { }
 	inline SymTensor3x3(const SymTensor3x3<T>& t) : Tensor<T, 6>(t.E) { }
 
+	//! compute determinant of A
 	static inline T det(const T* A);
 
+	//! compute inverse of A
 	inline void inv(const T* A)
 	{
 		T invdet = 1/SymTensor3x3<T>::det(A);
@@ -9195,7 +9273,7 @@ public:
 		(*this) *= -1;
 	}
 
-	// multiply asymmetric matrix with symmetric matrix and assume the result is symmmetric
+	//! multiply asymmetric matrix with symmetric matrix and assume the result is symmmetric
 	inline void mult_asym(const T* A, const T* S)
 	{
 		// 0 5 4  0 5 4
@@ -9210,11 +9288,13 @@ public:
 		this->E[5] = A[0]*S[5] + A[5]*S[1] + A[4]*S[3];
 	}
 
+	//! return determinant
 	inline T det() const
 	{
 		return Tensor3x3<T>::det(this->E);
 	}
 
+	//! return contraction with A
 	inline T dot(const T* A) const
 	{
 		return this->E[0]*A[0] + this->E[1]*A[1] + this->E[2]*A[2] + 2*(this->E[3]*A[3] + this->E[4]*A[4] + this->E[5]*A[5]);
@@ -9292,7 +9372,7 @@ inline T SymTensor3x3<T>::det(const T* A)
 		+A[4]*(A[5]*A[3]-A[1]*A[4]);
 }
 
-// the components: e11, e22, e33, e23, e13, e12, e32, e31, e21
+//! 9x9 matrix
 template<typename T>
 class Tensor9x9 : public Tensor<T, 81>
 {
@@ -9302,6 +9382,7 @@ class Tensor9x9 : public Tensor<T, 81>
 };
 
 
+//! Vector of length 3
 template<typename T>
 class Tensor3 : public Tensor<T, 3>
 {
@@ -9310,6 +9391,7 @@ public:
 	inline Tensor3(const T* data) : Tensor<T, 3>(data) { }
 	inline Tensor3(const Tensor3<T>& t) : Tensor<T, 3>(t.E) { }
 
+	//! cross product of two vectors
 	inline void cross(const T* n1, const T* n2)
 	{
 		this->E[0] = n1[1]*n2[2] - n1[2]*n2[1];
@@ -9317,6 +9399,7 @@ public:
 		this->E[2] = n1[0]*n2[1] - n1[1]*n2[0];
 	}
 
+	//! Matrix vector product
 	inline void mult(const SymTensor3x3<T>& A, const Tensor3<T>& b)
 	{
 		this->E[0] = A[0]*b[0] + A[5]*b[1] + A[4]*b[2];
@@ -9324,6 +9407,7 @@ public:
 		this->E[2] = A[4]*b[0] + A[3]*b[1] + A[2]*b[2];
 	}
 
+	//! Matrix vector product
 	inline void mult(const Tensor3x3<T>& A, const Tensor3<T>& b)
 	{
 		this->E[0] = A[0]*b[0] + A[5]*b[1] + A[4]*b[2];
@@ -9331,11 +9415,13 @@ public:
 		this->E[2] = A[7]*b[0] + A[6]*b[1] + A[2]*b[2];
 	}
 
+	//! Dot product
 	inline T dot(const T* b) const
 	{
 		return this->E[0]*b[0] + this->E[1]*b[1] + this->E[2]*b[2];
 	}
 
+	//! Normalize vector to length 1
 	inline void normalize()
 	{
 		(*this) /= std::sqrt(dot(*this));
@@ -9343,6 +9429,7 @@ public:
 };
 
 
+//! Base class for 3d tensor fields (compatible with FFT)
 class TensorFieldBase
 {
 public:
@@ -9375,6 +9462,7 @@ public:
 };
 
 
+//! 3d tensor field
 template<typename T, typename S = T>
 class TensorField : public TensorFieldBase
 {
@@ -9590,7 +9678,7 @@ public:
 		}
 	}
 
-	// compute t = t + x
+	//! compute t = t + x
 	noinline void add(const TensorField<T,S>& x)
 	{
 		Timer __t("add", false);
@@ -9610,7 +9698,7 @@ public:
 #endif
 	}
 	
-	// compute r = x + a*y
+	//! compute r = x + a*y
 	noinline void xpay(const TensorField<T,S>& x, T a, const TensorField<T,S>& y)
 	{
 		Timer __t("xpay", false);
@@ -9632,7 +9720,7 @@ public:
 #endif
 	}
 	
-	// add constant to each component of tensor
+	//! add constant to each component of tensor
 	noinline void add(const ublas::vector<T>& c)
 	{
 		Timer __t("add", false);
@@ -9667,7 +9755,7 @@ public:
 #endif
 	}
 	
-	// scale tensor component wise
+	//! scale tensor component wise
 	noinline void scale(const ublas::vector<T>& c)
 	{
 		Timer __t("scale", false);
@@ -9683,7 +9771,7 @@ public:
 		}
 	}
 
-	// linear interpolation of values
+	//! linear interpolation of values
 	void interpolate(T i, T j, T k, T* ret)
 	{
 		i = std::min(-1e-5+(T)nx, std::max((T)0, i));
@@ -9712,7 +9800,7 @@ public:
 		}
 	}
 
-	// init tensor with random values
+	//! init tensors with random values
 	noinline void random()
 	{
 		Timer __t("random", false);
@@ -9727,6 +9815,7 @@ public:
 		}
 	}
 
+	//! set tensors to zero
 	noinline void zero()
 	{
 		Timer __t("zero", false);
@@ -9741,7 +9830,7 @@ public:
 #endif
 	}
 
-	// absolute value
+	//! absolute value of components
 	noinline void abs()
 	{
 		Timer __t("abs", false);
@@ -9761,7 +9850,7 @@ public:
 #endif
 	}
 
-	// scale tensor by constant
+	//! scale tensors by constant
 	noinline void scale(T s)
 	{
 		Timer __t("scale", false);
@@ -9815,7 +9904,7 @@ public:
 		}
 	}
 
-	// set tensor values to constant
+	//! Set tensor values to constant value
 	// NOTE: we also write to the padding, this does not matter
 	noinline void setConstant(T c)
 	{
@@ -9836,7 +9925,7 @@ public:
 #endif
 	}
 
-	// set tensor values to constant
+	//! Set tensor values to constant vector of length dim
 	// NOTE: we also write to the padding, this does not matter
 	noinline void setConstant(const ublas::vector<T>& c)
 	{
@@ -9850,7 +9939,7 @@ public:
 		}
 	}
 
-	// set tensor values to constant
+	//! Set tensor values to constant at index
 	// NOTE: we also write to the padding, this does not matter
 	inline void setConstant(std::size_t index, const ublas::vector<T>& c)
 	{
@@ -9859,7 +9948,7 @@ public:
 		}
 	}
 
-	// set tensor values to constant 1
+	//! Set tensor values to constant 1 at index
 	noinline void setOne(std::size_t index)
 	{
 		Timer __t("setOne", false);
@@ -9871,7 +9960,7 @@ public:
 		}
 	}
 
-	// assign data at index i to tensor
+	//! Assign data at index i to tensor
 	inline void assign(std::size_t i, T* E) const
 	{
 		for (std::size_t k = 0; k < dim; k++) {
@@ -9961,7 +10050,7 @@ public:
 	}
 */
 
-	// returns the average value for each component of the tensor
+	//! Returns the average value for each component of the tensor
 	noinline ublas::vector<T> average() const
 	{
 		Timer __t("average", false);
@@ -10001,7 +10090,7 @@ public:
 		return a;
 	}
 
-	// returns the max value for each component of the tensor
+	//! Returns the max value for each component of the tensor
 	noinline ublas::vector<T> max() const
 	{
 		Timer __t("max", false);
@@ -10048,7 +10137,7 @@ public:
 		return a;
 	}
 
-	// 
+	//! Return checksum for tensor field
 	noinline long checksum() const
 	{
 		Timer __t("checksum", false);
@@ -10076,6 +10165,7 @@ public:
 };
 
 
+//! Base class for material laws
 template<typename T>
 class MaterialLaw
 {
@@ -10102,17 +10192,17 @@ public:
 		return y;
 	}
 
-	// compute energy
+	//! compute energy at field index i for deformation gradient F
 	virtual T W(std::size_t i, const T* F) const
 	{
 		BOOST_THROW_EXCEPTION(std::runtime_error("MaterialLaw energy not implemented"));
 	}
 
-	// compute P = alpha*P(F) + gamma*P, where P(F) denotes the first Piola-Kirchhoff stress and F is the deformation gradient
-	// F and P are length 9
+	//! compute P = alpha*P(F) + gamma*P, where P(F) denotes the first Piola-Kirchhoff stress and F is the deformation gradient
+	//! F and P are length 9
 	virtual void PK1(std::size_t i, const T* F, T alpha, bool gamma, T* P) const = 0;
 
-	// compute cauchy stress
+	//! compute cauchy stress
 	void Cauchy(std::size_t i, const T* F, T alpha, bool gamma, T* sigma) const
 	{
 		const T c = 1/Tensor3x3<T>::det(F);
@@ -10135,7 +10225,7 @@ public:
 		}
 	}
 
-	// compute PK1 derivative by finite differences
+	//! compute PK1 derivative by finite differences
 	void PK1_fd(std::size_t i, const T* F, T alpha, bool gamma, T* P, std::size_t dim, T eps) const
 	{
 		T Feps[9];
@@ -10160,11 +10250,11 @@ public:
 		}
 	}
 
-	// compute the linearized PK1 dP = alpha*dP(F)/dF(F) : W + gamma*dP for all n directions in W, the list of results dP must have same length as W
-	// F ist length 9, W and dP are length 9*n
+	//! compute the linearized PK1 dP = alpha*dP(F)/dF(F) : W + gamma*dP for all n directions in W, the list of results dP must have same length as W
+	//! F ist length 9, W and dP are length 9*n
 	virtual void dPK1(std::size_t i, const T* F, T alpha, bool gamma, const T* W, T* dP, std::size_t n = 1) const = 0;
 
-	// compute directional derivative by finite differences
+	//! compute directional derivative by finite differences
 	void dPK1_fd(std::size_t i, const T* F, T alpha, bool gamma, const T* W, T* dP, std::size_t n, std::size_t dim, T eps) const
 	{
 		T Feps[9];
@@ -10198,9 +10288,9 @@ public:
 		}
 	}
 
+	//! compute sigma = (C0 + C)(C0 - C)^{-1} epsilon, C0 = 2*mu_0
+	//! if inv is true then: sigma = -(C0 - C)^{-1} epsilon
 	// Eyre, D. J., & Milton, G. W. (1999). A fast numerical scheme for computing the response of composites using grid refinement. The European Physical Journal Applied Physics, 6(1), 41–47. doi:10.1051/epjap:1999150
-	// compute sigma = (C0 + C)(C0 - C)^{-1} epsilon, C0 = 2*mu_0
-	// if inv is true then: sigma = -(C0 - C)^{-1} epsilon
 	virtual void calcPolarization(std::size_t i, T mu_0, const ublas::vector<T>& F, ublas::vector<T>& P,
 		std::size_t dim, bool inv) const
 	{
@@ -10240,6 +10330,7 @@ public:
 };
 
 
+//! Base class for Goldberg materials
 template<typename T>
 class GeneralGoldbergMaterialLaw : public MaterialLaw<T>
 {
@@ -10453,7 +10544,7 @@ public:
 	}
 };
 
-
+//! Goldberg Matrix1 material
 template<typename T>
 class Matrix1GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10489,6 +10580,7 @@ public:
 };
 
 
+//! Goldberg Matrix2 material
 template<typename T>
 class Matrix2GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10529,6 +10621,7 @@ public:
 };
 
 
+//! Goldberg Matrix3 material
 template<typename T>
 class Matrix3GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10567,6 +10660,7 @@ public:
 };
 
 
+//! Goldberg Matrix4 material
 template<typename T>
 class Matrix4GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10608,7 +10702,7 @@ public:
 };
 
 
-
+//! Goldberg Fiber1 material
 template<typename T>
 class Fiber1GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10644,6 +10738,7 @@ public:
 };
 
 
+//! Goldberg Fiber2 material
 template<typename T>
 class Fiber2GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10686,6 +10781,7 @@ public:
 };
 
 
+//! Goldberg Fiber3 material
 template<typename T>
 class Fiber3GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10723,6 +10819,7 @@ public:
 };
 
 
+//! Goldberg Fiber4 material
 template<typename T>
 class Fiber4GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10761,6 +10858,7 @@ public:
 };
 
 
+//! Goldberg Fiber5 material
 template<typename T>
 class Fiber5GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10797,6 +10895,7 @@ public:
 };
 
 
+//! Goldberg Fiber6 material
 template<typename T>
 class Fiber6GoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10836,7 +10935,7 @@ public:
 };
 
 
-
+//! Class for validating Goldberg material derivatives
 template<typename T>
 class CheckGoldbergMaterialLaw : public GeneralGoldbergMaterialLaw<T>
 {
@@ -10865,6 +10964,7 @@ public:
 };
 
 
+//! Linear ainsotropic material law given by symmetric 3x3 matrix
 template<typename T>
 class MatrixLinearAnisotropicMaterialLaw : public MaterialLaw<T>
 {
@@ -10936,7 +11036,7 @@ public:
 };
 
 
-
+//! Linear isotropic material law given by single scalar value
 template<typename T>
 class ScalarLinearIsotropicMaterialLaw : public MaterialLaw<T>
 {
@@ -11008,7 +11108,7 @@ public:
 };
 
 
-
+//! Linear isotropic material law for elasticity defined by two Lame parameters
 template<typename T>
 class LinearIsotropicMaterialLaw : public MaterialLaw<T>
 {
@@ -11133,6 +11233,7 @@ public:
 };
 
 
+//! Linear transversely isotropic material law for elasticity defined by five parameters
 template<typename T, int DIM>
 class LinearTransverselyIsotropicMaterialLaw : public MaterialLaw<T>
 {
@@ -11251,6 +11352,7 @@ public:
 };
 
 
+//! Saint Venant-Kirchhoff material for hyperelasticity
 template<typename T>
 class SaintVenantKirchhoffMaterialLaw : public MaterialLaw<T>
 {
@@ -11381,6 +11483,7 @@ public:
 };
 
 
+//! Neo Hooke material law for hyperelasticity
 template<typename T>
 class NeoHookeMaterialLaw : public MaterialLaw<T>
 {
@@ -11518,6 +11621,7 @@ public:
 };
 
 
+//! Neo Hooke material law for hyperelasticity (variant 2)
 template<typename T>
 class NeoHooke2MaterialLaw : public MaterialLaw<T>
 {
@@ -11654,6 +11758,7 @@ public:
 };
 
 
+//! Base class for phase fields (description of spatial concentration of materials)
 template<typename T, typename P>
 class PhaseBase
 {
@@ -11692,6 +11797,7 @@ public:
 		select_dfg(false);
 	}
 
+	//! select doubly fine grid (for staggered grid method)
 	void select_dfg(bool yes)
 	{
 		if (yes && !_phi_dfg) {
@@ -11715,6 +11821,7 @@ public:
 };
 
 
+//! Base class for mixed material laws (e.g. at interfaces where more than one phase is present)
 template<typename T, typename P>
 class MixedMaterialLawBase : public MaterialLaw<T>
 {
@@ -11760,7 +11867,7 @@ public:
 		phases.push_back(phase);
 	}
 
-	// make tensor symmetric, if operating in linear elasticity 
+	//! make 6x6 tensor symmetric, if operating in linear elasticity 
 	inline void fix_dim(T* t) const
 	{
 		if (dim() == 6) {
@@ -11773,7 +11880,7 @@ public:
 		}
 	}
 
-	// make tensor symmetric, if operating in linear elasticity 
+	//! make 6x6 tensor symmetric, if operating in linear elasticity 
 	inline void fix_sym(T* t) const
 	{
 		if (dim() == 6) {
@@ -11792,11 +11899,13 @@ public:
 };
 
 
+//! Mixed material class
 template<typename T, typename P, int DIM>
 class MixedMaterialLaw : public MixedMaterialLawBase<T, P>
 {
 public:
-	// comupute (lambda_min + lambda_max)/2 for dP/dF
+	//! comupute reference material
+	//! i.e. (lambda_min + lambda_max)/2 for dP/dF
 	noinline void getRefMaterial(TensorField<T>& F, T& mu_0, T& lambda_0, bool zero_trace, bool polarization) const
 	{
 		Timer __t("getRefMaterial", false);
@@ -11882,7 +11991,7 @@ br:
 		lambda_0 = 0.0;
 	}
 
-	// mean quantities for W 
+	//! mean quantities for energy W 
 	noinline T meanW(const TensorField<T>& F) const
 	{
 		Timer __t("meanW", false);
@@ -11909,7 +12018,9 @@ br:
 		return (S/F.nxyz);
 	}
 
-	// mean quantities for PK1 
+	//! Mean value for Cauchy stress 
+	//! \param F strain
+	//! \param alpha scaling constant
 	noinline ublas::vector<T> meanCauchy(const TensorField<T>& F, T alpha) const
 	{
 		Timer __t("meanCauchy", false);
@@ -11951,7 +12062,9 @@ br:
 		return S;
 	}
 
-	// mean quantities for PK1 
+	//! Mean value for PK1 
+	//! \param F strain
+	//! \param alpha scaling constant
 	noinline ublas::vector<T> meanPK1(const TensorField<T>& F, T alpha) const
 	{
 		Timer __t("meanPK1", false);
@@ -11993,7 +12106,8 @@ br:
 		return S;
 	}
 
-	// mean quantities for PK1 
+	//! Mean value for stress 
+	//! \param F strain
 	noinline T maxStress(const TensorField<T>& F) const
 	{
 		Timer __t("maxStress", false);
@@ -12055,7 +12169,7 @@ br:
 		return m;
 	}
 
-	// mean quantities for PK1 
+	//! mean quantities for PK1 
 	noinline T minEig(const TensorField<T>& F, bool zero_trace) const
 	{
 		Timer __t("minEig", false);
@@ -12110,7 +12224,7 @@ br:
 		return m;
 	}
 
-	// compute eigenvalues of dP(F)/dF(F)
+	//! Compute eigenvalues of dP(F)/dF(F)
 	inline void eig(std::size_t i, const T* F, T& lambda_min_p, T& lambda_max_p, bool zero_trace) const
 	{
 
@@ -12200,10 +12314,12 @@ br:
 #endif
 	}
 
+	//! Dimenson of strain field the material law is acting on
 	inline int dim() const { return DIM; }
 };
 
 
+//! Mixed material which uses the material with the maximum volume fraction 
 template<typename T, typename _P, int DIM>
 class MaximumMixedMaterialLaw : public MixedMaterialLaw<T, _P, DIM>
 {
@@ -12243,6 +12359,7 @@ public:
 };
 
 
+//! Mixed material with some special deviatoric volumetric splitting
 template<typename T, typename _P, int DIM>
 class SplitMixedMaterialLaw : public MixedMaterialLaw<T, _P, DIM>
 {
@@ -12287,6 +12404,7 @@ public:
 };
 
 
+//! Mixed material using the Reuss lower bound
 template<typename T, typename _P, int DIM>
 class ReussMixedMaterialLaw : public MixedMaterialLaw<T, _P, DIM>
 {
@@ -12362,7 +12480,7 @@ public:
 };
 
 
-
+//! Mixed material using the Voigt upper bound
 template<typename T, typename _P, int DIM>
 class VoigtMixedMaterialLaw : public MixedMaterialLaw<T, _P, DIM>
 {
@@ -12415,6 +12533,7 @@ public:
 };
 
 
+//! Mixed material using a random material, where the probability is proportional to its concentration
 template<typename T, typename _P, int DIM>
 class RandomMixedMaterialLaw : public MixedMaterialLaw<T, _P, DIM>
 {
@@ -12502,7 +12621,7 @@ public:
 };
 
 
-
+//! Mixed material where materials with nonzero concentration are all weigthed equally
 template<typename T, typename _P, int DIM>
 class FiftyFiftyMixedMaterialLaw : public MixedMaterialLaw<T, _P, DIM>
 {
@@ -12590,6 +12709,7 @@ public:
 };
 
 
+//! Mixed material where materials with nonzero concentration are all weigthed equally
 template<typename T, typename _P, int DIM>
 class IsoMixedMaterialLaw : public MixedMaterialLaw<T, _P, DIM>
 {
@@ -12717,6 +12837,7 @@ public:
 };
 
 
+//! Mixed material which uses the laminate mixing rule at interfaces
 template<typename T, typename _P, int DIM>
 class LaminateMixedMaterialLaw : public MixedMaterialLaw<T, _P, DIM>
 {
@@ -13367,6 +13488,7 @@ if (this->comp_fix) {
 };
 
 
+//! Mixed material which uses a special laminate mixing rule at interfaces
 template<typename T, typename _P, int DIM>
 class InfinityLaminateMixedMaterialLaw : public LaminateMixedMaterialLaw<T, _P, DIM>
 {
@@ -13697,6 +13819,7 @@ public:
 };
 
 
+//! Mixed material which was experimentally used for the viscosity solver
 template<typename T, typename _P, int DIM>
 class FluidityMixedMaterialLaw : public MixedMaterialLaw<T, _P, DIM>
 {
@@ -13844,6 +13967,7 @@ public:
 };
 
 
+//! Prolongation of a tensor field c to a doubly fine field f (for staggered grid)
 template<typename T>
 noinline void prolongate_to_dfg(const TensorField<T>& c, const TensorField<T>& f)
 {
@@ -13900,6 +14024,7 @@ noinline void prolongate_to_dfg(const TensorField<T>& c, const TensorField<T>& f
 }
 
 
+//! Restriction of a fine tensor field f to a coarse field c (for staggered grid)
 template<typename T>
 noinline void restrict_from_dfg(const TensorField<T>& f, const TensorField<T>& c)
 {
@@ -13970,7 +14095,7 @@ noinline void restrict_from_dfg(const TensorField<T>& f, const TensorField<T>& c
 }
 
 
-
+//! Base class for error estimators (for abstaction of stopping criteria of iterative solvers)
 template<typename T>
 class ErrorEstimator
 {
@@ -13978,19 +14103,25 @@ public:
 	typedef TensorField<T> RealTensor;
 	typedef boost::shared_ptr<RealTensor> pRealTensor;
 
+	//! update the current error estimates
 	virtual void update() {
 		BOOST_THROW_EXCEPTION(std::runtime_error("Selected error estimator is not compatible with the selected solution method"));
 	}
 	
+	//! update the current error estimates (used by conjugate gradients)
 	virtual void update_cg(T gamma, T gamma0) {
 		BOOST_THROW_EXCEPTION(std::runtime_error("Selected error estimator is not compatible with the selected solution method"));
 	}
 
+	//! returns the current relative error
 	virtual T rel_error() const = 0;
+
+	//! returns the current absolute error
 	virtual T abs_error() const = 0;
 };
 
 
+//! Error estimator which always returns an error of 1.0
 template<typename T, typename P>
 class NoneErrorEstimator : public ErrorEstimator<T>
 {
@@ -14002,6 +14133,7 @@ public:
 };
 
 
+//! Error estimator based on residual
 template<typename T, typename P>
 class ResidualErrorEstimator : public ErrorEstimator<T>
 {
@@ -14026,6 +14158,7 @@ public:
 };
 
 
+//! Error estimator based on change in engergy
 template<typename T, typename P>
 class EnergyErrorEstimator : public ErrorEstimator<T>
 {
@@ -14085,6 +14218,7 @@ public:
 };
 
 
+//! Error estimator based on stress divergence
 template<typename T, typename P>
 class DivSigmaErrorEstimator : public ErrorEstimator<T>
 {
@@ -14128,7 +14262,7 @@ public:
 };
 
 
-
+//! Error estimator based on change in stress
 template<typename T, typename P>
 class SigmaErrorEstimator : public ErrorEstimator<T>
 {
@@ -14206,6 +14340,7 @@ public:
 };
 
 
+//! Error estimator based on change in strain
 template<typename T, typename P>
 class EpsilonErrorEstimator : public ErrorEstimator<T>
 {
@@ -14256,7 +14391,7 @@ public:
 
 
 
-// Lippmann-Schwinger solver
+//! Lippmann-Schwinger solver
 template<typename T, typename P, int DIM>
 class LSSolver
 {
@@ -14554,6 +14689,7 @@ public:
 		return _normals;
 	}
 	
+	//! Create an error estimator by name
 	ErrorEstimator<T>* create_error_estimator(std::string name = "")
 	{
 		ErrorEstimator<T>* ee = NULL;
@@ -14588,6 +14724,7 @@ public:
 		return ee;
 	}
 	
+	//! Create a mixed material by name and settings from a ptree
 	MixedMaterialLawBase<T, P>* create_mixing_rule(const std::string& _name, const ptree::ptree& pt)
 	{
 		MixedMaterialLawBase<T, P>* ret;
@@ -14968,6 +15105,7 @@ public:
 		}
 	}
 
+	//! return a list of phase names
 	std::vector<std::string> getPhaseNames() const
 	{
 		std::vector<std::string> names;
@@ -14979,6 +15117,7 @@ public:
 		return names;
 	}
 
+	//! return material index for a phase name
 	std::size_t getMaterialIndex(const std::string& field) const
 	{
 		for (std::size_t i = 0; i < _mat->phases.size(); i++) {
@@ -16218,6 +16357,7 @@ public:
 		LOG_COUT << "done10" << std::endl;
 	}
 
+	//! recursively compute volume fraction of material mat for voxel (p,dx,dy,dz)
 	inline P integratePhiVoxel(const FiberGenerator<T, DIM>& fg, int levels, T tol, T r_voxel0, 
 		const ublas::c_vector<T, DIM>& p, T dx, T dy, T dz, int mat, std::vector<typename FiberCluster<T, DIM>::ClosestFiberInfo>& info_list)
 	{
@@ -16672,7 +16812,6 @@ public:
 		}
 	}
 
-
 	void writeData(const std::string& filename) const
 	{
 		std::ofstream fs;
@@ -16748,7 +16887,7 @@ public:
 
 	}
 
-	// init phase indicator and volume fractions
+	//! init phase indicator and volume fractions
 	void initPhi(const FiberGenerator<T, DIM>& fg, bool fast = false)
 	{
 		if (_gamma_scheme == "full_staggered") {
@@ -17388,7 +17527,7 @@ public:
 		return calcMeanEnergy(*_epsilon);
 	}
 
-	// compute <(C-C0):epsilon>
+	//! compute <(C-C0):epsilon>
 	// mu_0, lambda_0: referenece material (C_0)
 	ublas::vector<T> calcMeanStress(const RealTensor& epsilon) const
 	{
@@ -17467,8 +17606,7 @@ public:
 	}
 
 
-	// compute <(C-C0):epsilon>
-	// mu_0, lambda_0: referenece material (C_0)
+	// compute minimum of def(F)
 	noinline T calcMinDetF(const RealTensor& epsilon) const
 	{
 		Timer __t("calcMinDetF", false);
@@ -17518,7 +17656,7 @@ public:
 	}
 
 
-	// compute mean Cauchy Stress
+	//! compute mean Cauchy Stress
 	// mu_0, lambda_0: referenece material (C_0)
 	ublas::vector<T> calcMeanCauchyStress(const RealTensor& epsilon) const
 	{
@@ -17540,39 +17678,35 @@ public:
 		return mean;
 	}
 
-	// compute <C:epsilon>
+	//! compute mean of epsilon
 	inline ublas::vector<T> calcMeanStrain() const
 	{
 		return _epsilon->average();
 	}
 
-	// compute <C:epsilon>
+	//! compute mean Cauchy stress
 	inline ublas::vector<T> calcMeanCauchyStress() const
 	{
 		return calcMeanCauchyStress(*_epsilon);
 	}
 
-	// compute <C:epsilon>
+	//! compute mean of C:epsilon
 	inline ublas::vector<T> calcMeanStress() const
 	{
 		return calcMeanStress(*_epsilon);
 	}
 
-	// compute <C:epsilon>
 	inline T calcMinDetF() const
 	{
 		return calcMinDetF(*_epsilon);
 	}
 
-	// compute <C:epsilon>
 	inline T calcMinEigH() const
 	{
 		return calcMinEigH(*_epsilon);
 	}
 
-
-
-	// compute C0:epsilon for isotropic material
+	//! compute C0:epsilon for isotropic material
 	// mu_0, lambda_0: referenece material (C_0)
 	// the result is stored to sigma
 	noinline void calcStressConst(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma)
@@ -17624,7 +17758,7 @@ public:
 #endif
 	}
 
-	// compute (C-C0):epsilon for isotropic material
+	//! compute (C-C0):epsilon for isotropic material
 	// mu_0, lambda_0: referenece material (C_0)
 	// the result is stored to tau
 	inline void calcStress(const RealTensor& epsilon, RealTensor& tau, T alpha = 1)
@@ -17643,8 +17777,8 @@ public:
 	}
 
 	// Eyre, D. J., & Milton, G. W. (1999). A fast numerical scheme for computing the response of composites using grid refinement. The European Physical Journal Applied Physics, 6(1), 41–47. doi:10.1051/epjap:1999150
-	// compute sigma = (C0 + C)(C0 - C)^{-1} epsilon, C0 = 2*mu_0
-	// if inv is true then: sigma = -(C0 - C)^{-1} epsilon
+	//! compute sigma = (C0 + C)(C0 - C)^{-1} epsilon, C0 = 2*mu_0
+	//! if inv is true then: sigma = -(C0 - C)^{-1} epsilon
 	template<int N>
 	noinline void calcPolarizationDim(T mu_0, T lambda_0, const RealTensor& epsilon, RealTensor& sigma, bool inv = false)
 	{
@@ -18026,7 +18160,7 @@ public:
 		END_TRIPLE_LOOP(i)
 	}
 
-	// compute sigma = alpha*(dP/dF(F) - C0) : W
+	//! compute sigma = alpha*(dP/dF(F) - C0) : W
 	noinline void calcStressDeriv(T mu_0, T lambda_0, RealTensor& F, RealTensor& W, RealTensor& sigma, T alpha = 1)
 	{
 		Timer __t("calc stress deriv", false);
@@ -18082,7 +18216,7 @@ public:
 		}
 	}
 
-	// perform inplace forward FFT of vector (first 3 compontents of x)
+	//! perform inplace forward FFT of vector (first 3 compontents of x)
 	noinline void fftVector(const RealTensor& x, ComplexTensor& y, std::size_t dims=3)
 	{
 		Timer __t("fftVector", false);
@@ -18114,7 +18248,7 @@ public:
 		_fft_time += dt_fft;
 	}
 
-	// perform inplace backward FFT of vector (first 3 compontents of x)
+	//! perform inplace backward FFT of vector (first 3 compontents of x)
 	noinline void fftInvVector(const ComplexTensor& x, RealTensor& y, std::size_t dims=3)
 	{
 		Timer __t("fftInvVector", false);
@@ -18132,7 +18266,7 @@ public:
 		_fft_time += dt_fft;
 	}
 
-	// perform inplace forward FFT of tensor
+	//! perform inplace forward FFT of tensor
 	noinline void fftTensor(const RealTensor& x, ComplexTensor& y, bool zero_trace = false)
 	{
 		Timer __t("fftTensor", false);
@@ -18164,7 +18298,7 @@ public:
 		}
 	}
 
-	// perform inplace backward FFT of tensor
+	//! perform inplace backward FFT of tensor
 	noinline void fftInvTensor(const ComplexTensor& x, RealTensor& y, bool zero_trace = false)
 	{
 		Timer __t("fftInvTensor", false);
@@ -18213,8 +18347,8 @@ public:
 	}
 */
 
-	// compute the symmetric gradient of the vector x (first 3 components) add E
-	// and store result in tensor y
+	//! compute the symmetric gradient of the vector x (first 3 components) add E
+	//! and store result in tensor y
 	// x and y may be the same for inplace operation
 	noinline void epsOperatorStaggered(const ublas::vector<T>& E, const RealTensor& x, const RealTensor& y)
 	{
@@ -18296,8 +18430,8 @@ public:
 		}
 	}
 
-	// compute the gradient of the vector x (first 3 components) add E
-	// and store result in tensor y
+	//! compute the gradient of the vector x (first 3 components) add E
+	//! and store result in tensor y
 	// x and y may be the same for inplace operation
 	noinline void epsOperatorStaggeredHeat(const ublas::vector<T>& E, const RealTensor& x, const RealTensor& y)
 	{
@@ -18362,8 +18496,8 @@ public:
 		}
 	}
 
-	// compute the gradient of the vector x (first 3 components) add E
-	// and store result in tensor y
+	//! compute the gradient of the vector x (first 3 components) add E
+	//! and store result in tensor y
 	// x and y may be the same for inplace operation
 	noinline void epsOperatorStaggeredHyper(const ublas::vector<T>& E, const RealTensor& x, const RealTensor& y)
 	{
@@ -18451,9 +18585,9 @@ public:
 		}
 	}
 
-	// compute the divergence of x using backward differences for the diagonal elements
-	// and forward differences for the off-diagonal elements
-	// the result is stored in the first 3 components of y, however the other 3 components are used internally
+	//! compute the divergence of x using backward differences for the diagonal elements
+	//! and forward differences for the off-diagonal elements
+	//! the result is stored in the first 3 components of y, however the other 3 components are used internally
 	// x and y may be the same for inplace operation
 	noinline void divOperatorStaggered(const RealTensor& x, const RealTensor& y)
 	{
@@ -18512,9 +18646,9 @@ public:
 		}
 	}
 
-	// compute the divergence of x using backward differences for the diagonal elements
-	// and forward differences for the off-diagonal elements
-	// the result is stored in the first 3 components of y, however the other 3 components are used internally
+	//! compute the divergence of x using backward differences for the diagonal elements
+	//! and forward differences for the off-diagonal elements
+	//! the result is stored in the first 3 components of y, however the other 3 components are used internally
 	// x and y may be the same for inplace operation
 	noinline void divOperatorStaggeredHeat(const RealTensor& x, const RealTensor& y)
 	{
@@ -18614,9 +18748,9 @@ public:
 	}
 
 
-	// compute the divergence of x using backward differences for the diagonal elements
-	// and forward differences for the off-diagonal elements
-	// the result is stored in the first 3 components of y, however the other 3 components are used internally
+	//! compute the divergence of x using backward differences for the diagonal elements
+	//! and forward differences for the off-diagonal elements
+	//! the result is stored in the first 3 components of y, however the other 3 components are used internally
 	// x and y may be the same for inplace operation
 	noinline void divOperatorStaggeredHyper(const RealTensor& x, const RealTensor& y)
 	{
@@ -18675,8 +18809,8 @@ public:
 		}
 	}
 
-	// compute eta_hat = Delta_hat : tau_hat, eta_hat(0) = E
-	// i.e. compute eta_hat = 2*alpha*mu_0*(tau_hat - 2*mu_0 * Gamma_hat : tau_hat), eta_hat(0) = E
+	//! compute eta_hat = Delta_hat : tau_hat, eta_hat(0) = E
+	//! i.e. compute eta_hat = 2*alpha*mu_0*(tau_hat - 2*mu_0 * Gamma_hat : tau_hat), eta_hat(0) = E
 	void applyDeltaFourier(const ublas::vector<T>& E, T mu_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T alpha = -1)
 	{
 		initBCProjector(tau_hat);
@@ -18684,7 +18818,7 @@ public:
 		applyBCProjector(eta_hat, alpha);
 	}
 
-	// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
+	//! compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
 	noinline void GammaOperatorFourierWillotR(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		T alpha = -1, T beta = 0)
 	{
@@ -18903,7 +19037,7 @@ public:
 		}
 	}
 
-	// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
+	//! compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
 	noinline void GammaOperatorFourierCollocatedHeat(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		T alpha = -1, T beta = 0)
 	{
@@ -18982,7 +19116,7 @@ public:
 	}
 
 
-	// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
+	//! compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
 	noinline void GammaOperatorFourierCollocated(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		T alpha = -1, T beta = 0)
 	{
@@ -19220,7 +19354,7 @@ public:
 		BOOST_THROW_EXCEPTION(std::runtime_error("GammaOperatorFourierStaggeredHyper not implemented"));
 	}
 
-	// compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
+	//! compute eta_hat = alpha * Gamma_hat : tau_hat + beta*tau_hat, eta_hat(0) = E
 	noinline void GammaOperatorFourierCollocatedHyper(const ublas::vector<T>& E, T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		T alpha = -1, T beta = 0)
 	{
@@ -19349,7 +19483,7 @@ public:
 		eta_hat.setConstant(0, E);
 	}
 
-	// compute eta_hat = alpha*G0_hat(tau_hat)
+	//! compute eta_hat = alpha*G0_hat(tau_hat)
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
 	void G0OperatorFourierStaggered(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T alpha = -1)
 	{
@@ -19359,7 +19493,7 @@ public:
 		G0OperatorFourierStaggeredGeneral(mu_0, lambda_0, tau_hat, eta_hat, c10, c20);
 	}
 
-	// compute eta_hat = alpha*G0_hat(tau_hat)
+	//! compute eta_hat = alpha*G0_hat(tau_hat)
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
 	void G0OperatorFourierStaggeredHeat(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T alpha = -1)
 	{
@@ -19368,7 +19502,7 @@ public:
 		G0OperatorFourierStaggeredGeneralHeat(mu_0, lambda_0, tau_hat, eta_hat, c10);
 	}
 
-	// compute eta_hat = alpha*G0_hat(tau_hat)
+	//! compute eta_hat = alpha*G0_hat(tau_hat)
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
 	void G0OperatorFourierStaggeredHyper(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T alpha = -1)
 	{
@@ -19378,7 +19512,7 @@ public:
 		G0OperatorFourierStaggeredGeneral(mu_0, lambda_0, tau_hat, eta_hat, c10, c20);
 	}
 
-	// compute eta_hat = alpha*G0_hat(tau_hat)
+	//! compute eta_hat = alpha*G0_hat(tau_hat)
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
 	noinline void G0OperatorFourierStaggeredGeneralHeat(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T c10)
 	{
@@ -19434,8 +19568,7 @@ public:
 		eta_hat[0][0] = 0;
 	}
 
-
-	// compute eta_hat = alpha*G0_hat(tau_hat)
+	//! compute eta_hat = alpha*G0_hat(tau_hat)
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
 	noinline void G0OperatorFourierStaggeredGeneral(T mu_0, T lambda_0, const ComplexTensor& tau_hat, ComplexTensor& eta_hat, T c10, T c20)
 	{
@@ -19532,8 +19665,10 @@ public:
 		}
 	}
 
-	// solve Laplace x = b
-	// r: temporary vector for residual
+	//! solve Laplace x = b
+	//! \param r temporary vector for residual
+	//! \param x the solution
+	//! \param b the rhs
 	noinline void mg_solve(T* r, T* x, T* b)
 	{
 		Timer __t(_mg_scheme + " poisson solver");
@@ -19582,7 +19717,7 @@ public:
 		}
 	}
 
-	// compute eta_hat = alpha*G0_hat(tau_hat)
+	//! compute divergence of vector tau and store to b
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
 	noinline void divVector(const RealTensor& tau, T* b, T alpha = 1)
 	{
@@ -19606,7 +19741,7 @@ public:
 		}
 	}
 
-	// compute eta_hat = alpha*G0_hat(tau_hat)
+	//! compute eta_hat = alpha*G0_hat(tau_hat)
 	// eta_hat and tau_hat are vectors (only first 3 components are used)
 	void G0OperatorMultigridStaggered(T mu_0, T lambda_0, const RealTensor& tau, RealTensor& eta, T alpha = -1)
 	{
@@ -19979,8 +20114,8 @@ public:
 #endif
 	}
 
-	// compute eta = 2*alpha*mu_0*(tau - mu_0 * Gamma^0 : tau), <eta> = E
-	// where lambda_0 -> infinity, mu_0 -> mu_0/2 is used for Gamma^0
+	//! compute eta = 2*alpha*mu_0*(tau - mu_0 * Gamma^0 : tau), mean eta = E
+	//! where lambda_0 -> infinity, mu_0 -> mu_0/2 is used for Gamma^0
 	void DeltaOperatorWillotR(const ublas::vector<T>& E, T mu_0, T lambda_0,
 		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
 	{
@@ -20021,9 +20156,8 @@ public:
 		*/
 	}
 
-
-	// compute eta = 2*alpha*mu_0*(tau - mu_0 * Gamma^0 : tau), <eta> = E
-	// where lambda_0 -> infinity, mu_0 -> mu_0/2 is used for Gamma^0
+	//! compute eta = 2*alpha*mu_0*(tau - mu_0 * Gamma^0 : tau), mean eta = E
+	//! where lambda_0 -> infinity, mu_0 -> mu_0/2 is used for Gamma^0
 	void DeltaOperatorStaggered(const ublas::vector<T>& E, T mu_0, T lambda_0,
 		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
 	{
@@ -20064,8 +20198,8 @@ public:
 		*/
 	}
 
-	// compute eta = 2*alpha*mu_0*(tau - mu_0 * Gamma^0 : tau), <eta> = E
-	// where lambda_0 -> infinity, mu_0 -> mu_0/2 is used for Gamma^0
+	//! compute eta = 2*alpha*mu_0*(tau - mu_0 * Gamma^0 : tau), mean eta = E
+	//! where lambda_0 -> infinity, mu_0 -> mu_0/2 is used for Gamma^0
 	void DeltaOperatorCollocated(const ublas::vector<T>& E, T mu_0, T lambda_0,
 		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta, T alpha = -1)
 	{
@@ -20134,7 +20268,7 @@ public:
 		BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Unknown gamma scheme '%s'") % _gamma_scheme).str()));
 	}
 
-	// wrapper for polarization scheme
+	//! wrapper for polarization scheme
 	// operation depends on the current mode of operation
 	// Eyre, D. J., & Milton, G. W. (1999). A fast numerical scheme for computing the response of composites using grid refinement. The European Physical Journal Applied Physics, 6(1), 41–47. doi:10.1051/epjap:1999150
 	void polarizationScheme(const ublas::vector<T>& P0, const RealTensor& epsilon,
@@ -20157,7 +20291,7 @@ public:
 		GammaOperator(P00 + P0, _mu_0, _lambda_0, tau, tau_hat, eta_hat, eta, -4*_mu_0, 1.0);
 	}
 
-	// wrapper for basic scheme
+	//! wrapper for basic scheme
 	// operation depends on the current mode of operation
 	void basicScheme(const ublas::vector<T>& E, const RealTensor& epsilon,
 		RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat, RealTensor& eta)
@@ -20181,8 +20315,8 @@ public:
 		// LOG_COUT << "eta0 " << Fk << std::endl;
 	}
 
-	// compute res = -Gamma_0 * (C-C0):epsilon  if (_mode == "elasticity" or "hyperelasticity")
-	// compute res = -Delta_0 * (phi-phi0):epsilon if (_mode == "viscosity")
+	//! compute res = -Gamma_0 * (C-C0):epsilon  if (_mode == "elasticity" or "hyperelasticity")
+	//! compute res = -Delta_0 * (phi-phi0):epsilon if (_mode == "viscosity")
 	// note: tau, tau_hat, eta_hat, eta must not be equal to epsilon (i.e. no "in place" operation is possible)
 	void krylovOperator(const RealTensor& epsilon, RealTensor& tau, ComplexTensor& tau_hat, ComplexTensor& eta_hat,
 		RealTensor& eta, RealTensor& res)
@@ -20190,7 +20324,7 @@ public:
 		basicScheme(ublas::zero_vector<T>(epsilon.dim), epsilon, tau, tau_hat, eta_hat, eta);
 	}
 
-	// compute r = -(x + y)
+	//! compute r = -(x + y)
 	void mxpyTensor(T* r, const T* x, const T* y)
 	{
 		#pragma omp parallel for schedule (static)
@@ -20199,7 +20333,7 @@ public:
 		}
 	}
 
-	// set boundary projector
+	//! set boundary projector
 	void setBCProjector(const ublas::matrix<T>& _P)
 	{
 		std::size_t dim = _P.size1();
@@ -20268,7 +20402,7 @@ public:
 		_BC_MQ = Voigt::dyad4(_BC_M, _BC_Q);
 	}
 
-	// set prescribed stress
+	//! set prescribed stress
 	void setStress(const ublas::vector<T>& e)
 	{
 		if (e.size() == 3) {
@@ -20292,7 +20426,7 @@ public:
 
 	}
 
-	// set prescribed strain
+	//! set prescribed strain
 	void setStrain(const ublas::vector<T>& e)
 	{
 		if (e.size() == 3) {
@@ -20315,19 +20449,19 @@ public:
 		}
 	}
 	
-	// returns the current average value for epsilon
+	//! returns the current average value for epsilon
 	inline ublas::vector<T> averageValue()
 	{
 		return _epsilon->average();
 	}
 
-	// return current operation mode
+	//! return current operation mode
 	inline std::string mode()
 	{
 		return _mode;
 	}
 
-	// calculate |norm1 - norm2|
+	//! calculate |norm1 - norm2|
 	noinline T calcNormDiff(const RealTensor& a, const RealTensor& b)
 	{
 		Timer __t("calcNormDiff", false);
@@ -20359,7 +20493,7 @@ public:
 		return d;
 	}
 
-	// compute sum over a:(b - c)
+	//! compute sum over a:(b - c)
 	noinline T innerProduct(RealTensor& a, RealTensor& b, RealTensor& c)
 	{
 		Timer __t("innerProductDiff", false);
@@ -20375,7 +20509,7 @@ public:
 		}
 	}
 
-	// compute sum over a:b
+	//! compute sum over a:b
 	noinline T innerProduct(RealTensor& a, RealTensor& b)
 	{
 		Timer __t("innerProduct", false);
@@ -20471,7 +20605,7 @@ public:
 		return s;
 	}
 
-	// compute sum over a:(b - c)
+	//! compute sum over a:(b - c)
 	noinline T innerProductL2(RealTensor& a, RealTensor& b, RealTensor& c)
 	{
 		Timer __t("innerProductL2", false);
@@ -20555,7 +20689,7 @@ public:
 		return s;
 	}
 
-	// compute sum over a:b
+	//! compute sum over a:b
 	noinline T innerProductL2(RealTensor& a, RealTensor& b)
 	{
 		Timer __t("innerProductL2", false);
@@ -20640,7 +20774,7 @@ public:
 	}
 
 
-	// calculate t:t pointwise
+	//! calculate t:t pointwise
 	noinline void calcNorm(RealTensor& t, T* norm)
 	{
 		BOOST_THROW_EXCEPTION(std::runtime_error("not implemented"));
@@ -20764,7 +20898,7 @@ public:
 		return std::max(err_F, err_S);
 	}
 
-	// general method for convergence check
+	//! general method for convergence check
 	bool converged(std::size_t& iter, T abs_err, T rel_err, bool check_bc = true)
 	{
 		bool ret = _converged(iter, abs_err, rel_err, check_bc);
@@ -20777,7 +20911,7 @@ public:
 		return ret;
 	}
 
-	// general method for convergence check
+	//! general method for convergence check
 	noinline bool _converged(std::size_t& iter, T abs_err, T rel_err, bool check_bc = true)
 	{
 		Timer __t("converged", false);
@@ -20847,6 +20981,7 @@ public:
 		return false;
 	}
 
+	//! run the solver
 	noinline bool run()
 	{
 		Timer __t("running solver");
@@ -21002,6 +21137,7 @@ public:
 		return ret;
 	}
 
+	//! run the solver with prescribed strain and stress
 	void runSolver(const ublas::vector<T>& E, const ublas::vector<T>& S)
 	{
 		_current_E = E;
@@ -21288,7 +21424,7 @@ public:
 		return false;
 	}
 
-	// compute sum over a:b
+	//! compute sum over a:b
 	noinline T l2_norm(const RealTensor& a) const
 	{
 		Timer __t("l2_norm", false);
@@ -21316,7 +21452,7 @@ public:
 		return std::sqrt(s*_dx*_dy*_dz/_nxyz);
 	}
 
-	// run the basic algorithm with load E
+	//! run the basic algorithm with stain E0 and stress S0
 	void runBasic(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
 	{
 		std::size_t iter = 1;
@@ -21408,7 +21544,7 @@ public:
 		}
 	}
 
-	// run the polarization algorithm with load E
+	//! run the polarization algorithm with strain E0 and stres S0
 	void runPolarization(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
 	{
 		std::size_t iter = 1;
@@ -21523,7 +21659,7 @@ public:
 	}
 
 
-	// run the basic scheme + exact line search
+	//! run the basic scheme + exact line search
 	void runBasicEL(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
 	{
 		std::size_t iter = 1;
@@ -21602,7 +21738,7 @@ public:
 		}
 	}
 
-	// run the Nesterov's method with load E
+	//! run the Nesterov's method
 	void runNesterov(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
 	{
 		std::size_t iter = 1;
@@ -21655,7 +21791,7 @@ public:
 	}
 
 
-	// run the NLCG algorithm
+	//! run the NLCG algorithm
 	void runNLCG(const ublas::vector<T>& E, const ublas::vector<T>& S)
 	{
 		if (_mode == "hyperelasticity")
@@ -21664,7 +21800,7 @@ public:
 		}
 	}
 
-	// run the CG algorithm
+	//! run the CG algorithm
 	void runCG(const ublas::vector<T>& E, const ublas::vector<T>& S)
 	{
 		if (_mode == "hyperelasticity")
@@ -21677,7 +21813,7 @@ public:
 		}
 	}
 
-	// compute W_hat = GRAD_hat q_hat
+	//! compute W_hat = GRAD_hat q_hat
 	noinline void GradOperatorFourierHyper(ComplexTensor& q_hat, ComplexTensor& W_hat)
 	{
 		Timer __t("GradOperatorFourierHyper", false);
@@ -21891,7 +22027,7 @@ public:
 #endif
 
 
-	// compute reference material parameters
+	//! compute reference material parameters
 	noinline void calcRefMaterial(T& mu_0, T& lambda_0, RealTensor& F)
 	{
 		Timer __t("calc ref material");
@@ -21933,7 +22069,7 @@ public:
 		G0DivOperatorFourierHyper(_mu_0, _lambda_0, W_hat, w_hat, 1);	// w_hat = G0_hat Div_hat W_hat
 	}
 
-	// compute sum_xi |xi|**2 q:conj(r)
+	//! compute sum_xi |xi|**2 q:conj(r)
 	noinline std::complex<T> innerProductHyper(ComplexTensor& q, ComplexTensor& r)
 	{
 		Timer __t("innerProductHyper", false);
@@ -21982,7 +22118,7 @@ public:
 		return s;
 	}
 
-	// compute innerProductHyper(q, q-r)
+	//! compute innerProductHyper(q, q-r)
 	noinline std::complex<T> innerProductDiffHyper(ComplexTensor& q, ComplexTensor& r)
 	{
 		Timer __t("innerProductDiffHyper", false);
@@ -22042,7 +22178,7 @@ public:
 	}
 
 
-	// compute gradient
+	//! compute gradient
 	void calcGrad(const ublas::vector<T>& E0, const ublas::vector<T>& S0, RealTensor& epsilon, ComplexTensor& grad_hat, RealTensor& grad, T alpha)
 	{
 		calcStress(0, 0, epsilon, grad, 1);
@@ -22087,7 +22223,7 @@ public:
 		return alpha;
 	}
 
-	// run the nonlinear CG algorithm
+	//! run the nonlinear CG algorithm
 	// https://en.wikipedia.org/wiki/Nonlinear_conjugate_gradient_method
 	void runNLCGHyper(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
 	{
@@ -22306,7 +22442,7 @@ public:
 		}
 	}
 
-	// run the CG algorithm
+	//! run the CG algorithm
 	// NRCGsolver2
 	noinline void runCGHyper(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
 	{
@@ -22741,7 +22877,6 @@ public:
 		//printMeanValues();
 	}
 
-
 	noinline void ApplyOperator(RealTensor& F, RealTensor& Q, RealTensor& W, ComplexTensor& W_hat)
 	{
 		Timer __t("ApplyOperator", false);
@@ -22762,8 +22897,7 @@ public:
 		//LOG_COUT << "W0 " << Fk << std::endl;
 	}
 
-
-	// run the CG algorithm
+	//! run the CG algorithm
 	noinline void runCGElasticity(const ublas::vector<T>& E0, const ublas::vector<T>& S0)
 	{
 		Timer __t("runCGElasticity", false);
@@ -22905,7 +23039,7 @@ public:
 #endif	
 	}
 
-	// write strain fields and phase field to VTK
+	//! write strain fields and phase field to VTK
 	template< typename R >
 	void writeVTKPhase(const std::string& filename, std::size_t m, bool binary = true)
 	{
@@ -22926,7 +23060,7 @@ public:
 #endif
 	}
 		
-	// write strain fields and phase field to VTK
+	//! write strain fields and phase field to VTK
 	template< typename R >
 	void writeVTK(const std::string& filename, bool binary = true)
 	{
@@ -23062,7 +23196,7 @@ public:
 		}
 	}
 
-	// solve the Laplace u = f, <u> = 0
+	//! solve the Laplace u = f, mean u = 0
 	void poisson_solve(const T* f, T* u)
 	{
 		std::complex<T>* uc = (std::complex<T>*) u;
@@ -23263,7 +23397,7 @@ public:
 		return nfail;
 	}
 	
-	// run test routines
+	//! run test routines
 	int run_tests()
 	{
 		int nfail = 0;
@@ -23274,6 +23408,7 @@ public:
 		return nfail;
 	}
 
+	//! run test routines for math operations
 	int run_tests_math()
 	{
 		int nfail = 0;
@@ -23477,7 +23612,7 @@ public:
 		return nfail;
 	}
 
-	// run test routines
+	//! run test routines for heat equation
 	int run_tests_heat()
 	{
 		int nfail = 0;
@@ -23588,7 +23723,7 @@ public:
 	}
 
 
-	// run test routines
+	//! run test routines for elasticity
 	int run_tests_elasticity()
 	{
 		int nfail = 0;
@@ -23795,7 +23930,7 @@ public:
 		return nfail;
 	}
 
-	// run test routines
+	//! run test routines for hyperelasticity
 	int run_tests_hyperelasticity()
 	{
 		int nfail = 0;
@@ -24349,42 +24484,94 @@ public:
 
 
 
-// fibergen interface
+//! fibergen interface (e.g. for interfacing with Python)
 class FGI
 {
 public:
 	typedef boost::function<bool()> ConvergenceCallback;
 	typedef boost::function<bool()> LoadstepCallback;
 
+	//! reset solver
 	virtual void reset() = 0;
+
+	//! run actions in confing path
 	virtual int run(const std::string& actions_path) = 0;
+
+	//! cancel a running solver
 	virtual void cancel() = 0;
+
+	//! init Lippmann Schwinger solver
 	virtual void init_lss() = 0;
+
+	//! init fiber geometry
 	virtual void init_fibers() = 0;
+
+	//! init phase fields
 	virtual void init_phase() = 0;
+
+	//! get a list of phase names
 	virtual std::vector<std::string> get_phase_names() = 0;
+
+	//! get volume fraction for a phase (computed from the phase field)
 	virtual double get_volume_fraction(const std::string& field) = 0;
+
+	//! get volume fraction for a phase (computed directly from the geometry)
 	virtual double get_real_volume_fraction(const std::string& field) = 0;
+
+	//! get list of residuals for each iteration
 	virtual std::vector<double> get_residuals() = 0;
+
+	//! get solution time
 	virtual double get_solve_time() = 0;
+
+	//! get number of distance computations for the geometry
 	virtual std::size_t get_distance_evals() = 0;
+
+	//! get the effective property (after calc_effective_properties action was performed)
 	virtual std::vector< std::vector<double> > get_effective_property() = 0;
+
+	//! get RVE dimensions
 	virtual std::vector<double> get_rve_dims() = 0;
+
+	//! get second moment of fiber orientations
 	virtual std::vector< std::vector<double> > get_A2() = 0;
+
+	//! get fourth moment of fiber orientations
 	virtual std::vector< std::vector< std::vector< std::vector<double> > > > get_A4() = 0;
+
+	//! get mean strain
 	virtual std::vector<double> get_mean_strain() = 0;
+
+	//! get mean stress
 	virtual std::vector<double> get_mean_stress() = 0;
+
+	//! get mean Cauchy stress
 	virtual std::vector<double> get_mean_cauchy_stress() = 0;
+
+	//! get mean energy
 	virtual double get_mean_energy() = 0;
+
+	//! set a convergence callback routine (run for testing for convergence)
 	virtual void set_convergence_callback(ConvergenceCallback cb) = 0;
+
+	//! set a loadstep callback routine (run each loadstep)
 	virtual void set_loadstep_callback(LoadstepCallback cb) = 0;
+
+	//! get a raw data field (phase, strain, stress, pressure, ...)
 	virtual void* get_raw_field(const std::string& field, std::vector<void*>& components, size_t& nx, size_t& ny, size_t& nz, size_t& nzp, size_t& elsize) = 0;
+
+	//! free a raw data field component obtained by get_raw_field
 	virtual void free_raw_field(void* handle) = 0;
+
+	//! set Python fibergen instance, which can be used (in Python scripts) within a project file as "fg"
 	virtual void set_pyfg_instance(PyObject* instance) = 0;
+
+	//! set Python variable, which can be used (in Python scripts/expressions) within a project file
 	virtual void set_variable(std::string key, py::object value) = 0;
 };
 
 
+//! Basic implementation of the fibergen interface
 template <typename T, typename R, int DIM>
 class FG : public FGI
 {
@@ -26021,6 +26208,7 @@ public:
 };
 
 
+//! Handles stuff before exit of the application
 void exit_handler()
 {
 	LOG_COUT << DEFAULT_TEXT;
@@ -26031,6 +26219,7 @@ void exit_handler()
 }
 
 
+//! Handles signals of the application
 void signal_handler(int signum)
 {
 	LOG_COUT << std::endl;
@@ -26041,6 +26230,7 @@ void signal_handler(int signum)
 
 
 
+//! Class which interfaces the FG interface with a project xml file
 class FGProject
 {
 protected:
@@ -26324,6 +26514,7 @@ public:
 };
 
 
+//! Python interface class for fibergen
 class PyFG : public FGProject
 {
 protected:
@@ -26543,7 +26734,7 @@ py::object GetField(py::tuple args, py::dict kwargs)
 }
 
 
-
+//! Convert a vector to Python list
 template<class T>
 struct VecToList
 {
@@ -26558,6 +26749,7 @@ struct VecToList
 };
 
 
+//! Convert a nested vector (rank 2 tensor) to Python list
 template<class T>
 struct VecVecToList
 {
@@ -26576,6 +26768,7 @@ struct VecVecToList
 };
 
 
+//! Convert a nested vector (rank 4 tensor) to Python list
 template<class T>
 struct VecVecVecVecToList
 {
@@ -26639,6 +26832,7 @@ py::object PyFGInit(py::tuple args, py::dict kwargs)
 }
 
 
+//! Python module for fibergen
 class PyFGModule
 {
 public:
@@ -26722,7 +26916,7 @@ public:
 }
 
 
-// exception handling routine for std::set_terminate
+//! exception handling routine for std::set_terminate
 void exception_handler()
 {
 	static bool tried_throw = false;
@@ -26774,6 +26968,7 @@ void exception_handler()
 }
 
 
+//! Run test routines
 template<typename T, typename P, int DIM>
 int run_tests()
 {
@@ -26821,7 +27016,7 @@ int run_tests()
 //#include "checkcpu.h"
 
 
-// main entry point of application
+//! main entry point of application
 int main(int argc, char* argv[])
 {
 	// init python
