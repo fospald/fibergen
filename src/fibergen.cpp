@@ -804,7 +804,6 @@ T pt_get(const ptree::ptree& pt, const std::string& prop)
 //! \param default_value the default value, if property was not found
 //! \return the property
 template <class T>
-template <class T>
 T pt_get(const ptree::ptree& pt, const std::string& prop, T default_value)
 {
 	return PY::instance().get<T>(pt, prop, default_value);
@@ -1020,7 +1019,6 @@ inline void read_matrix(const ptree::ptree& attr, ublas::matrix<T>& m, const std
 //! \param attr ptree with settings
 //! \param v the vector
 //! \param prefix prefix for the component names "prefix%d"
-t
 template <typename T>
 inline void read_voigt_vector(const ptree::ptree& attr, ublas::vector<T>& v, const std::string& prefix)
 {
