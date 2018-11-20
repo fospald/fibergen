@@ -40,15 +40,15 @@ If unsure, continue with the installation and check the error messages of CMake.
 ## Installation
 
 1. download source
-```
+```bash
 git clone https://github.com/fospald/fibergen.git
 ```
 2. run build.sh, on error probably a library is missing
-```
+```bash
 sh build.sh [optional CMake parameters]
 ```
 3. after successful build update your envirnoment variables:
-```
+```bash
 export PATH=$PATH:$FIBERGEN/bin
 export PYTHONPATH=$PYTHONPATH:$FIBERGEN/lib
 ```
@@ -58,18 +58,23 @@ where $FIBERGEN denotes your download directory.
 ## Run
 
 Enter the following command to run the GUI (with an optional project file to load)
-```
+```bash
 fibergen-gui [project.xml]
 ```
 In order to run a project file from the command line run
-```
+```bash
 fibergen project.xml
 ```
 You can also run some test routines using
-```
+```bash
 fibergen --test
 ```
 in order to perform some internal tests of math and operators.
+
+
+## Tutorial
+
+Further information on how to use fibergen, can be found in [the tutorial](TUTORIAL.md).
 
 
 ## Troubleshooting
@@ -77,11 +82,11 @@ in order to perform some internal tests of math and operators.
 ### Setting the Python version
 
 If you get an error about "boost_python-pyXY" not found, try to figure out which Python version boost-python is compiled against byrunning
-```
+```bash
 locate boost_python-py
 ```
 and then modify the CMakeLists.txt accordingly
-```
+```bash
 SET(PYTHON_VERSION_MAJOR X)
 SET(PYTHON_VERSION_MINOR Y)
 ```
@@ -89,7 +94,7 @@ SET(PYTHON_VERSION_MINOR Y)
 ### Installing boost-numeric-bindings
 
 Only the header files are required. No configure/build needed.
-```
+```bash
 cd install_dir
 git clone http://git.tiker.net/trees/boost-numeric-bindings.git
 export BOOSTNUMERICBINDINGS_DIR=$(pwd)/boost-numeric-bindings
@@ -99,7 +104,7 @@ export BOOSTNUMERICBINDINGS_DIR=$(pwd)/boost-numeric-bindings
 ## Generating source code documentation
 
 You can generate a [Doxygen](http://www.doxygen.org/)-based documentation by running 
-```
+```bash
 cd doc/doxygen
 make (or just doxygen)
 firefox html/index.html

@@ -141,7 +141,7 @@
 
 		<materials help="list of materials, each materal needs a unique name, there are two special names: 'matrix' sets the matrix material and 'ref' sets the reference material for the Lippmann-Schwinger solver" type="list">
 			<matrix type="empty" help="specifies a material">
-				<attrib name="law" type="str" help="type of material law" values="iso,tiso,aniso,nh,nh2,gb_matrix1,gb_matrix2,gb_matrix3,gb_matrix4,gb_fiber1,gb_fiber2,gb_fiber3,gb_fiber4,gb_fiber5,gb_fiber6,">iso</attrib>
+				<attrib name="law" type="str" help="type of material law" values="iso,tiso,aniso,nh,nh2,gb_matrix1,gb_matrix2,gb_matrix3,gb_matrix4,gb_fiber1,gb_fiber2,gb_fiber3,gb_fiber4,gb_fiber5,gb_fiber6">iso</attrib>
 				<attrib name="K" type="float" help="bulk modulus"></attrib>
 				<attrib name="E" type="float" help="Young's modulus"></attrib>
 				<attrib name="lambda" type="float" help="first Lamé parameter"></attrib>
