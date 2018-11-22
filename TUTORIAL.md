@@ -183,7 +183,7 @@ class FG
        
    get_field(...)
        object get_field(tuple args, dict kwds) :
-           Returns solution data as numpy ndarray. Available solution fields are: 'epsilon' (strain), 'sigma' (stress), 'u' (displacement), 'p' (pressure), 'orientation' (fiber orientation vector), 'material_id' (material id), 'fiber_id' (id of the closest fiber), 'distance' (distance to closest interface), 'phi' (phases as listed in the <materials> section), any material name. The first dimension of the returned array denotes the loadstep, the last 3 dimensions address the data.
+           Returns solution data as numpy ndarray. Available solution fields are: 'epsilon' (strain), 'sigma' (stress), 'u' (displacement), 'p' (pressure), 'orientation' (fiber orientation vector), 'material_id' (material id), 'fiber_id' (id of the closest fiber), 'distance' (distance to closest interface), 'phi' (phases as listed in the <materials> section), any material name. The first dimension of the returned array denotes the component (3 for vectors, 6 (11,22,33,23,13,12) for symmetric 3x3 matrices, 9 (11,22,33,23,13,12,32,31,21) for 3x3 matrices), the last 3 dimensions address the spatial coordinates.
        
    get_mean_cauchy_stress(...)
        get_mean_cauchy_stress( (FG)self) -> object :

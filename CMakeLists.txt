@@ -7,7 +7,7 @@ set(CMAKE_VERBOSE_MAKEFILE 1)
 # http://stackoverflow.com/questions/22931147/stdisinf-does-not-work-with-ffast-math-how-to-check-for-infinity
 
 OPTION(RELEASE_BUILD "Relase build" ON)
-OPTION(USE_OPENMP "Use OpenMP" OFF)
+OPTION(USE_OPENMP "Use OpenMP" ON)
 
 IF(RELEASE_BUILD)
 	SET(CMAKE_BUILD_TYPE Release)
