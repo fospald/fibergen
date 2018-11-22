@@ -57,7 +57,9 @@ multigrid improvements:
 
 #include <Python.h>
 #include <fftw3.h>
-#include <omp.h>
+#ifdef OPENMP_ENABLED
+	#include <omp.h>
+#endif
 #include <unistd.h>
 #include <stdint.h>
 
@@ -338,6 +340,15 @@ public:
 		return stream;
 	}
 
+	//! Return warning stream
+	std::ostream& cwarn() const
+	{
+		std::ostream& stream = std::cerr;
+		// indent(stream);
+		stream << YELLOW_TEXT << "WARNING: ";
+		return stream;
+	}
+
 	//! Return static instance
 	static Logger& instance()
 	{
@@ -355,9 +366,22 @@ boost::shared_ptr<Logger> Logger::_instance;
 // Shortcut macros for cout and cerr
 #define LOG_COUT Logger::instance().cout()
 #define LOG_CERR Logger::instance().cerr()
+#define LOG_CWARN Logger::instance().cwarn()
 
 // Static exception object
 boost::shared_ptr<std::exception> _except;
+
+
+#ifndef OPENMP_ENABLED
+void omp_set_nested(bool n) { }
+void omp_set_dynamic(bool d) { }
+void omp_set_num_threads(int n) {
+	if (n > 1) LOG_CWARN << "OpenMP is disabled, only running with 1 thread!" << std::endl;
+}
+int omp_get_thread_num() { return 0; }
+int omp_get_num_threads() { return 1; }
+int omp_get_max_threads() { return 1; }
+#endif
 
 
 //! Set current exception message and print message to cerr
@@ -11935,7 +11959,7 @@ public:
 		}
 
 		if (lambda_min < 0) {
-			LOG_COUT << "WARNING: detected negative eigenvalue (" << lambda_min << ") in linearized 1st PK. Cutting off." << std::endl;	
+			LOG_CWARN << "detected negative eigenvalue (" << lambda_min << ") in linearized 1st PK. Cutting off." << std::endl;	
 
 #if 1
 			BEGIN_TRIPLE_LOOP(kk, F.nx, F.ny, F.nz, F.nzp)
@@ -14826,7 +14850,7 @@ public:
 		}
 		if (_method == "polarization" && _gamma_scheme.find("staggered") >= 0) {
 			_gamma_scheme = "collocated";
-			LOG_COUT << "WARNING: switching to collocated discretization for polarization method!" << std::endl;
+			LOG_CWARN << "switching to collocated discretization for polarization method!" << std::endl;
 		}
 		_bc_relax = pt_get<T>(pt, "bc_relax", _bc_relax);
 		_freq_hack = pt_get(pt, "freq_hack", _freq_hack);
@@ -16608,7 +16632,7 @@ public:
 								if (cm.size() > 1)
 								{
 #if 1
-									//LOG_COUT << "WARNING: " << (boost::format("Interface normal undefined at voxel (%d,%d,%d)") % kk_i % kk_j % kk_k).str() << std::endl;
+									//LOG_CWARN << (boost::format("Interface normal undefined at voxel (%d,%d,%d)") % kk_i % kk_j % kk_k).str() << std::endl;
 #else
 									for (std::size_t i = 0; i < sx; i++) {
 										for (std::size_t j = 0; j < sy; j++) {
@@ -19458,7 +19482,7 @@ public:
 						T err = std::max(std::abs(c/(s+1e-20)), std::abs(s/(c+1e-20))) - 1;
 
 						if (err > 0.1) {
-							LOG_COUT << "WARNING: cancelation " << c << " " << s << std::endl;
+							LOG_CWARN << "cancelation " << c << " " << s << std::endl;
 						}
 #endif
 
@@ -22780,8 +22804,8 @@ public:
 
 						if (energy > energy_initial) {
 						//	_newton_relax *= 0.5;
-						//	LOG_COUT << "WARNING: energy increase detected! Relaxing to " << _newton_relax << std::endl;
-						//	LOG_COUT << "WARNING: energy increase detected, canceling inner CG loop!" << std::endl;
+						//	LOG_CWARN << "energy increase detected! Relaxing to " << _newton_relax << std::endl;
+						//	LOG_CWARN << "energy increase detected, canceling inner CG loop!" << std::endl;
 						//	break;
 						}
 						else {
@@ -22857,7 +22881,7 @@ public:
 			}
 
 			if (alpha < _tol) {
-				LOG_COUT << "WARNING: no further backtracking possible canceling CG!" << std::endl;
+				LOG_CWARN << "no further backtracking possible canceling CG!" << std::endl;
 				break;
 			}
 #endif
@@ -24969,7 +24993,7 @@ public:
 			BOOST_THROW_EXCEPTION(std::runtime_error(((boost::format("number of threads %d is above system limit of %d threads") % num_threads_fft) % max_threads).str()));
 		}
 		if (fftw_init_threads() == 0) {
-			LOG_COUT << "WARNING: could not initialize FFTW threads!" << std::endl;
+			LOG_CWARN << "could not initialize FFTW threads!" << std::endl;
 		}
 		fftw_plan_with_nthreads(num_threads_fft);
 		

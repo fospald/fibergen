@@ -6,20 +6,15 @@ set(CMAKE_VERBOSE_MAKEFILE 1)
 # Note for the use of -ffast-math:
 # http://stackoverflow.com/questions/22931147/stdisinf-does-not-work-with-ffast-math-how-to-check-for-infinity
 
-SET(RELEASE_BUILD TRUE)
-#SET(RELEASE_BUILD FALSE)
+OPTION(RELEASE_BUILD "Relase build" ON)
+OPTION(USE_OPENMP "Use OpenMP" OFF)
 
 IF(RELEASE_BUILD)
-	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNAN_FILL")
 	SET(CMAKE_BUILD_TYPE Release)
-	#SET(CMAKE_BUILD_TYPE RelWithDebInfo)
-	#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe -Wall -Wunused-variable -Wno-unused-local-typedefs -Wno-long-long -ansi -march=native -O2 -malign-double -m64 -funroll-loops -fomit-frame-pointer -fopenmp -DNDEBUG")
-	#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-variable -Wno-unused-local-typedefs -Wno-long-long -march=native -O2 -fopenmp -ffast-math -fno-finite-math-only -DNDEBUG")
-	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-variable -Wno-unused-local-typedefs -Wno-long-long -march=native -O2 -fopenmp -DNDEBUG")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unknown-pragmas -Wno-unused-variable -Wno-unused-local-typedefs -Wno-long-long -march=native -O2 -DNDEBUG")
 ELSE()
 	SET(CMAKE_BUILD_TYPE Debug)
-#	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG -DNAN_FILL")
-#	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNAN_FILL")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNAN_FILL")
 ENDIF()
 
 # Add cmake dir to search path
@@ -46,16 +41,31 @@ FIND_PACKAGE(PNG REQUIRED)
 INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${PNG_INCLUDE_DIR})
 
 # Find OpenMP
-FIND_PACKAGE(OpenMP REQUIRED)
-INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${LAPACK_INCLUDE_DIR})
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+IF(USE_OPENMP)
+	SET(OpenMP_CXX_FLAGS "-fopenmp")
+	IF(APPLE)
+		IF(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+			SET(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
+			SET(OpenMP_CXX_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
+			SET(OpenMP_CXX_LIB_NAMES "libomp" "libgomp" "libiomp5")
+			SET(OpenMP_libomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
+			SET(OpenMP_libgomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
+			SET(OpenMP_libiomp5_LIBRARY ${OpenMP_CXX_LIB_NAMES})
+		ENDIF()
+	ENDIF()
+	FIND_PACKAGE(OpenMP)
+	IF(OpenMP_FOUND)
+		SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+		ADD_DEFINITIONS(-DOPENMP_ENABLED)
+	ENDIF()
+ENDIF()
 
 # Find ITK library
 FIND_PACKAGE(ITK)
 INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${ITK_INCLUDE_DIRS})
 LINK_DIRECTORIES(${LINK_DIRECTORIES} ${ITK_LIBRARY_DIRS})
 IF(ITK_FOUND)
-    ADD_DEFINITIONS(-DITK_ENABLED)
+	ADD_DEFINITIONS(-DITK_ENABLED)
 ENDIF()
 
 #MESSAGE("ITK include dirs: " ${ITK_INCLUDE_DIRS})
@@ -88,7 +98,7 @@ SET(FFTWL_FIND_REQUIRED OFF)
 FIND_PACKAGE(FFTW REQUIRED)
 INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${FFTW_INCLUDES})
 IF(FFTWF_FOUND)
-    ADD_DEFINITIONS(-DFFTWF_ENABLED)
+	ADD_DEFINITIONS(-DFFTWF_ENABLED)
 ENDIF()
 
 SET(SOURCES src/fibergen.cpp)
@@ -123,7 +133,6 @@ ADD_CUSTOM_COMMAND(TARGET ${EXE_NAME}
 )
 
 IF(FALSE)
-
 	SET(IACA_EXE_NAME fibergen_iaca_${HOST_NAME})
 
 	# Add IACA enabled executable
@@ -137,11 +146,9 @@ IF(FALSE)
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}
 		COMMAND ${CMAKE_COMMAND} -E copy ${IACA_EXE_NAME} ${PROJECT_BINARY_DIR}/.
 	)
-
 ENDIF()
 
 IF(TRUE)
-
 	ADD_DEFINITIONS(-DLIB_BUILD)
 
 	# Add the Python library
@@ -155,6 +162,5 @@ IF(TRUE)
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_LIB_DIR}
 		COMMAND ${CMAKE_COMMAND} -E copy lib${LIB_NAME}.so ${PROJECT_LIB_DIR}/${EXE_NAME}.so
 	)
-
 ENDIF()
 
