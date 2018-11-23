@@ -10,6 +10,7 @@ import webbrowser
 import base64
 import copy
 import cgi
+import pydoc
 import traceback
 import codecs
 import collections
@@ -1575,23 +1576,31 @@ class XMLHighlighter(QtGui.QSyntaxHighlighter):
 		commentFormat.setForeground(QtCore.Qt.gray)
 		self.highlightingRulesPython.append((QtCore.QRegExp("#.*"), commentFormat, 0))
 
+		self.pythonOnly = False
+		if self.pythonOnly:
+			self.pythonStartExpression = QtCore.QRegExp("^")
+			self.pythonEndExpression = QtCore.QRegExp("$")
+
+
 	def highlightBlock(self, text):
 		
-		#for every pattern
-		for pattern, format in self.highlightingRules:
+		if not self.pythonOnly:
 
-			#Check what index that expression occurs at with the ENTIRE text
-			index = pattern.indexIn(text)
+			#for every pattern
+			for pattern, format in self.highlightingRules:
 
-			#While the index is greater than 0
-			while index >= 0:
+				#Check what index that expression occurs at with the ENTIRE text
+				index = pattern.indexIn(text)
 
-				#Get the length of how long the expression is true, set the format from the start to the length with the text format
-				length = pattern.matchedLength()
-				self.setFormat(index, length, format)
+				#While the index is greater than 0
+				while index >= 0:
 
-				#Set index to where the expression ends in the text
-				index = pattern.indexIn(text, index + length)
+					#Get the length of how long the expression is true, set the format from the start to the length with the text format
+					length = pattern.matchedLength()
+					self.setFormat(index, length, format)
+
+					#Set index to where the expression ends in the text
+					index = pattern.indexIn(text, index + length)
 
 		Flag_Comment = 1
 		Flag_Python = 2
@@ -1990,6 +1999,31 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 
 		self.updateHelpPath(items, inside)
 
+	def getCursorHelp(self):
+
+		c = self.editor.textCursor()
+		pos = c.position()
+		txt = self.editor.toPlainText()
+
+		for m in re.finditer(r'\b\w+\b', txt):
+			if pos >= m.start() and pos <= (m.start() + len(m.group(0))):
+				word = m.group(0)
+				if word == 'fg':
+					word = 'fibergen'
+				for k in [word, "fibergen.%s" % word, "fibergen.FG.%s" % word]:
+					try:
+						#helpstr = pydoc.render_doc(k, "Help on %s", renderer=pydoc.plaintext)
+						#helpstr = '<pre>' + cgi.escape(helpstr) + '</pre>'
+						helpstr = pydoc.render_doc(k, "Help on %s", renderer=pydoc.html)
+						helpstr = helpstr.replace('&nbsp;', ' ')
+						return helpstr
+					except:
+						pass
+				break
+
+		helpstr = "Unknown element"
+		return helpstr
+
 	def updateHelpPath(self, items, inside=False):
 
 		#if len(items):
@@ -2045,11 +2079,11 @@ p ~ p {
 			return '<a href="http://x#help#' + '#'.join(apath) + '">' + tag + "</a>"
 		
 		if en is None:
-			help = "Unknown element"
+			helpstr = self.getCursorHelp()
 		else:
-			help = cgi.escape(e.get("help"))
+			helpstr = cgi.escape(e.get("help"))
 
-		html += '<div class="help">' + help + "</div>"
+		html += '<div class="help">' + helpstr + "</div>"
 
 		if en is None:
 			pass
@@ -2091,12 +2125,12 @@ p ~ p {
 						attr += '<td><b>' + a.get("name") + "</b></td>"
 					attr += "<td>" + a.get("type") + "</td>"
 					attr += "<td>" + default + "</td>"
-					help = a.get("help")
-					if not help is None:
+					helpstr = a.get("help")
+					if not helpstr is None:
 						values = a.get("values")
 						if not values is None:
-							help += " (%s)" % cgi.escape(values)
-						attr += "<td>" + help + "</td>"
+							helpstr += " (%s)" % cgi.escape(values)
+						attr += "<td>" + helpstr + "</td>"
 					attr += "</tr>"
 				if attr != "":
 					html += "<h3>Available attributes:</h3>"
@@ -2125,9 +2159,9 @@ p ~ p {
 					tags += '<td><b>' + help_link(a.tag) + '</b></td>'
 				tags += "<td>" + typ + "</td>"
 				tags += "<td>" + default + "</td>"
-				help = cgi.escape(a.get("help"))
-				help = re.sub('\[(.*?)\]', lambda m: help_link(m.group(1)), help)
-				tags += "<td>" + help + "</td>"
+				helpstr = cgi.escape(a.get("help"))
+				helpstr = re.sub('\[(.*?)\]', lambda m: help_link(m.group(1)), helpstr)
+				tags += "<td>" + helpstr + "</td>"
 
 				tags += "</tr>"
 			if tags != "":
@@ -2153,7 +2187,21 @@ class DocWidget(QtWebKitWidgets.QWebView):
 		QtWebKitWidgets.QWebView.__init__(self, parent)
 
 		cdir = os.path.dirname(os.path.abspath(__file__))
-		self.docfile = os.path.abspath(os.path.join(cdir, "../doc/manual.html"))
+
+		self.docfile = None
+
+		docfiles = ["../doc/doxygen/html/index.html"] #, "../doc/manual.html"]
+
+		for f in docfiles:
+			f = os.path.abspath(os.path.join(cdir, f))
+			if os.path.isfile(f):
+				self.docfile = f
+				break
+
+		if self.docfile is None:
+			openurl = "https://fospald.github.io/fibergen/"
+		else:
+			openurl = "file://" + self.docfile
 
 		"""
 		with open(self.docfile, "rt") as f:
@@ -2163,7 +2211,7 @@ class DocWidget(QtWebKitWidgets.QWebView):
 		"""
 
 		self.mypage = MyWebPage()
-		self.mypage.setUrl(QtCore.QUrl("file://" + self.docfile))
+		self.mypage.setUrl(QtCore.QUrl(openurl))
 		self.mypage.linkClicked.connect(self.linkClicked)
 		self.setPage(self.mypage)
 
@@ -2325,23 +2373,41 @@ img {
 			if not os.path.isdir(subdir):
 				continue
 
-			project_file = os.path.join(subdir, "project.xml")
+			project_file_xml = os.path.join(subdir, "project.xml")
+			project_file_python = os.path.join(subdir, "project.py")
 			category_file = os.path.join(subdir, "category.xml")
 
 			item = ""
 			index = None
-			if os.path.isfile(project_file):
+			if os.path.isfile(project_file_python):
+				with open(project_file_python, "rt") as f:
+					code = f.read()
+				match = re.search("\s*#\s*title\s*:\s*(.*)\s*", code)
+				if match:
+					title = match.group(1)
+				else:
+					title = d
+				action = "open"
+				item += '<a class="demo" href="http://x#' + action + '#' + project_file_python + '">'
+				item += '<h2>' + title + '</h2>'
+				item += '<img src="file://' + subdir + '/../category.svg" />'
+				match = re.search("\s*#\s*description\s*:\s*(.*)\s*", code)
+				if match:
+					item += '<p>' + match.group(1) + '</p>'
+				item += '</a>'
+				index = xml.find("index")
+			elif os.path.isfile(project_file_xml):
 				try:
-					xml = ET.parse(project_file).getroot()
+					xml = ET.parse(project_file_xml).getroot()
 				except:
-					print("error in file", project_file)
+					print("error in file", project_file_xml)
 					print(traceback.format_exc())
 					continue
 				try:
 					action = xml.find("action").text
 				except:
 					action = "new" if d == "empty" else "open"
-				item += '<a class="demo" href="http://x#' + action + '#' + project_file + '">'
+				item += '<a class="demo" href="http://x#' + action + '#' + project_file_xml + '">'
 				title = xml.find("title")
 				if not title is None and not title.text is None and len(title.text):
 					item += '<h2>' + title.text + '</h2>'
@@ -2463,6 +2529,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		#self.tabWidget.tabBar().setExpanding(True)
 
 		self.filename = None
+		self.filetype = None
 		self.file_id = 0
 		self.filenameLabel = QtWidgets.QLabel()
 
@@ -2682,6 +2749,7 @@ class MainWindow(QtWidgets.QMainWindow):
 				f.write(txt)
 			self.lastSaveText = txt
 			self.filename = filename
+			self.filetype = os.path.splitext(filename)[1]
 			self.updateStatus()
 			return True
 		except:
@@ -2710,6 +2778,7 @@ class MainWindow(QtWidgets.QMainWindow):
 				txt = f.read()
 			self.textEdit.setPlainText(txt)
 			self.filename = filename
+			self.filetype = os.path.splitext(filename)[1]
 			self.file_id += 1
 			self.lastSaveText = self.getSaveText()
 			self.textEdit.document().clearUndoRedoStacks()
@@ -2743,6 +2812,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			pass
 		self.textEdit.setPlainText(txt)
 		self.filename = None
+		self.filetype = os.path.splitext(filename)[1]
 		self.file_id += 1
 		self.lastSaveText = self.getSaveText()
 		self.textEdit.document().clearUndoRedoStacks()
@@ -2752,6 +2822,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
 	def runProject(self, fg=None):
 
+		if self.filetype == ".py":
+			# run pure python code
+			py = str(self.textEdit.toPlainText())
+			loc = dict()
+			glob = dict()
+			exec(py, glob, loc)
+			return
+		
 		if not isinstance(fg, fibergen.FG):
 			try:
 				fg = fibergen.FG().init()

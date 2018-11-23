@@ -24,7 +24,7 @@ A FFT-based homogenization tool.
 
 The following libraries are required, which are likely already installed on your system:
 * [CMake](https://cmake.org/)
-* [gcc](https://gcc.gnu.org/)
+* [gcc](https://gcc.gnu.org/) compiler (might also work with other compilers)
 * [OpenMP](https://www.openmp.org/) for parallelization (optional)
 * [boost](https://www.boost.org/) incl. boost.python 3 and [boost-numeric-bindings](https://mathema.tician.de/software/boost-numeric-bindings/)
 * [FFTW3](http://www.fftw.org/) library

@@ -24631,7 +24631,10 @@ public:
 		const ptree::ptree& pt = xml_root->get_child("settings", empty_ptree);
 		const ptree::ptree& variables = pt.get_child("variables", empty_ptree);
 
-		PY::instance().clear_locals();
+		// TODO: when to clear locals?
+		// commented because set_variable not workin otherwise
+		//PY::instance().clear_locals();
+
 		if (pyfg_instance != NULL) {
 			py::object fg(py::handle<>(py::borrowed(pyfg_instance)));
 			PY::instance().add_local("fg", fg);
