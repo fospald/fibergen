@@ -20275,6 +20275,7 @@ public:
 		}
 		else if (_mode == "viscosity") {
 			DeltaOperator(E, mu_0, lambda_0, tau, tau_hat, eta_hat, eta, alpha);
+			return;
 		}
 		else if (_mode == "heat" || _mode == "porous") {
 			if (_gamma_scheme == "collocated") {

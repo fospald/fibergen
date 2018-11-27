@@ -1198,7 +1198,6 @@ class PlotWidget(QtWidgets.QWidget):
 		self.replotSuspended = True
 		self.lastSliceIndices[self.sliceCombo.lastIndex] = self.sliceSlider.value()
 		self.sliceCombo.lastIndex = index
-
 		self.replot_reset_limits = True
 		data_shape = self.fields[0].data[0].shape[1:4]
 		self.sliceSlider.setMaximum(data_shape[index]-1)
@@ -1341,7 +1340,6 @@ class PlotWidget(QtWidgets.QWidget):
 			if not self.replot_reset_limits:
 				xlim = self.axes.get_xlim()
 				ylim = self.axes.get_ylim()
-			self.replot_reset_limits = False
 			self.cb.ax.clear()
 			cbax = self.cb.ax
 		else:
@@ -1423,21 +1421,29 @@ class PlotWidget(QtWidgets.QWidget):
 				self.axes.set_yticks(np.arange(-0.5+b, numrows-b, 1), minor=True);
 				self.axes.grid(which='minor', color='w', linestyle='-', alpha=0.5, linewidth=0.5, antialiased=False, snap=True)
 
+			if (xlim == None):
+				xlim = [0, numcols-1]
+			if (ylim == None):
+				ylim = [0, numrows-1]
+			
 			self.figcanvas.setVisible(True)
 			self.fignavbar.setVisible(True)
 		else:
 			self.figcanvas.setVisible(False)
 			self.fignavbar.setVisible(False)
 
-		"""
 		if (xlim != None):
 			self.axes.set_xlim(xlim)
 		if (ylim != None):
 			self.axes.set_ylim(ylim)
 
+		"""
 		self.axes.xaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
 		self.axes.yaxis.set_major_formatter(mtick.FormatStrFormatter('%d'))
 		"""
+
+		if self.replot_reset_limits:
+			self.fignavbar.update()
 
 		if firstReplot:
 			self.figcanvas.draw()
@@ -1475,6 +1481,7 @@ class PlotWidget(QtWidgets.QWidget):
 						self.fignavbar._nav_stack._pos = len(self.fignavbar._nav_stack._elements)-1
 
 		self.fignavbar_update_view()
+		self.replot_reset_limits = False
 
 	def fignavbar_update_view(self):
 		
