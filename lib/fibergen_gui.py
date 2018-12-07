@@ -21,6 +21,7 @@ import numpy as np
 import scipy.misc
 import keyword
 import textwrap
+import signal
 from weakref import WeakKeyDictionary
 
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -739,6 +740,28 @@ class PlotWidget(QtWidgets.QWidget):
 		hbox.addWidget(self.replotButton)
 		vbox.addLayout(hbox)
 
+		def makeMaskFieldCallback(index):
+			return lambda checked: self.maskField(index, checked)
+
+		materials = field_groups[1]
+		if len(materials) >= 2:
+			#hbox = QtWidgets.QHBoxLayout()
+			hbox.addWidget(QtWidgets.QLabel("Mask:"))
+			gbox = QtWidgets.QHBoxLayout()
+			for i, field in enumerate(materials):
+				button = QtWidgets.QToolButton()
+				button.setText(field.label)
+				if len(field.description):
+					button.setToolTip(field.description)
+				button.setCheckable(True)
+				button.toggled.connect(makeMaskFieldCallback(index))
+				if i > 0:
+					gbox.addSpacing(spacing)
+				gbox.addWidget(button)
+				field.mask_button = button
+			hbox.addLayout(gbox)
+			#vbox.addLayout(hbox)
+
 		self.stack = QtWidgets.QStackedWidget()
 		self.stack.setFrameShape(QtWidgets.QFrame.StyledPanel)
 		self.stack.setFrameShadow(QtWidgets.QFrame.Sunken)
@@ -880,9 +903,10 @@ class PlotWidget(QtWidgets.QWidget):
 		except:
 			print(traceback.format_exc())
 
-		self.resetBounds()
+		data = self.getCurrentSlice()
+		self.resetBounds(data)
 		self.replotSuspended = False
-		self.replot()
+		self.replot(data)
 
 		self.updateFigCanvasVisible()
 
@@ -1189,8 +1213,9 @@ class PlotWidget(QtWidgets.QWidget):
 		self.replot()
 	
 	def loadstepSliderChanged(self):
-		self.resetBounds()
-		self.replot()
+		data = self.getCurrentSlice()
+		self.resetBounds(data)
+		self.replot(data)
 		self.loadstepLabel.setText("%04d" % self.loadstepSlider.value())
 
 	def sliceComboChanged(self, index):
@@ -1215,9 +1240,10 @@ class PlotWidget(QtWidgets.QWidget):
 		enable = (state != 0)
 		self.vminText.setEnabled(enable)
 		self.vmaxText.setEnabled(enable)
-		self.resetBounds()
+		data = self.getCurrentSlice()
+		self.resetBounds(data)
 		if (state == 0):
-			self.replot()
+			self.replot(data)
 
 	def setAlpha(self, a):
 		a_max = 0.4999
@@ -1230,6 +1256,10 @@ class PlotWidget(QtWidgets.QWidget):
 	def getCurrentSlice(self):
 		if self.currentFieldIndex is None:
 			return None
+
+		#print("getCurrentSlice")
+		#traceback.print_stack()
+
 		field = self.fields[self.currentFieldIndex]
 		s_index = self.sliceSlider.value()
 		ls_index = self.loadstepSlider.value()
@@ -1242,27 +1272,47 @@ class PlotWidget(QtWidgets.QWidget):
 
 		s_index_end = s_index + min(depth, depth_max)
 
+		# get mask
+		mask_fields = []
+		materials = self.field_groups[1]
+		if len(materials) >= 2:
+			for i, mfield in enumerate(materials):
+				if mfield.mask_button.isChecked():
+					mask_fields.append(mfield)
+
 		if (sliceIndex == 0):
 			data = field.data[ls_index][field.component,s_index:s_index_end,:,:]
+			mask = np.zeros_like(data) if len(mask_fields) else 1.0
+			for f in mask_fields:
+				mask = np.maximum(mask, f.data[ls_index][f.component,s_index:s_index_end,:,:])
 		elif (sliceIndex == 1):
 			data = field.data[ls_index][field.component,:,s_index:s_index_end,:]
+			mask = np.zeros_like(data) if len(mask_fields) else 1.0
+			for f in mask_fields:
+				mask = np.maximum(mask, f.data[ls_index][f.component,:,s_index:s_index_end,:])
 		else:
 			data = field.data[ls_index][field.component,:,:,s_index:s_index_end]
+			mask = np.zeros_like(data) if len(mask_fields) else 1.0
+			for f in mask_fields:
+				mask = np.maximum(mask, f.data[ls_index][f.component,:,:,s_index:s_index_end])
 
 		if depth >= 1:
 			z = np.indices(data.shape)[sliceIndex]
 			data = np.max(data*np.exp((-3.0/depth)*z), axis=sliceIndex)
+			if len(mask_fields):
+				mask = np.max(mask, axis=sliceIndex)
 		#else:
 		#	data = np.squeeze(data, axis=sliceIndex)
 
-		#print(data.shape)
+		mask = mask == 1.0
 
-		return data
+		return mask*data
 
-	def resetBounds(self):
+	def resetBounds(self, data=None):
 		if (self.customBoundsCheck.checkState() == 0 and self.currentFieldIndex != None):
 
-			data = self.getCurrentSlice()
+			if data is None:
+				data = self.getCurrentSlice()
 			
 			alpha = self.getAlpha()
 			vmin = np.amin(data)
@@ -1289,11 +1339,18 @@ class PlotWidget(QtWidgets.QWidget):
 
 			self.vminText.setText(str(vmin))
 			self.vmaxText.setText(str(vmax))
-		
+
+	def maskField(self, index, checked):
+		data = self.getCurrentSlice()
+		self.resetBounds(data)
+		self.replot(data)
+
 	def changeField(self, index, checked):
 
 		if (self.changeFieldSuspended):
 			return
+
+		data = None
 
 		if checked:
 			self.currentFieldIndex = index
@@ -1301,17 +1358,19 @@ class PlotWidget(QtWidgets.QWidget):
 			for i, field in enumerate(self.fields):
 				field.button.setChecked(i == index)
 			self.changeFieldSuspended = False
-			self.resetBounds()
+			data = self.getCurrentSlice()
+			self.resetBounds(data)
 			self.viewXMLButton.setChecked(False)
 			self.viewResultDataButton.setChecked(False)
 		else:
 			self.currentFieldIndex = None
 
-		self.replot()
+		self.replot(data)
 
 	def sliceSliderChanged(self):
-		self.resetBounds()
-		self.replot()
+		data = self.getCurrentSlice()
+		self.resetBounds(data)
+		self.replot(data)
 		self.sliceLabel.setText("%s=%04d" % (self.sliceCombo.currentText(), self.sliceSlider.value()))
 
 	def alphaSliderChanged(self):
@@ -1321,14 +1380,15 @@ class PlotWidget(QtWidgets.QWidget):
 		else:
 			self.customBoundsCheckChanged(0)
 
-	def replot(self):
+	def replot(self, data=None):
 
 		if self.replotSuspended:
 			return
 
 		#print("replot")
-		self.replotCount += 1
+		#traceback.print_stack()
 
+		self.replotCount += 1
 		self.axes.clear()
 
 		xlim = None
@@ -1347,7 +1407,9 @@ class PlotWidget(QtWidgets.QWidget):
 		
 		if (self.currentFieldIndex != None):
 			
-			data = self.getCurrentSlice()
+			if data is None:
+				data = self.getCurrentSlice()
+
 			s_index = self.sliceCombo.currentIndex()
 			coords = ["x", "y", "z"]
 			z_cord = coords[s_index]
@@ -3289,8 +3351,39 @@ class App(QtWidgets.QApplication):
 			self.settings.setValue(prefix + "_windowState", win.saveState())
 
 
+# Call this function in your main after creating the QApplication
+def setup_interrupt_handling():
+	# Setup handling of KeyboardInterrupt (Ctrl-C) for PyQt.
+	signal.signal(signal.SIGINT, _interrupt_handler)
+	# Regularly run some (any) python code, so the signal handler gets a
+	# chance to be executed:
+	safe_timer(50, lambda: None)
+
+# Define this as a global function to make sure it is not garbage
+# collected when going out of scope:
+def _interrupt_handler(signum, frame):
+	# Handle KeyboardInterrupt: quit application.
+	QtGui.QApplication.quit()
+	print("_interrupt_handler")
+
+def safe_timer(timeout, func, *args, **kwargs):
+	# Create a timer that is safe against garbage collection and overlapping
+	# calls. See: http://ralsina.me/weblog/posts/BB974.html
+	def timer_event():
+		try:
+			func(*args, **kwargs)
+		finally:
+			QtCore.QTimer.singleShot(timeout, timer_event)
+	QtCore.QTimer.singleShot(timeout, timer_event)
+
+def eh():
+	print("error")
+	traceback.print_exception()
+
 if __name__ == "__main__":
+	#sys.excepthook = eh
 	app = App(sys.argv)
+	#setup_interrupt_handling()
 	ret = app.exec_()
 	sys.exit(ret)
 
