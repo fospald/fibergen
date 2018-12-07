@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 2.8)
 # Set verbose output while testing CMake
 set(CMAKE_VERBOSE_MAKEFILE 1)
 
+# Use C++ 11
+set(CMAKE_CXX_STANDARD 11)
+
 # Note for the use of -ffast-math:
 # http://stackoverflow.com/questions/22931147/stdisinf-does-not-work-with-ffast-math-how-to-check-for-infinity
 
@@ -144,6 +147,7 @@ SET(PROJECT_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 SITE_NAME(HOST_NAME)
 STRING(REPLACE "-" "_" HOST_NAME ${HOST_NAME})
 STRING(REPLACE " " "_" HOST_NAME ${HOST_NAME})
+STRING(REPLACE "." "_" HOST_NAME ${HOST_NAME})
 
 ADD_DEFINITIONS(-DHOST_NAME=${HOST_NAME})
 

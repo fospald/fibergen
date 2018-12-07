@@ -2206,6 +2206,7 @@ class DocWidget(QtWebKitWidgets.QWebView):
 				break
 
 		if self.docfile is None:
+			print("WARNING: No doxygen documentation found! Using online README instead.")
 			openurl = "https://fospald.github.io/fibergen/"
 		else:
 			openurl = "file://" + self.docfile

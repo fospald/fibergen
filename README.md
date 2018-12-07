@@ -29,10 +29,11 @@ The following libraries are required, which are likely already installed on your
 * [boost](https://www.boost.org/) incl. boost.python 3 and [boost-numeric-bindings](https://mathema.tician.de/software/boost-numeric-bindings/)
 * [FFTW3](http://www.fftw.org/) library
 * [lapack](www.netlib.org/lapack/) library
-* [libpng](http://www.libpng.org/pub/png/libpng.html) library
 * [Python 3](https://www.python.org/)
 * [scipy](https://www.scipy.org/) incl. numpy headers
 * [PyQt5](https://www.riverbankcomputing.com/software/pyqt/download5) incl. QWebEngine (QWebKit also works)
+* [zlib](https://zlib.net/) library
+* [libpng](http://www.libpng.org/pub/png/libpng.html) library (optional for PNG output)
 
 If unsure, continue with the installation and check the error messages of CMake.
 
