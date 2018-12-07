@@ -113,6 +113,7 @@ IF(APPLE)
 ELSE()
 	SET(Boost_Python python-py${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
 ENDIF()
+# TODO: Boost >= 1.68: also add gil component?
 FIND_PACKAGE(Boost REQUIRED COMPONENTS system program_options thread ${Boost_Python} iostreams filesystem)
 INCLUDE_DIRECTORIES(${INCLUDE_DIRECTORIES} ${Boost_INCLUDE_DIRS})
 LINK_DIRECTORIES(${LINK_DIRECTORIES} ${Boost_LIBRARY_DIRS})
