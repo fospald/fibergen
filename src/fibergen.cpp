@@ -145,8 +145,14 @@ multigrid improvements:
 #define PNG_SKIP_SETJMP_CHECK
 #define png_infopp_NULL (png_infopp)NULL
 #define int_p_NULL (int*)NULL
+#if BOOST_VERSION >= 106800
+#include <boost/gil.hpp>
+#include <boost/gil/extension/io/png.hpp>
+#include <boost/gil/io/write_view.hpp>
+#else
 #include <boost/gil/gil_all.hpp>
 #include <boost/gil/extension/io/png_dynamic_io.hpp>
+#endif
 
 #include <boost/python.hpp>
 #include <boost/python/raw_function.hpp>
@@ -7043,7 +7049,12 @@ public:
 #endif
 
 		// write png to filename
+#if BOOST_VERSION >= 106800
+		// TODO: does this work
+		gil::write_view(filename, gil::const_view(img));
+#else
 		gil::png_write_view(filename, gil::const_view(img));
+#endif
 	}
 };
 
