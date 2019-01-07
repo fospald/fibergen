@@ -2079,7 +2079,7 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 				word = m.group(0)
 				if word == 'fg':
 					word = 'fibergen'
-				for k in [word, "fibergen.%s" % word, "fibergen.FG.%s" % word]:
+				for k in ["fibergen.%s" % word, "fibergen.FG.%s" % word, word]:
 					try:
 						#helpstr = pydoc.render_doc(k, "Help on %s", renderer=pydoc.plaintext)
 						#helpstr = '<pre>' + cgi.escape(helpstr) + '</pre>'

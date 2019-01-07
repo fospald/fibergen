@@ -107,15 +107,17 @@ ENDIF()
 #MESSAGE("ITK include dirs: " ${ITK_INCLUDE_DIRS})
 #MESSAGE("ITK libraries: " ${ITK_LIBRARY_DIRS})
 
-# Fint threads library https://cmake.org/cmake/help/v3.2/module/FindThreads.html
+# Find threads library https://cmake.org/cmake/help/v3.2/module/FindThreads.html
 FIND_PACKAGE(Threads REQUIRED)
 
 # Find Boost library
 SET(Boost_USE_MULTITHREADED ${USE_OPENMP})
 SET(Boost_USE_STATIC_RUNTIME OFF)
-IF(APPLE)
-	SET(Boost_Python python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
-ELSE()
+# Try to find boost python
+SET(Boost_Python python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
+FIND_PACKAGE(Boost QUIET OPTIONAL_COMPONENTS ${Boost_Python})
+STRING(TOUPPER "${Boost_Python}" BPY)
+IF(NOT Boost_FOUND OR NOT ${Boost_${BPY}_FOUND})
 	SET(Boost_Python python-py${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR})
 ENDIF()
 # TODO: Boost >= 1.68: also add gil component?

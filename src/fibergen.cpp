@@ -7051,7 +7051,8 @@ public:
 		// write png to filename
 #if BOOST_VERSION >= 106800
 		// TODO: does this work
-		gil::write_view(filename, gil::const_view(img));
+		// gil::write_view(filename, gil::const_view(img));
+		LOG_CWARN << "Writing PNG distance map currently not implemented." << std::endl;	
 #else
 		gil::png_write_view(filename, gil::const_view(img));
 #endif
