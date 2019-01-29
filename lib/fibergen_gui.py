@@ -14,6 +14,7 @@ import pydoc
 import traceback
 import codecs
 import collections
+import argparse
 import tempfile
 import subprocess
 import xml.etree.ElementTree as ET
@@ -867,7 +868,7 @@ class PlotWidget(QtWidgets.QWidget):
 		self.textEdit.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 		self.stack.addWidget(self.textEdit)
 
-		if 1:
+		if not app.pargs.disable_browser:
 			self.resultTextEdit = QtWebKitWidgets.QWebView()
 			self.resultPage = MyWebPage()
 			self.resultPage.setHtml(self.resultPage.defaultCSS() + resultText)
@@ -2580,7 +2581,10 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.runCount = 0
 		self.lastSaveText = self.getSaveText()
 
-		self.helpWidget = HelpWidget(self.textEdit)
+		if app.pargs.disable_browser:
+			self.helpWidget = QtWidgets.QLabel("Browser disabled")
+		else:
+			self.helpWidget = HelpWidget(self.textEdit)
 		vbox = QtWidgets.QVBoxLayout()
 		vbox.setContentsMargins(0,0,0,0)
 		vbox.addWidget(self.helpWidget)
@@ -2702,7 +2706,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			self.hSplit.restoreState(app.settings.value("hSplitterSize"))
 			self.vSplit.restoreState(app.settings.value("vSplitterSize"))
 		except:
-			print(traceback.format_exc())
+			#print(traceback.format_exc())
 			screen = app.desktop().screenGeometry()
 			self.resize(screen.width()*2/3, screen.height()*2/3)
 			#self.setWindowState(QtCore.Qt.WindowMaximized)
@@ -2745,7 +2749,11 @@ class MainWindow(QtWidgets.QMainWindow):
 	def openHelp(self):
 		if self.docTabIndex is None:
 			if self.docTab is None:
-				self.docTab = DocWidget()
+				app = QtWidgets.QApplication.instance()
+				if app.pargs.disable_browser:
+					self.docTab = QtWidgets.QLabel("Browser disabled")
+				else:
+					self.docTab = DocWidget()
 			self.docTabIndex = self.addTab(self.docTab, "Help")
 		self.tabWidget.setCurrentWidget(self.docTab)
 
@@ -2862,9 +2870,13 @@ class MainWindow(QtWidgets.QMainWindow):
 	def newProjectGui(self):
 		if self.demoTabIndex is None:
 			if self.demoTab is None:
-				self.demoTab = DemoWidget()
-				self.demoTab.openProjectRequest.connect(self.openDemo)
-				self.demoTab.newProjectRequest.connect(self.newProject)
+				app = QtWidgets.QApplication.instance()
+				if not app.pargs.disable_browser:
+					self.demoTab = DemoWidget()
+					self.demoTab.openProjectRequest.connect(self.openDemo)
+					self.demoTab.newProjectRequest.connect(self.newProject)
+				else:
+					self.demoTab = QtWidgets.QLabel("Browser disabled")
 			self.demoTabIndex = self.addTab(self.demoTab, "Demos")
 		self.tabWidget.setCurrentWidget(self.demoTab)
 
@@ -3285,6 +3297,13 @@ class App(QtWidgets.QApplication):
 
 	def __init__(self, args):
 
+		# parse arguments
+		parser = argparse.ArgumentParser(description='fibergen - A FFT-based homogenization tool.')
+		parser.add_argument('project', metavar='filename', nargs='?', help='xml project filename to load')
+		parser.add_argument('--disable-browser', action='store_true', default=False, help='disable browser components')
+		self.pargs = parser.parse_args(args[1:])
+		print(self.pargs)
+
 		QtWidgets.QApplication.__init__(self, list(args) + ["--disable-web-security"])
 
 		self.setApplicationName("fibergen")
@@ -3325,8 +3344,8 @@ class App(QtWidgets.QApplication):
 		print("settings:", self.settings.fileName())
 
 		try:
-			if (len(args) > 1):
-				self.window.openProject(args[-1])
+			if (not self.pargs.project is None):
+				self.window.openProject(self.pargs.project)
 				#self.window.runProject()
 			else:
 				self.window.newProjectGui()
