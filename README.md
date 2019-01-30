@@ -21,6 +21,11 @@ A FFT-based homogenization tool.
 * ...
 
 
+## Target Platform
+
+The tool was developed and tested under Linux (Ubuntu). Other platforms such as Windows and MacOS might work but probably require adjustmest to the CMakeLists.txt file and some other small scripts.
+
+
 ## Requirements
 
 The following libraries are required, which are likely already installed on your system:
@@ -32,7 +37,7 @@ The following libraries are required, which are likely already installed on your
 * [lapack](www.netlib.org/lapack/) library
 * [Python 3](https://www.python.org/)
 * [scipy](https://www.scipy.org/) incl. numpy headers
-* [PyQt5](https://www.riverbankcomputing.com/software/pyqt/download5) incl. QWebEngine (QWebKit also works)
+* [PyQt5](https://www.riverbankcomputing.com/software/pyqt/download5) incl. QtWebEngine (QtWebKit also works)
 * [zlib](https://zlib.net/) library
 * [libpng](http://www.libpng.org/pub/png/libpng.html) library (optional for PNG output)
 
@@ -80,6 +85,11 @@ Further information on how to use fibergen, can be found in [the tutorial](TUTOR
 
 
 ## Troubleshooting
+
+### GUI Crash
+
+There are known instances with QtWebKit which may result in a crash of the GUI.
+An re-installation of QtWebKit with an older version or use of the newer QtWebEngine (i.e. using the latest version of Qt) may resolve the issue.
 
 ### Setting the Python version
 
