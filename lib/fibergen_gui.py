@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 from __future__ import unicode_literals, division
@@ -26,6 +26,7 @@ import signal
 from weakref import WeakKeyDictionary
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 try:
 	from PyQt5 import QtWebKitWidgets
 except:
@@ -3300,9 +3301,9 @@ class App(QtWidgets.QApplication):
 		# parse arguments
 		parser = argparse.ArgumentParser(description='fibergen - A FFT-based homogenization tool.')
 		parser.add_argument('project', metavar='filename', nargs='?', help='xml project filename to load')
-		parser.add_argument('--disable-browser', action='store_true', default=False, help='disable browser components')
+		parser.add_argument('--disable-browser', action='store_true', default=(not "QtWebKitWidgets" in globals()), help='disable browser components')
 		self.pargs = parser.parse_args(args[1:])
-		print(self.pargs)
+		#print(self.pargs)
 
 		QtWidgets.QApplication.__init__(self, list(args) + ["--disable-web-security"])
 

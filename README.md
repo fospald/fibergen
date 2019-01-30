@@ -89,7 +89,12 @@ Further information on how to use fibergen, can be found in [the tutorial](TUTOR
 ### GUI Crash
 
 There are known instances with QtWebKit which may result in a crash of the GUI.
-An re-installation of QtWebKit with an older version or use of the newer QtWebEngine (i.e. using the latest version of Qt) may resolve the issue.
+An re-installation of QtWebKit with an older version or use of the newer QtWebEngine (i.e. using the latest version of Qt) may resolve the issue. Alternatively you can run the GUI with the demo- and help- browser disabled by
+```bash
+fibergen-gui --disable-browser
+```
+You can still access the demos by opening the projects in the "demo" folder manually.
+
 
 ### Setting the Python version
 
