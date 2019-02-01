@@ -2351,6 +2351,7 @@ class DemoWidgetCommon(QtCore.QObject):
 
 		cdir = os.path.dirname(os.path.abspath(__file__))
 		self.demodir = os.path.abspath(os.path.join(cdir, "../demo"))
+		self.simple = False
 
 		self.loadDir()
 
@@ -2409,6 +2410,7 @@ h2 {
 }
 img {
 	width: 20em;
+	background-color: """ + ("#fff" if self.simple else "initial") + """;
 }
 .header td {
 	border: none;
@@ -2427,7 +2429,7 @@ img {
 	margin-bottom: -0.5em;
 }
 .header {
-	background-color: initial;
+	background-color: """ + ("auto" if self.simple else "initial") + """;
 	padding: 1em;
 	border-bottom: 1px solid """ + pal.shadow().color().name() + """;
 	margin-bottom: 1em;
@@ -2450,7 +2452,7 @@ img {
 				html += '<p>A FFT-based homogenization tool.</p>'
 				html += '</td>'
 				img = xml.find("image")
-				if not img is None and not img.text is None and len(img.text):
+				if not img is None and not img.text is None and len(img.text) and not self.simple:
 					img = os.path.join(path, img.text)
 					html += '<td><img src="file://' + img + '" /></td>'
 			else:
@@ -2475,6 +2477,10 @@ img {
 		indices = []
 		dirs = sorted(os.listdir(path), key=lambda s: s.lower(), reverse=True)
 		
+		img_tag = '<img '
+		if self.simple:
+			img_tag = '<br/><img width="256" height="256" '
+
 		for d in dirs:
 
 			subdir = os.path.join(path, d)
@@ -2485,7 +2491,7 @@ img {
 			project_file_python = os.path.join(subdir, "project.py")
 			category_file = os.path.join(subdir, "category.xml")
 
-			item = ""
+			item = "<hr/>" if self.simple else ""
 			index = None
 			if os.path.isfile(project_file_python):
 				with open(project_file_python, "rt") as f:
@@ -2498,7 +2504,7 @@ img {
 				action = "open"
 				item += '<a class="demo" href="http://x#' + action + '#' + project_file_python + '">'
 				item += '<h2>' + title + '</h2>'
-				item += '<img src="file://' + subdir + '/../category.svg" />'
+				item += img_tag + ' src="file://' + subdir + '/../category.svg" />'
 				match = re.search("\s*#\s*description\s*:\s*(.*)\s*", code)
 				if match:
 					item += '<p>' + match.group(1) + '</p>'
@@ -2524,12 +2530,12 @@ img {
 				img = xml.find("image")
 				if not img is None and not img.text is None and len(img.text):
 					img = os.path.join(subdir, img.text)
-					item += '<img src="file://' + img + '" />'
+					item += img_tag + ' src="file://' + img + '" />'
 				else:
 					for ext in ["svg", "png"]:
 						img = os.path.join(subdir, "thumbnail." + ext)
 						if os.path.isfile(img):
-							item += '<img src="file://' + img + '" />'
+							item += img_tag + ' src="file://' + img + '" />'
 							break
 				desc = xml.find("description")
 				if not desc is None and not desc.text is None and len(desc.text):
@@ -2555,7 +2561,7 @@ img {
 				img = xml.find("image")
 				if not img is None and not img.text is None and len(img.text):
 					img = os.path.join(subdir, img.text)
-					item += '<img src="file://' + img + '" />'
+					item += img_tag + ' src="file://' + img + '" />'
 				item += '</a>'
 				index = xml.find("index")
 
@@ -2590,6 +2596,7 @@ class SimpleDemoWidget(QtWidgets.QTextBrowser):
 		QtWidgets.QTextBrowser.__init__(self, parent)
 
 		self.dwc = DemoWidgetCommon(self)
+		self.dwc.simple = True
 		self.dwc.updateHtml.connect(self.setHtml)
 		self.dwc.openProjectRequest.connect(self.emitOpenProjectRequest)
 		self.dwc.newProjectRequest.connect(self.emitNewProjectRequest)
