@@ -431,13 +431,14 @@ class MyWebPage(QtWebKitWidgets.QWebPage):
 	def setUrlFrame(self, url):
 		self.currentFrame().setUrl(url)
 
-	def defaultCSS(self, tags=True):
 
-		app = QtWidgets.QApplication.instance()
-		pal = app.palette()
-		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
+def defaultCSS(tags=True):
 
-		html = """
+	app = QtWidgets.QApplication.instance()
+	pal = app.palette()
+	font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)
+
+	html = """
 body, table {
 	font-size: """ + str(font.pointSize()) + """pt;
 }
@@ -496,10 +497,10 @@ h3 {
 	margin-top: 1.0em;
 }
 """
-		if tags:
-			html = "<style>" + html + "</style>"
+	if tags:
+		html = "<style>" + html + "</style>"
 
-		return html
+	return html
 
 
 class PlotField(object):
@@ -872,7 +873,7 @@ class PlotWidget(QtWidgets.QWidget):
 		if not app.pargs.disable_browser:
 			self.resultTextEdit = QtWebKitWidgets.QWebView()
 			self.resultPage = MyWebPage()
-			self.resultPage.setHtml(self.resultPage.defaultCSS() + resultText)
+			self.resultPage.setHtml(defaultCSS() + resultText)
 			self.resultTextEdit.setPage(self.resultPage)
 		else:
 			self.resultTextEdit = QtWidgets.QTextEdit()
@@ -1914,31 +1915,26 @@ class XMLTextEdit(QtWidgets.QTextEdit):
 		return True
 
 
-class HelpWidget(QtWebKitWidgets.QWebView):
+class HelpWidgetCommon(QtCore.QObject):
 
-	def __init__(self, editor, parent = None):
+	updateHtml = QtCore.pyqtSignal('QString')
 
-		QtWebKitWidgets.QWebView.__init__(self, parent)
+	def __init__(self, editor):
+
+		super(QtCore.QObject, self).__init__(editor)
 
 		self.editor = editor
 		self.editor.selectionChanged.connect(self.editorSelectionChanged)
 		self.editor.textChanged.connect(self.editorSelectionChanged)
 		self.editor.cursorPositionChanged.connect(self.editorSelectionChanged)
 
-		self.timer = QtCore.QTimer(self)
+		self.timer = QtCore.QTimer(editor)
 		self.timer.setInterval(100)
 		self.timer.timeout.connect(self.updateHelp)
 
 		cdir = os.path.dirname(os.path.abspath(__file__))
 
 		self.ff = ET.parse(cdir + "/../doc/fileformat.xml")
-		
-		self.mypage = MyWebPage()
-		self.mypage.linkClicked.connect(self.linkClicked)
-		self.setPage(self.mypage)
-
-		#self.setStyleSheet("background:transparent");
-		#self.setAttribute(QtCore.Qt.WA_TranslucentBackground);
 
 	def linkClicked(self, url):
 
@@ -2120,7 +2116,7 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 		typ = e.get("type")
 		values = e.get("values")
 
-		html = self.mypage.defaultCSS() + """
+		html = defaultCSS() + """
 <style>
 h2 {
 	margin-top: 0;
@@ -2247,15 +2243,47 @@ p ~ p {
 				html += tags
 				html += "</table>"
 
-		# ui.textEdit->verticalScrollBar()->setValue(0);
-		self.mypage.setHtml(html)
+		self.updateHtml.emit(html)
 
 
-class DocWidget(QtWebKitWidgets.QWebView):
+class SimpleHelpWidget(QtWidgets.QTextBrowser):
+
+	def __init__(self, editor, parent = None):
+
+		QtWidgets.QTextBrowser.__init__(self, parent)
+
+		self.hwc = HelpWidgetCommon(editor)
+		self.hwc.updateHtml.connect(self.setHtml)
+
+		self.setOpenLinks(False)
+		self.anchorClicked.connect(self.hwc.linkClicked)
+
+
+class HelpWidget(QtWebKitWidgets.QWebView):
+
+	def __init__(self, editor, parent = None):
+
+		QtWebKitWidgets.QWebView.__init__(self, parent)
+
+		self.hwc = HelpWidgetCommon(editor)
+
+		self.mypage = MyWebPage()
+		self.mypage.linkClicked.connect(self.hwc.linkClicked)
+		self.setPage(self.mypage)
+
+		self.hwc.updateHtml.connect(self.mypage.setHtml)
+		
+		#self.setStyleSheet("background:transparent");
+		#self.setAttribute(QtCore.Qt.WA_TranslucentBackground);
+
+
+class DocWidgetCommon(QtCore.QObject):
+
+	updateHtml = QtCore.pyqtSignal('QString')
 
 	def __init__(self, parent = None):
 
-		QtWebKitWidgets.QWebView.__init__(self, parent)
+		super(QtCore.QObject, self).__init__(parent)
 
 		cdir = os.path.dirname(os.path.abspath(__file__))
 
@@ -2271,23 +2299,34 @@ class DocWidget(QtWebKitWidgets.QWebView):
 
 		if self.docfile is None:
 			print("WARNING: No doxygen documentation found! Using online README instead.")
-			openurl = "https://fospald.github.io/fibergen/"
+			self.openurl = "https://fospald.github.io/fibergen/"
 		else:
-			openurl = "file://" + self.docfile
+			self.openurl = "file://" + self.docfile
 
-		"""
-		with open(self.docfile, "rt") as f:
-			html = f.read()
-		html = html.replace("<body>", "<body>" + self.mypage.defaultCSS())
-		self.mypage.setHtml(html)
-		"""
+
+class SimpleDocWidget(QtWidgets.QTextBrowser):
+
+	def __init__(self, parent = None):
+
+		QtWidgets.QTextBrowser.__init__(self, parent)
+
+		self.dwc = DocWidgetCommon(self)
+		self.setSource(QtCore.QUrl(self.dwc.openurl))
+
+
+class DocWidget(QtWebKitWidgets.QWebView):
+
+	def __init__(self, parent = None):
+
+		QtWebKitWidgets.QWebView.__init__(self, parent)
+
+		self.dwc = DocWidgetCommon(self)
 
 		self.mypage = MyWebPage()
-		self.mypage.setUrl(QtCore.QUrl(openurl))
+		self.mypage.setUrl(QtCore.QUrl(self.dwc.openurl))
 		self.mypage.linkClicked.connect(self.linkClicked)
 		self.setPage(self.mypage)
 
-		css = self.mypage.defaultCSS(False)
 		css = """
 body {
 	background-color: white;
@@ -2300,21 +2339,18 @@ body {
 		self.mypage.setUrl(url)
 
 
-class DemoWidget(QtWebKitWidgets.QWebView):
+class DemoWidgetCommon(QtCore.QObject):
 
+	updateHtml = QtCore.pyqtSignal('QString')
 	openProjectRequest = QtCore.pyqtSignal('QString')
 	newProjectRequest = QtCore.pyqtSignal('QString')
 
-	def __init__(self, parent = None):
+	def __init__(self, parent):
 
-		QtWebKitWidgets.QWebView.__init__(self, parent)
+		super(QtCore.QObject, self).__init__(parent)
 
 		cdir = os.path.dirname(os.path.abspath(__file__))
 		self.demodir = os.path.abspath(os.path.join(cdir, "../demo"))
-
-		self.mypage = MyWebPage()
-		self.mypage.linkClicked.connect(self.linkClicked)
-		self.setPage(self.mypage)
 
 		self.loadDir()
 
@@ -2340,7 +2376,7 @@ class DemoWidget(QtWebKitWidgets.QWebView):
 		app = QtWidgets.QApplication.instance()
 		pal = app.palette()
 
-		html = self.mypage.defaultCSS() + """
+		html = defaultCSS() + """
 <style>
 .demo, .category, .back {
 	border: 2px solid """ + pal.link().color().name() + """;
@@ -2541,7 +2577,61 @@ img {
 
 		html += '</center>'
 
-		self.mypage.setHtml(html)
+		self.updateHtml.emit(html)
+
+
+class SimpleDemoWidget(QtWidgets.QTextBrowser):
+
+	openProjectRequest = QtCore.pyqtSignal('QString')
+	newProjectRequest = QtCore.pyqtSignal('QString')
+
+	def __init__(self, parent = None):
+
+		QtWidgets.QTextBrowser.__init__(self, parent)
+
+		self.dwc = DemoWidgetCommon(self)
+		self.dwc.updateHtml.connect(self.setHtml)
+		self.dwc.openProjectRequest.connect(self.emitOpenProjectRequest)
+		self.dwc.newProjectRequest.connect(self.emitNewProjectRequest)
+
+		self.setOpenLinks(False)
+		self.anchorClicked.connect(self.dwc.linkClicked)
+
+		self.dwc.loadDir()
+
+	def emitOpenProjectRequest(self, path):
+		self.openProjectRequest.emit(path)
+
+	def emitNewProjectRequest(self, path):
+		self.newProjectRequest.emit(path)
+
+
+class DemoWidget(QtWebKitWidgets.QWebView):
+
+	openProjectRequest = QtCore.pyqtSignal('QString')
+	newProjectRequest = QtCore.pyqtSignal('QString')
+
+	def __init__(self, parent = None):
+
+		QtWebKitWidgets.QWebView.__init__(self, parent)
+
+		self.dwc = DemoWidgetCommon(self)
+
+		self.mypage = MyWebPage()
+		self.mypage.linkClicked.connect(self.dwc.linkClicked)
+		self.setPage(self.mypage)
+
+		self.dwc.updateHtml.connect(self.mypage.setHtml)
+		self.dwc.openProjectRequest.connect(self.emitOpenProjectRequest)
+		self.dwc.newProjectRequest.connect(self.emitNewProjectRequest)
+
+		self.dwc.loadDir()
+
+	def emitOpenProjectRequest(self, path):
+		self.openProjectRequest.emit(path)
+
+	def emitNewProjectRequest(self, path):
+		self.newProjectRequest.emit(path)
 
 
 class TabDoubleClickEventFilter(QtCore.QObject):
@@ -2559,7 +2649,6 @@ class TabDoubleClickEventFilter(QtCore.QObject):
 				return True
 
 		return False
-
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -2583,7 +2672,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		self.lastSaveText = self.getSaveText()
 
 		if app.pargs.disable_browser:
-			self.helpWidget = QtWidgets.QLabel("Browser disabled")
+			self.helpWidget = SimpleHelpWidget(self.textEdit)
 		else:
 			self.helpWidget = HelpWidget(self.textEdit)
 		vbox = QtWidgets.QVBoxLayout()
@@ -2752,7 +2841,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			if self.docTab is None:
 				app = QtWidgets.QApplication.instance()
 				if app.pargs.disable_browser:
-					self.docTab = QtWidgets.QLabel("Browser disabled")
+					self.docTab = SimpleDocWidget()
 				else:
 					self.docTab = DocWidget()
 			self.docTabIndex = self.addTab(self.docTab, "Help")
@@ -2872,12 +2961,12 @@ class MainWindow(QtWidgets.QMainWindow):
 		if self.demoTabIndex is None:
 			if self.demoTab is None:
 				app = QtWidgets.QApplication.instance()
-				if not app.pargs.disable_browser:
-					self.demoTab = DemoWidget()
-					self.demoTab.openProjectRequest.connect(self.openDemo)
-					self.demoTab.newProjectRequest.connect(self.newProject)
+				if app.pargs.disable_browser:
+					self.demoTab = SimpleDemoWidget()
 				else:
-					self.demoTab = QtWidgets.QLabel("Browser disabled")
+					self.demoTab = DemoWidget()
+				self.demoTab.openProjectRequest.connect(self.openDemo)
+				self.demoTab.newProjectRequest.connect(self.newProject)
 			self.demoTabIndex = self.addTab(self.demoTab, "Demos")
 		self.tabWidget.setCurrentWidget(self.demoTab)
 
