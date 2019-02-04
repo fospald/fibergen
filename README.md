@@ -93,7 +93,7 @@ An re-installation of QtWebKit with an older version or use of the newer QtWebEn
 ```bash
 fibergen-gui --disable-browser
 ```
-You can still access the demos by opening the projects in the "demo" folder manually.
+All QtWebKit/QtWebEngine browser instances will then be replaced by simplified QTextBrowser instances.
 
 
 ### Setting the Python version
