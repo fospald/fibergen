@@ -48,9 +48,9 @@ It is also written in object-oriented C++ and provides a simple Python interface
 # Features
 
 ``fibergen`` implements FFT-based homogenization based on the Lippmann-Schwinger equation.
-It includes the original method by @MoulinecSuquet1994 and the more recent finite difference discretizations on a rotated grid by @Willot2015 and on a staggered grid by @SchneiderOspaldKabel2015. Especially the staggered grid method is not implemented by any other of the listed tools, although it is the superior method @SchneiderOspaldKabel2015. ``fibergen`` also implements efficient fixed point and Newton-Krylov solvers for FFT-based homogenization of elasticity at large deformations, as described in @KabelBöhlkeSchneider2014.
-Further it implements so called composite voxels, for the linear @KabelMerkertSchneider2015 and nonlinear case @SchneiderOspaldKabel2015, which increases the accuracy and/or speed of the method enormously.
-Also mixed boundary conditions @Kabel2016 are supported.
+It includes the original method by @MoulinecSuquet1994 and the more recent finite difference discretizations on a rotated grid by @Willot2015 and on a staggered grid by @SchneiderOspaldKabel2015. Especially the staggered grid method is not implemented by any other of the listed tools, although it is the superior method [@SchneiderOspaldKabel2015]. ``fibergen`` also implements efficient fixed point and Newton-Krylov solvers for FFT-based homogenization of elasticity at large deformations, as described in @KabelBöhlkeSchneider2014.
+Further it implements so called composite voxels, for the linear [@KabelMerkertSchneider2015] and nonlinear case [@SchneiderOspaldKabel2015], which increases the accuracy and/or speed of the method enormously.
+Also mixed boundary conditions [@Kabel2016] are supported.
 Further homogenization solvers for the effective thermal conductivity, porosity and viscosity are provided.
 Geometry can be loaded from (gzip compressed) raw data (e.g. CT scans) or also be generated from simple sphere, cylinder and capsule-like objects, but also tetrahedral meshes can be used as input geometry.
 For cylinder and capsule objects a orientation distribution can be selected for the generation, as well as distributions for the spatial position, length- and diameter.
