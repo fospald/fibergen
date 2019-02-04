@@ -5,10 +5,6 @@
   <a href="https://zenodo.org/badge/latestdoi/140197063"><img src="https://zenodo.org/badge/140197063.svg" alt="DOI"></a>
 </p>
 
-
-<a href="https://zenodo.org/badge/latestdoi/140197063"><img src="https://zenodo.org/badge/140197063.svg" alt="DOI"></a>
-
-
 # fibergen
 
 A FFT-based homogenization tool.
