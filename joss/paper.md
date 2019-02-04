@@ -68,7 +68,7 @@ Furthermore ``fibergen`` provides a Python library, which can be used to create 
 The ``fibergen`` core was developed in C++, heavily using the [Boost](http://www.boost.org) and [boost-numeric-bindings](http://mathema.tician.de/software/boost-numeric-bindings/) for Boost uBLAS libraries.
 Parallelization is realized through [OpenMP](http://www.openmp.org/).
 The Python 2/3 compatible interface is provided using [Boost.Python](http://www.boost.org/doc/libs/release/libs/python/), where computed results are returned as [numpy](http://www.numpy.org/)-array.
-The graphical user interface was developed using [PyQt5](http://pypi.org/project/PyQt5/), the Python bindings of [Qt5](http://doc.qt.io/qt-5/qt5-intro.html), including the [QWebEngine](http://doc.qt.io/qt-5.11/qtwebengine-index.html) (or QWebKit) for browsing demos as well as the Qt back-end of [matplotlib](http://matplotlib.org/) for embedding plots. A small amount of [scipy](http://www.scipy.org/) functionality is used to write images.
+The graphical user interface was developed using [PyQt5](http://pypi.org/project/PyQt5/), the Python bindings of [Qt5](http://doc.qt.io/qt-5/qt5-intro.html), including the [QtWebEngine](http://doc.qt.io/qt-5.11/qtwebengine-index.html) (or QtWebKit) for browsing demos as well as the Qt back-end of [matplotlib](http://matplotlib.org/) for embedding plots. A small amount of [scipy](http://www.scipy.org/) functionality is used to write images.
 
 # Limitations
 
