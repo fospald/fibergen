@@ -10,6 +10,6 @@ then
 fi
 
 #$PYTHON -m trace --trace "${FIBERGEN_DIR}/../gui/main.py" "$@"
-$PYTHON "${FIBERGEN_DIR}/../gui/main.py" "$@"
+exec -a $(basename "$0") "$PYTHON" -O "${FIBERGEN_DIR}/../gui/main.py" "$@"
 #valgrind $PYTHON "${FIBERGEN_DIR}/../gui/main.py" "$@"
 

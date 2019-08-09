@@ -3009,9 +3009,14 @@ class MainWindow(QtWidgets.QMainWindow):
 			exec(py, glob, loc)
 			return
 		
+		app = QtWidgets.QApplication.instance()
+
 		if not isinstance(fg, fibergen.FG):
 			try:
-				fg = fibergen.FG().init()
+				fg = fibergen.FG()
+				if not app.pargs.disable_python_ref:
+					fg.init()
+				fg.set_py_enabled(not app.pargs.disable_python_eval)
 				xml = str(self.textEdit.toPlainText())
 				fg.set_xml(xml)
 			except:
@@ -3178,6 +3183,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			progress.show()
 			process_events()
 			
+			print("Running FG with id", id(fg))
 			fg.run()
 
 			if progress.wasCanceled():
@@ -3398,8 +3404,10 @@ class App(QtWidgets.QApplication):
 		parser = argparse.ArgumentParser(description='fibergen - A FFT-based homogenization tool.')
 		parser.add_argument('project', metavar='filename', nargs='?', help='xml project filename to load')
 		parser.add_argument('--disable-browser', action='store_true', default=(not "QtWebKitWidgets" in globals()), help='disable browser components')
+		parser.add_argument('--disable-python-ref', action='store_true', default=False, help='disable Python FG object reference in project files')
+		parser.add_argument('--disable-python-eval', action='store_true', default=False, help='disable Python code evaluation in project files')
 		self.pargs = parser.parse_args(args[1:])
-		#print(self.pargs)
+		print(self.pargs)
 
 		QtWidgets.QApplication.__init__(self, list(args) + ["--disable-web-security"])
 

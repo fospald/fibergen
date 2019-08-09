@@ -699,10 +699,7 @@ protected:
 public:
 	PY()
 	{
-		main_module = py::import("__main__");
-		main_namespace = main_module.attr("__dict__");
-		py::exec("from math import *", main_namespace);
-		enabled = true;
+		enabled = false;
 	}
 
 #if 0
@@ -780,7 +777,16 @@ public:
 	//! If python evaluation is disabled strings are cast to the requested type by a lexical cast
 	void set_enabled(bool enabled)
 	{
+		if (this->enabled == enabled) return;
 		this->enabled = enabled;
+		
+		if (enabled)
+		{
+			// init main namespace
+			main_module = py::import("__main__");
+			main_namespace = main_module.attr("__dict__");
+			py::exec("from math import *", main_namespace);
+		}
 	}
 
 	//! Clear all local variables
@@ -7096,7 +7102,7 @@ public:
 			_flags = FFTW_WISDOM_ONLY;
 		}
 		else {
-			BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Unknown FFT planner flat '%s'") % planner_flag).str()));
+			BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Unknown FFT planner flag '%s'") % planner_flag).str()));
 		}
 	}
 };
@@ -14933,7 +14939,7 @@ public:
 
 		// alloc strain tensor and complex shadow _tau
 		_epsilon.reset(new RealTensor(_nx, _ny, _nz, _mat->dim()));
-		//init_fft();
+		init_fft();
 		_tau = _epsilon->complex_shadow();
 
 		// init prescribed strain and stress
@@ -15472,9 +15478,11 @@ public:
 
 	void init_fft()
 	{
-#ifdef USE_MANY_FFT
-#else
 		get_fft(1);
+
+#ifdef USE_MANY_FFT
+		// TODO: need to initialize all cases or _epsilon data will be overwritten in get_fft when called later
+		#error "TODO"
 #endif
 	}
 
@@ -24626,6 +24634,7 @@ protected:
 public:
 	FG(boost::shared_ptr< ptree::ptree > xml) : xml_root(xml)
 	{
+		pyfg_instance = NULL;
 		reset();
 	}
 
@@ -24650,7 +24659,7 @@ public:
 
 		if (pyfg_instance != NULL) {
 			py::object fg(py::handle<>(py::borrowed(pyfg_instance)));
-			PY::instance().add_local("fg", fg);
+			set_variable("fg", fg);
 		}
 
 		// set variables
@@ -24680,7 +24689,7 @@ public:
 				BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Unknown variable type '%s' for %s") % type % v.first).str()));
 			}
 			
-			PY::instance().add_local(v.first, py_value);
+			set_variable(v.first, py_value);
 
 			LOG_COUT << "Variable " << v.first << " = " << value << std::endl;
 		}
@@ -25015,7 +25024,9 @@ public:
 		
 		std::string host = boost::asio::ip::host_name();
 		std::string fft_wisdom = pt_get(settings, "fft_wisdom", std::string(getenv("HOME")) + "/.fibergen_fft_wisdom_" + host);
-		fftw_import_wisdom_from_filename(fft_wisdom.c_str());
+		if (!fft_wisdom.empty()) {
+			fftw_import_wisdom_from_filename(fft_wisdom.c_str());
+		}
 
 		LOG_COUT << "Current host: " << host << std::endl;
 		LOG_COUT << "Current path: " << boost::filesystem::current_path() << std::endl;
@@ -25042,7 +25053,9 @@ public:
 		int ret = run_actions(settings, actions_path);
 
 		// save fft wisdom
-		fftw_export_wisdom_to_filename(fft_wisdom.c_str());
+		if (!fft_wisdom.empty()) {
+			fftw_export_wisdom_to_filename(fft_wisdom.c_str());
+		}
 
 		return ret;
 	}
@@ -26356,6 +26369,12 @@ public:
 	void set_pyfg_instance(py::object instance) { pyfg_instance = instance.ptr(); }
 	void set_variable(std::string key, py::object value) { fg()->set_variable(key, value); }
 
+	/// Enable/Disable Python evaluation of expressions
+	void set_py_enabled(bool enabled)
+	{
+		PY::instance().set_enabled(enabled);
+	}
+
 	std::string get_xml()
 	{
 		std::stringstream ss;
@@ -26515,31 +26534,9 @@ public:
 		read_xml(filename, *xml_root, 0*ptree::xml_parser::trim_whitespace);
 	}
 
-	noinline int exec(int argc, char* argv[])
+	noinline int exec(const po::variables_map& vm)
 	{
 		Timer __t("application");
-
-		// read program arguments
-		po::options_description desc("Allowed options");
-		desc.add_options()
-		    ("help", "produce help message")
-		    ("input-file", po::value< std::string >()->default_value("project.xml"), "input file")
-		    ("actions-path", po::value< std::string >()->default_value("actions"), "actions xpath to run in input file")
-		;
-
-		po::positional_options_description p;
-		p.add("input-file", -1);
-
-		po::variables_map vm;
-		po::store(po::command_line_parser(argc, argv).
-			  options(desc).positional(p).run(), vm);
-		po::notify(vm);
-
-		if (vm.count("help")) {
-			// print help
-			LOG_COUT << desc << "\n";
-			return 1;
-		}
 
 		std::string filename = vm["input-file"].as<std::string>();
 		std::string actions_path = vm["actions-path"].as<std::string>();
@@ -26602,12 +26599,6 @@ public:
 	{
 		_py_loadstep_callback = cb;
 		fg()->set_loadstep_callback(boost::bind(&PyFG::loadstep_callback, this));
-	}
-
-	/// Enable/Disable Python evaluation of expressions
-	void set_py_enabled(bool enabled)
-	{
-		PY::instance().set_enabled(enabled);
 	}
 
 	std::vector<double> get_B_from_A(double a0, double a1, double a2)
@@ -27058,11 +27049,43 @@ int run_tests()
 //! main entry point of application
 int main(int argc, char* argv[])
 {
-	// init python
-	Py_Initialize();
+	// read program arguments
+	po::options_description desc("Allowed options");
+	desc.add_options()
+	    ("help", "produce help message")
+	    ("test", "run tests")
+	    ("disable-python-ref", "disable Python FG object reference in project files")
+	    ("disable-python-eval", "disable Python code evaluation in project files")
+	    ("input-file", po::value< std::string >()->default_value("project.xml"), "input file")
+	    ("actions-path", po::value< std::string >()->default_value("actions"), "actions xpath to run in input file")
+	;
+
+	po::positional_options_description p;
+	p.add("input-file", -1);
+
+	po::variables_map vm;
+	po::store(po::command_line_parser(argc, argv).
+		  options(desc).positional(p).run(), vm);
+	po::notify(vm);
+
+	if (vm.count("help")) {
+		// print help
+		LOG_COUT << desc << "\n";
+		return 1;
+	}
 
 	// set exception handler
 	std::set_terminate(exception_handler);
+
+	//if (!vm.count("disable-python-ref") || !vm.count("disable-python-eval")) {
+		// init python
+		Py_Initialize();
+	//}
+
+	// run some small problems for checking correctness
+	if (vm.count("test")) {
+		return run_tests<double, double, 3>();
+	}
 
 #if 0
 	// check CPU features (only informative)
@@ -27071,24 +27094,25 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-#if 1
-	// run some small problems for checking correctness
-	if (argc > 1 && std::string(argv[1]) == "--test") {
-		return run_tests<double, double, 3>();
-	}
-#endif
-
 	// run the app
-#if 1
-	PyFGModule module;
-	py::object pyfg = module.FG();
-	pyfg.attr("init")();
-	PyFG& fgp = py::extract<PyFG&>(pyfg);
-#else
-	FGProject fgp;
-#endif
-	int ret = fgp.exec(argc, argv);
-	fgp.reset();
+	int ret;
+	if (vm.count("disable-python-ref"))
+	{
+		FGProject fgp;
+		fgp.set_py_enabled(vm.count("disable-python-eval") == 0);
+		ret = fgp.exec(vm);
+		fgp.reset();
+	}
+	else
+	{
+		PyFGModule module;
+		py::object pyfg = module.FG();
+		pyfg.attr("init")();
+		PyFG& fgp = py::extract<PyFG&>(pyfg);
+		fgp.set_py_enabled(vm.count("disable-python-eval") == 0);
+		ret = fgp.exec(vm);
+		fgp.reset();
+	}
 
 	// return exit code
 	return ret;

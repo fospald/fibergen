@@ -3,5 +3,5 @@
 HOST=$(uname -n | tr " -." "___")
 FIBERGEN_DIR=$(cd $(dirname "$0") && pwd)
 
-"${FIBERGEN_DIR}/fibergen_${HOST}" "$@"
+exec -a $(basename "$0") "${FIBERGEN_DIR}/fibergen_${HOST}" "$@"
 
