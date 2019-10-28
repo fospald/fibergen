@@ -2436,6 +2436,9 @@ protected:
 public:
 	DiscreteDistribution() : _weight(1) { }
 	
+	//! see https://stackoverflow.com/questions/827196/virtual-default-destructors-in-c/827205
+	virtual ~DiscreteDistribution() { }
+
 	//! draw a random sample
 	//! \param x output of the sample
 	//! \param index index of the sample (i.e. for list distributions)
@@ -2943,6 +2946,9 @@ template <typename T, int DIM>
 class IBoundingBox
 {
 public:
+	//! see https://stackoverflow.com/questions/827196/virtual-default-destructors-in-c/827205
+	virtual ~IBoundingBox() { }
+
 	//! radius of the bounding box
 	virtual T bbRadius() const = 0;
 	
@@ -2990,6 +2996,9 @@ template <typename T, int DIM>
 class Fiber : public IBoundingBox<T, DIM>
 {
 public:
+	//! see https://stackoverflow.com/questions/827196/virtual-default-destructors-in-c/827205
+	virtual ~Fiber() { }
+
 	//! Returns the gradient of the distance at the point p in g
 	virtual void distanceGrad(const ublas::c_vector<T, DIM>& p, ublas::c_vector<T, DIM>& g) const = 0;
 
@@ -9493,6 +9502,7 @@ public:
 		n = nx*nyzp;
 	}
 
+	//! see https://stackoverflow.com/questions/827196/virtual-default-destructors-in-c/827205
 	virtual ~TensorFieldBase() {}
 
 	std::size_t dim; // number of dimensions
@@ -10210,6 +10220,9 @@ template<typename T>
 class MaterialLaw
 {
 public:
+	//! see https://stackoverflow.com/questions/827196/virtual-default-destructors-in-c/827205
+	virtual ~MaterialLaw() {}
+
 	inline T log(T x) const
 	{
 		T y = std::log(x);
@@ -11870,6 +11883,9 @@ public:
 	typedef boost::shared_ptr< Phase > pPhase;
 
 	std::vector<pPhase> phases;
+
+	//! see https://stackoverflow.com/questions/827196/virtual-default-destructors-in-c/827205
+	virtual ~MixedMaterialLawBase() {}
 
 	virtual void getRefMaterial(TensorField<T>& F, T& mu_0, T& lambda_0, bool zero_trace, bool polarization) const = 0;
 	virtual T meanW(const TensorField<T>& F) const = 0;
@@ -14143,6 +14159,9 @@ public:
 	typedef TensorField<T> RealTensor;
 	typedef boost::shared_ptr<RealTensor> pRealTensor;
 
+	//! see https://stackoverflow.com/questions/827196/virtual-default-destructors-in-c/827205
+	virtual ~ErrorEstimator() { }
+
 	//! update the current error estimates
 	virtual void update() {
 		BOOST_THROW_EXCEPTION(std::runtime_error("Selected error estimator is not compatible with the selected solution method"));
@@ -14913,6 +14932,11 @@ public:
 
 		_orientation.reset();
 		_normals.reset();
+		_epsilon.reset();
+		_temp.reset();
+		_temp_dfg_1.reset();
+		_temp_dfg_2.reset();
+		_mat.reset();
 
 		// init material mixing rule
 		_material_mixing_rule = pt_get(pt, "mixing_rule", _material_mixing_rule);
@@ -15496,6 +15520,7 @@ public:
 		LOG_COUT << "howmany=" << howmany << " nx=" << _nx << " ny=" << _ny << " nz=" << _nz << std::endl;
 
 		boost::shared_ptr< FFT3<T> > fft;
+		fft.reset();
 		fft.reset(new FFT3<T>(howmany, _nx, _ny, _nz, (*_epsilon)[0], _fft_planner_flag));
 		_ffts[howmany] = fft;
 		return fft;
@@ -16191,6 +16216,7 @@ public:
 					cluster->add(fiber);
 				}
 				else {
+					cluster.reset();
 					cluster.reset(new FiberCluster<float, 3>(fiber));
 				}
 				segment_ids[s.indices[i]] = p+1;
@@ -21096,7 +21122,7 @@ public:
 		// check if we need additional temporary vector
 		bool needTemp = ((_mode == "viscosity") && (_gamma_scheme == "staggered" || _gamma_scheme == "half_staggered" || _gamma_scheme == "full_staggered" || _gamma_scheme == "willot")); // || (_G0_solver == "multigrid");
 		if (needTemp) {
-			if (!_temp) _temp.reset(new RealTensor(*_epsilon, 0));
+			_temp.reset(new RealTensor(*_epsilon, 0));
 			_temp->setConstant(ublas::zero_vector<T>(_temp->dim));
 		}
 
@@ -21170,9 +21196,7 @@ public:
 		_solve_time += dt_solve;
 
 		// free temporary 
-		if (needTemp) {
-			_temp.reset();
-		}
+		_temp.reset();
 
 		// delete multigrid level
 		_mg_level.reset();
@@ -24533,6 +24557,9 @@ class FGI
 public:
 	typedef boost::function<bool()> ConvergenceCallback;
 	typedef boost::function<bool()> LoadstepCallback;
+
+	//! see https://stackoverflow.com/questions/827196/virtual-default-destructors-in-c/827205
+	virtual ~FGI() {}
 
 	//! reset solver
 	virtual void reset() = 0;
