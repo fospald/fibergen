@@ -699,7 +699,7 @@ protected:
 public:
 	PY()
 	{
-		enabled = false;
+		enabled = true;
 	}
 
 #if 0
@@ -26880,12 +26880,23 @@ void init_numpy() { import_array(); }
 #endif
 
 
+/*
 py::object PyFGInit(py::tuple args, py::dict kwargs)
 {
 	py::object pyfg = args[0];
 	PyFG& fg = py::extract<PyFG&>(pyfg);
 	fg.set_pyfg_instance(pyfg);
 	return pyfg;
+}
+*/
+
+py::object PyFGInitWrapper(py::tuple args, py::dict kwargs)
+{
+	py::object pyfg = args[0];
+	py::object ret = pyfg.attr("__init__")();
+	PyFG& fg = py::extract<PyFG&>(pyfg);
+	fg.set_pyfg_instance(pyfg);
+	return ret;
 }
 
 
@@ -26918,8 +26929,10 @@ public:
 		void (PyFG::*PyFG_set_int)(const std::string& key, long value) = &PyFG::set;
 		void (PyFG::*PyFG_set)(const std::string& key) = &PyFG::set;
 
-		this->FG = py::class_<PyFG, boost::noncopyable>("FG", "The fibergen solver class")
-			.def("init", py::raw_function(&PyFGInit, 0), "Initialize the object with a Python fibergen reference to it self, which can be used (in Python scripts) within a project file as 'fg'. If not called 'fg' will not be available. This step is necessary to expose the correctly wrapped Python object to C++, e.g. fg = fibergen.FG(); fg.init(fg)")
+		this->FG = py::class_<PyFG, boost::shared_ptr<PyFG>>("FG", "The fibergen solver class", py::no_init)
+			.def("__init__", py::raw_function(PyFGInitWrapper), "Constructor")	// raw constructor
+			.def(py::init<>()) // C++ constructor, shadowed by raw constructor
+			//.def("init", py::raw_function(&PyFGInit, 0), "Initialize the object with a Python fibergen reference to it self, which can be used (in Python scripts) within a project file as 'fg'. If not called 'fg' will not be available. This step is necessary to expose the correctly wrapped Python object to C++, e.g. fg = fibergen.FG(); fg.init(fg)")
 			.def("init_lss", &PyFG::init_lss, "Initialize the Lippmann-Schwinger solver (this is usually done automatically)", py::args("self"))
 			.def("init_fibers", &PyFG::init_fibers, "Generate the random geometry (this is usually done automatically)", py::args("self"))
 			.def("init_phase", &PyFG::init_phase, "Discretize the geometry (this is usually done automatically)", py::args("self"))

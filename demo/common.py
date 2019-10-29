@@ -721,7 +721,6 @@ def savecsv(filename, data, keys = None, delimiter="\t"):
 
 def new_FG():
 	fg = fibergen.FG()
-	#fg.init()
 	fg.set_py_enabled(False)
 	return fg
 
