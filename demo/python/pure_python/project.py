@@ -25,6 +25,9 @@ fg.set_xml(r'''
 		<run_load_case e22="1" />
 		<python>
 			print('variable is', variable)
+			print('variable is', fg.get_variable("variable"))
+			fg.set_variable("variable", "X")
+			print('variable is', variable)
 		</python>
 	</actions>
 </settings>

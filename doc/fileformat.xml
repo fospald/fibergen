@@ -53,7 +53,7 @@
 
 	<variables help="list of Python variables available in expressions" type="list">
 		<variable type="empty" help="a variable">
-			<attrib name="type" type="str" help="type of variable" values="str,int,float">str</attrib>
+			<attrib name="type" type="str" help="type of variable" values="str,int,float,object">object</attrib>
 			<attrib name="value" type="str" help="value of variable"></attrib>
 		</variable>
 	</variables>

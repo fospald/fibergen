@@ -2928,7 +2928,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			self.updateStatus()
 			return True
 		except:
-			QtWidgets.QMessageBox.critical(self, "Error", sys.exc_info()[0])
+			QtWidgets.QMessageBox.critical(self, "Error", traceback.format_exc())
 			return False
 	
 	def openDemo(self, filename):
@@ -2960,7 +2960,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			self.setDocumentVisible(True)
 			self.updateStatus()
 		except:
-			QtWidgets.QMessageBox.critical(self, "Error", sys.exc_info()[0])
+			QtWidgets.QMessageBox.critical(self, "Error", traceback.format_exc())
 			return False
 		return True
 
@@ -3014,9 +3014,7 @@ class MainWindow(QtWidgets.QMainWindow):
 		if not isinstance(fg, fibergen.FG):
 			try:
 				fg = fibergen.FG()
-				if not app.pargs.disable_python_ref:
-					fg.init()
-				fg.set_py_enabled(not app.pargs.disable_python_eval)
+				fg.set_py_enabled(not app.pargs.disable_python)
 				xml = str(self.textEdit.toPlainText())
 				fg.set_xml(xml)
 			except:
@@ -3404,8 +3402,7 @@ class App(QtWidgets.QApplication):
 		parser = argparse.ArgumentParser(description='fibergen - A FFT-based homogenization tool.')
 		parser.add_argument('project', metavar='filename', nargs='?', help='xml project filename to load')
 		parser.add_argument('--disable-browser', action='store_true', default=(not "QtWebKitWidgets" in globals()), help='disable browser components')
-		parser.add_argument('--disable-python-ref', action='store_true', default=False, help='disable Python FG object reference in project files')
-		parser.add_argument('--disable-python-eval', action='store_true', default=False, help='disable Python code evaluation in project files')
+		parser.add_argument('--disable-python', action='store_true', default=False, help='disable Python code evaluation in project files')
 		self.pargs = parser.parse_args(args[1:])
 		print(self.pargs)
 
@@ -3461,7 +3458,7 @@ class App(QtWidgets.QApplication):
 		try:
 			QtWidgets.QApplication.notify(self, receiver, event)
 		except e:
-			QtWidgets.QMessageBox.critical(self, "Error", sys.exc_info()[0])
+			QtWidgets.QMessageBox.critical(self, "Error", traceback.format_exc())
 		return False
 	
 	def restoreWindowState(self, win, prefix):

@@ -699,7 +699,7 @@ protected:
 public:
 	PY()
 	{
-		enabled = true;
+		enabled = false;
 	}
 
 #if 0
@@ -717,6 +717,20 @@ public:
 		if (enabled) {
 			std::string c = dedent(code);
 			return py::exec(c.c_str(), main_namespace, locals);
+		}
+
+		return py::object();
+	}
+
+	//! Evaluate python expression
+	//! \param expr the expression string
+	//! \return result object
+	py::object eval_obj(const std::string& expr)
+	{
+		if (enabled) {
+			std::string e = expr;
+			boost::trim(e);
+			return py::eval(e.c_str(), main_namespace, locals);
 		}
 
 		return py::object();
@@ -773,6 +787,22 @@ public:
 		return eval<T>(*value);
 	}
 
+	//! Get string from ptree and eval as python expression
+	//! \param pt the ptree
+	//! \param prop the path of the property
+	//! \return the poperty as object
+	//! \exception if the property does not exists
+	py::object get_obj(const ptree::ptree& pt, const std::string& prop)
+	{
+		boost::optional<std::string> value = pt.get_optional<std::string>(prop);
+
+		if (!value) {
+			BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Undefined property: %s!") % prop).str()));
+		}
+
+		return eval_obj(*value);
+	}
+
 	//! Enable/Disable python evaluation
 	//! If python evaluation is disabled strings are cast to the requested type by a lexical cast
 	void set_enabled(bool enabled)
@@ -801,6 +831,13 @@ public:
 	void add_local(const std::string& key, const py::object& value)
 	{
 		this->locals[key] = value;
+	}
+
+	//! Get a local variable
+	//! \param key the variable name
+	py::object get_local(const std::string& key)
+	{
+		return this->locals.get(key);
 	}
 
 	//! Return static instance of class
@@ -832,6 +869,15 @@ template <class T>
 T pt_get(const ptree::ptree& pt, const std::string& prop)
 {
 	return PY::instance().get<T>(pt, prop);
+}
+
+//! Shortcut for getting a property from a ptree with python evaluation
+//! \param pt the ptree
+//! \param prop the property path
+//! \return the property
+py::object pt_get_obj(const ptree::ptree& pt, const std::string& prop)
+{
+	return PY::instance().get_obj(pt, prop);
 }
 
 //! Shortcut for getting a property from a ptree with python evaluation and default value
@@ -24638,6 +24684,9 @@ public:
 
 	//! set Python variable, which can be used (in Python scripts/expressions) within a project file
 	virtual void set_variable(std::string key, py::object value) = 0;
+
+	//! get Python variable
+	virtual py::object get_variable(std::string key) = 0;
 };
 
 
@@ -24675,6 +24724,11 @@ public:
 		PY::instance().add_local(key, value);
 	}
 
+	py::object get_variable(std::string key)
+	{
+		return PY::instance().get_local(key);
+	}
+
 	noinline void init_python()
 	{
 		const ptree::ptree& pt = xml_root->get_child("settings", empty_ptree);
@@ -24699,7 +24753,7 @@ public:
 
 			const ptree::ptree& attr = v.second.get_child("<xmlattr>", empty_ptree);
 
-			std::string type = pt_get<std::string>(attr, "type", "str");
+			std::string type = pt_get<std::string>(attr, "type", "object");
 			std::string value = pt_get<std::string>(attr, "value", "");
 			py::object py_value;
 
@@ -24711,6 +24765,9 @@ public:
 			}
 			else if (type == "float") {
 				py_value = py::object(pt_get<double>(attr, "value"));
+			}
+			else if (type == "object") {
+				py_value = pt_get_obj(attr, "value");
 			}
 			else {
 				BOOST_THROW_EXCEPTION(std::runtime_error((boost::format("Unknown variable type '%s' for %s") % type % v.first).str()));
@@ -26395,6 +26452,7 @@ public:
 	std::vector<std::vector<std::vector<std::vector<double> > > > get_A4() { return fg()->get_A4(); }
 	void set_pyfg_instance(py::object instance) { pyfg_instance = instance.ptr(); }
 	void set_variable(std::string key, py::object value) { fg()->set_variable(key, value); }
+	py::object get_variable(std::string key) { return fg()->get_variable(key); }
 
 	/// Enable/Disable Python evaluation of expressions
 	void set_py_enabled(bool enabled)
@@ -26584,6 +26642,10 @@ protected:
 	py::object _py_loadstep_callback;
 
 public:
+
+	PyFG() { }
+	PyFG(py::tuple args, py::dict kw) { }
+
 	~PyFG()
 	{
 		//LOG_COUT << "~PyFG" << std::endl;
@@ -26880,22 +26942,13 @@ void init_numpy() { import_array(); }
 #endif
 
 
-/*
-py::object PyFGInit(py::tuple args, py::dict kwargs)
+py::object PyFGInitWrapper(py::tuple args, py::dict kw)
 {
 	py::object pyfg = args[0];
+	py::object ret = pyfg.attr("__init__")(args, kw);
 	PyFG& fg = py::extract<PyFG&>(pyfg);
 	fg.set_pyfg_instance(pyfg);
-	return pyfg;
-}
-*/
-
-py::object PyFGInitWrapper(py::tuple args, py::dict kwargs)
-{
-	py::object pyfg = args[0];
-	py::object ret = pyfg.attr("__init__")();
-	PyFG& fg = py::extract<PyFG&>(pyfg);
-	fg.set_pyfg_instance(pyfg);
+	fg.set_py_enabled(true);
 	return ret;
 }
 
@@ -26929,10 +26982,9 @@ public:
 		void (PyFG::*PyFG_set_int)(const std::string& key, long value) = &PyFG::set;
 		void (PyFG::*PyFG_set)(const std::string& key) = &PyFG::set;
 
-		this->FG = py::class_<PyFG, boost::shared_ptr<PyFG>>("FG", "The fibergen solver class", py::no_init)
-			.def("__init__", py::raw_function(PyFGInitWrapper), "Constructor")	// raw constructor
-			.def(py::init<>()) // C++ constructor, shadowed by raw constructor
-			//.def("init", py::raw_function(&PyFGInit, 0), "Initialize the object with a Python fibergen reference to it self, which can be used (in Python scripts) within a project file as 'fg'. If not called 'fg' will not be available. This step is necessary to expose the correctly wrapped Python object to C++, e.g. fg = fibergen.FG(); fg.init(fg)")
+		this->FG = py::class_<PyFG, boost::shared_ptr<PyFG>, boost::noncopyable>("FG", "The fibergen solver class", py::no_init)
+			.def("__init__", py::raw_function(&PyFGInitWrapper), "Constructor")	// raw constructor
+			.def(py::init<py::tuple, py::dict>()) // C++ constructor, shadowed by raw constructor
 			.def("init_lss", &PyFG::init_lss, "Initialize the Lippmann-Schwinger solver (this is usually done automatically)", py::args("self"))
 			.def("init_fibers", &PyFG::init_fibers, "Generate the random geometry (this is usually done automatically)", py::args("self"))
 			.def("init_phase", &PyFG::init_phase, "Discretize the geometry (this is usually done automatically)", py::args("self"))
@@ -26972,6 +27024,7 @@ public:
 			.def("set_convergence_callback", &PyFG::set_convergence_callback, "Set a callback function to be called each iteration of the solver. If the callback returns True, the solver is canceled.", py::args("self", "func"))
 			.def("set_loadstep_callback", &PyFG::set_loadstep_callback, "Set a callback function to be called each loadstep of the solver. If the callback returns True, the solver is canceled.", py::args("self", "func"))
 			.def("set_variable", &PyFG::set_variable, "Set a Python variable, which can be later used in XML attributes as Python expressions", py::args("self", "name", "value"))
+			.def("get_variable", &PyFG::get_variable, "Get a Python variable", py::args("self", "name"))
 			.def("set_log_file", &PyFG::set_log_file, "Set filename for capturing the console output", py::args("self", "filename"))
 			.def("set_py_enabled", &PyFG::set_py_enabled, "Enable/Disable Python evaluation of XML attributes as Python expressions requested by the solver", py::args("self"))
 		;
@@ -27094,8 +27147,7 @@ int main(int argc, char* argv[])
 	desc.add_options()
 	    ("help", "produce help message")
 	    ("test", "run tests")
-	    ("disable-python-ref", "disable Python FG object reference in project files")
-	    ("disable-python-eval", "disable Python code evaluation in project files")
+	    ("disable-python", "disable Python code evaluation in project files")
 	    ("input-file", po::value< std::string >()->default_value("project.xml"), "input file")
 	    ("actions-path", po::value< std::string >()->default_value("actions"), "actions xpath to run in input file")
 	;
@@ -27117,10 +27169,8 @@ int main(int argc, char* argv[])
 	// set exception handler
 	std::set_terminate(exception_handler);
 
-	//if (!vm.count("disable-python-ref") || !vm.count("disable-python-eval")) {
-		// init python
-		Py_Initialize();
-	//}
+	// init python
+	Py_Initialize();
 
 	// run some small problems for checking correctness
 	if (vm.count("test")) {
@@ -27135,24 +27185,12 @@ int main(int argc, char* argv[])
 #endif
 
 	// run the app
-	int ret;
-	if (vm.count("disable-python-ref"))
-	{
-		FGProject fgp;
-		fgp.set_py_enabled(vm.count("disable-python-eval") == 0);
-		ret = fgp.exec(vm);
-		fgp.reset();
-	}
-	else
-	{
-		PyFGModule module;
-		py::object pyfg = module.FG();
-		pyfg.attr("init")();
-		PyFG& fgp = py::extract<PyFG&>(pyfg);
-		fgp.set_py_enabled(vm.count("disable-python-eval") == 0);
-		ret = fgp.exec(vm);
-		fgp.reset();
-	}
+	PyFGModule module;
+	py::object pyfg = module.FG();
+	PyFG& fgp = py::extract<PyFG&>(pyfg);
+	fgp.set_py_enabled(vm.count("disable-python") == 0);
+	int ret = fgp.exec(vm);
+	fgp.reset();
 
 	// return exit code
 	return ret;
