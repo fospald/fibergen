@@ -3123,7 +3123,8 @@ class MainWindow(QtWidgets.QMainWindow):
 					value_labels = {}
 					if name == "material_id":
 						ids = np.array(range(phi.shape[0]))
-						data = np.expand_dims(np.argmax(ids[:,np.newaxis,np.newaxis,np.newaxis]*phi, axis=0), axis=0)
+						#data = np.expand_dims(np.argmax(ids[:,np.newaxis,np.newaxis,np.newaxis]*phi, axis=0), axis=0)
+						data = np.expand_dims(np.argmax(phi, axis=0), axis=0)
 						num_discrete_values = len(ids)
 						value_labels = {i+0.5: field_labels['phi'](i)[0] for i in ids}
 					elif name == "phi":

@@ -819,6 +819,12 @@ public:
 		}
 	}
 
+	//! Check if python evaluation is enabled
+	bool get_enabled()
+	{
+		return this->enabled;
+	}
+
 	//! Clear all local variables
 	void clear_locals()
 	{
@@ -831,6 +837,13 @@ public:
 	void add_local(const std::string& key, const py::object& value)
 	{
 		this->locals[key] = value;
+	}
+
+	//! Remove a local variable
+	//! \param key the variable name
+	void remove_local(const std::string& key)
+	{
+		py::api::delitem(this->locals, key);
 	}
 
 	//! Get a local variable
@@ -848,6 +861,12 @@ public:
 		}
 
 		return *_instance;
+	}
+
+	//! Check if there is an instance
+	static bool has_instance()
+	{
+		return (bool) _instance;
 	}
 
 	//! Release static instance of class
@@ -11207,6 +11226,126 @@ public:
 };
 
 
+//! Linear material law for elasticity defined by two Lame parameters
+template<typename T>
+class LinearGeneralMaterialLaw : public MaterialLaw<T>
+{
+public:
+	// stiffness matrix in Voigt notation
+	ublas::c_matrix<T,6,6> C;
+
+	// read settings from ptree
+	void readSettings(const ptree::ptree& pt) {
+		ublas::matrix<T> _C = ublas::identity_matrix<T>(6);
+		read_matrix(pt, _C, "c", false);
+		C = _C;
+	}
+
+	T W(std::size_t i, const T* E) const
+	{
+		SymTensor3x3<T> S;
+		PK1(i, E, 1, false, S);
+		return 0.5*S.dot(E);
+	}
+
+	void PK1(std::size_t _i, const T* E, T alpha, bool gamma, T* S) const
+	{
+		// compute stress S
+		// set S = C:E
+		#define PK1_OP(OP) \
+			S[0] OP E[0]*C(0,0) + E[1]*C(0,1) + E[2]*C(0,2) + 2.0*(E[3]*C(0,3) + E[4]*C(0,4) + E[5]*C(0,5)); \
+			S[1] OP E[0]*C(1,0) + E[1]*C(1,1) + E[2]*C(1,2) + 2.0*(E[3]*C(1,3) + E[4]*C(1,4) + E[5]*C(1,5)); \
+			S[2] OP E[0]*C(2,0) + E[1]*C(2,1) + E[2]*C(2,2) + 2.0*(E[3]*C(2,3) + E[4]*C(2,4) + E[5]*C(2,5)); \
+			S[3] OP E[0]*C(3,0) + E[1]*C(3,1) + E[2]*C(3,2) + 2.0*(E[3]*C(3,3) + E[4]*C(3,4) + E[5]*C(3,5)); \
+			S[4] OP E[0]*C(4,0) + E[1]*C(4,1) + E[2]*C(4,2) + 2.0*(E[3]*C(4,3) + E[4]*C(4,4) + E[5]*C(4,5)); \
+			S[5] OP E[0]*C(5,0) + E[1]*C(5,1) + E[2]*C(5,2) + 2.0*(E[3]*C(5,3) + E[4]*C(5,4) + E[5]*C(5,5));
+		if (gamma) {
+			PK1_OP(+=)
+		}
+		else {
+			PK1_OP(=)
+		}
+		#undef PK1_OP
+	}
+
+	void dPK1(std::size_t _i, const T* E, T alpha, bool gamma, const T* W, T* dS, std::size_t n = 1) const
+	{
+		for (std::size_t m = 0; m < n; m++)
+		{
+			// compute stress S
+			// set dS = C:W
+			#define PK1_OP(OP) \
+				dS[0] OP W[0]*C(0,0) + W[1]*C(0,1) + W[2]*C(0,2) + 2.0*(W[3]*C(0,3) + W[4]*C(0,4) + W[5]*C(0,5)); \
+				dS[1] OP W[0]*C(1,0) + W[1]*C(1,1) + W[2]*C(1,2) + 2.0*(W[3]*C(1,3) + W[4]*C(1,4) + W[5]*C(1,5)); \
+				dS[2] OP W[0]*C(2,0) + W[1]*C(2,1) + W[2]*C(2,2) + 2.0*(W[3]*C(2,3) + W[4]*C(2,4) + W[5]*C(2,5)); \
+				dS[3] OP W[0]*C(3,0) + W[1]*C(3,1) + W[2]*C(3,2) + 2.0*(W[3]*C(3,3) + W[4]*C(3,4) + W[5]*C(3,5)); \
+				dS[4] OP W[0]*C(4,0) + W[1]*C(4,1) + W[2]*C(4,2) + 2.0*(W[3]*C(4,3) + W[4]*C(4,4) + W[5]*C(4,5)); \
+				dS[5] OP W[0]*C(5,0) + W[1]*C(5,1) + W[2]*C(5,2) + 2.0*(W[3]*C(5,3) + W[4]*C(5,4) + W[5]*C(5,5));
+			if (gamma) {
+				PK1_OP(+=)
+			}
+			else {
+				PK1_OP(=)
+			}
+			#undef PK1_OP
+
+			W += 6;
+			dS += 6;
+		}
+	}
+
+	void calcPolarization(std::size_t i, T mu_0, const ublas::vector<T>& F, ublas::vector<T>& P,
+		std::size_t dim, bool inv) const
+	{
+		BOOST_THROW_EXCEPTION(std::runtime_error("calcPolarization not implemented"));
+		/*
+		// C = 2*mu*Id + lambda*I*I
+
+		// L0 = 2*mu_0
+		// C1 = 2*(mu-mu_0)*Id + lambda*II
+		// C2 = 2*(mu+mu_0)*Id + lambda*II
+
+		// The inverse of C2 is:
+		// Simplify[Inverse[{{2*mu + L, L, L, 0, 0, 0}, {L, 2*mu + L, L, 0, 0, 0}, {L, L, 2*mu + L, 0, 0, 0}, {0, 0, 0, 2*mu, 0, 0}, {0, 0, 0, 0, 2*mu, 0}, {0, 0, 0, 0, 0, 2*mu}}]]
+		// Simplify[(L + mu)/(3 L mu + 2 mu^2) - 1/(2 mu)]
+		// inv(C2) = 1/(2*m)*Id - (lambda/(2*m*(3*lambda + 2*m)))*II
+		// where m = mu+mu_0
+
+		// Solve C2*P = F
+
+		T m = 2.0*(mu+mu_0);
+		T a = 1.0/m;
+		T b = lambda/(m*(3.0*lambda + m));
+		T tr_F = F[0] + F[1] + F[2];
+
+		P[0] = a*F[0] - b*tr_F;
+		P[1] = a*F[1] - b*tr_F;
+		P[2] = a*F[2] - b*tr_F;
+		P[3] = a*F[3];
+		P[4] = a*F[4];
+		P[5] = a*F[5];
+
+		if (!inv) {
+			// P = C1*C2inv*F
+			m = 2.0*(mu-mu_0);
+			T tr_P = P[0] + P[1] + P[2];
+			P[0] = m*P[0] + lambda*tr_P;
+			P[1] = m*P[1] + lambda*tr_P;
+			P[2] = m*P[2] + lambda*tr_P;
+			P[3] = m*P[3];
+			P[4] = m*P[4];
+			P[5] = m*P[5];
+		}
+		*/
+	}
+
+	std::string str() const
+	{
+		return (boost::format("general isotropic C=\n%s") % format(C)).str();
+	}
+};
+
+
 //! Linear isotropic material law for elasticity defined by two Lame parameters
 template<typename T>
 class LinearIsotropicMaterialLaw : public MaterialLaw<T>
@@ -15070,6 +15209,11 @@ public:
 					p->law.reset(new LinearIsotropicMaterialLaw<T>());
 					p->law->readSettings(v.second);
 				}
+				else if (_mode == "elasticity" && p->law_name == "general") {
+					p->law.reset(new LinearGeneralMaterialLaw<T>());
+					p->law->readSettings(v.second);
+				}
+
 				else if (_mode == "elasticity" && p->law_name == "tiso") {
 					p->law.reset(new LinearTransverselyIsotropicMaterialLaw<T, DIM>(get_orientation()));
 					p->law->readSettings(v.second);
@@ -25057,7 +25201,16 @@ public:
 
 		// init python variables
 		init_python();
-		struct AfterReturn { ~AfterReturn() { PY::release(); } } ar;
+		struct AfterReturn { ~AfterReturn() {
+			if (PY::has_instance()) {
+				//bool py_enabled = PY::instance().get_enabled();
+				//PY::release();
+				// recreate instance
+				//PY::instance().set_enabled(py_enabled);
+				//PY::instance().clear_locals();
+				PY::instance().remove_local("fg");
+			}
+		} } ar;
 
 		const ptree::ptree& settings = xml_root->get_child("settings", empty_ptree);
 
@@ -25267,7 +25420,6 @@ public:
 			else if (v.first == "write_vtk_phase")
 			{
 				std::string outfile = pt_get<std::string>(attr, "outfile");
-				bool binary = (pt_get<std::string>(settings, "res_format", "binary") == "binary");
 				std::string name = pt_get<std::string>(attr, "name");
 
 				init_lss();
@@ -25278,7 +25430,6 @@ public:
 			else if (v.first == "write_vtk2")
 			{
 				std::string outfile = pt_get<std::string>(attr, "outfile");
-				bool binary = (pt_get<std::string>(settings, "res_format", "binary") == "binary");
 
 				init_lss();
 				init_phase();
@@ -25474,7 +25625,6 @@ public:
 				T convexity_threshold_high = pt_get<T>(attr, "convexity_threshold_high", 1.0);
 				T convexity_threshold_low = pt_get<T>(attr, "convexity_threshold_low", 0.0);
 				std::string filename = pt_get<std::string>(attr, "filename", "");
-				bool binary = (pt_get<std::string>(settings, "res_format", "binary") == "binary");
 				bool old = pt_get<bool>(attr, "old", false);
 				bool overwrite_phase = pt_get<bool>(attr, "overwrite_phase", false);
 				std::size_t filter_loops = pt_get<std::size_t>(attr, "filter_loops", 0);
