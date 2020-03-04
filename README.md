@@ -117,7 +117,7 @@ cd install_dir
 git clone http://git.tiker.net/trees/boost-numeric-bindings.git
 export BOOSTNUMERICBINDINGS_DIR=$(pwd)/boost-numeric-bindings
 ```
-
+`install_dir` is the installation directory for boost-numeric-bindings. You should remove the `build` directory (`rm -r build`) before running `build.sh` again in order to clear the CMake cache.
 
 ## Generating source code documentation
 
