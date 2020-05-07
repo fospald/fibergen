@@ -11235,10 +11235,11 @@ public:
 	ublas::c_matrix<T,6,6> C;
 
 	// read settings from ptree
-	void readSettings(const ptree::ptree& pt) {
-		ublas::matrix<T> _C = ublas::identity_matrix<T>(6);
-		read_matrix(pt, _C, "c", false);
-		C = _C;
+	void readSettings(const ptree::ptree& pt)
+	{
+		const ptree::ptree& attr = pt.get_child("<xmlattr>", empty_ptree);
+		ublas::matrix<T> _C = Voigt::Id4<T>(6);
+		read_matrix(attr, _C, "c", true); C = _C;
 	}
 
 	T W(std::size_t i, const T* E) const
@@ -11253,12 +11254,12 @@ public:
 		// compute stress S
 		// set S = C:E
 		#define PK1_OP(OP) \
-			S[0] OP E[0]*C(0,0) + E[1]*C(0,1) + E[2]*C(0,2) + 2.0*(E[3]*C(0,3) + E[4]*C(0,4) + E[5]*C(0,5)); \
-			S[1] OP E[0]*C(1,0) + E[1]*C(1,1) + E[2]*C(1,2) + 2.0*(E[3]*C(1,3) + E[4]*C(1,4) + E[5]*C(1,5)); \
-			S[2] OP E[0]*C(2,0) + E[1]*C(2,1) + E[2]*C(2,2) + 2.0*(E[3]*C(2,3) + E[4]*C(2,4) + E[5]*C(2,5)); \
-			S[3] OP E[0]*C(3,0) + E[1]*C(3,1) + E[2]*C(3,2) + 2.0*(E[3]*C(3,3) + E[4]*C(3,4) + E[5]*C(3,5)); \
-			S[4] OP E[0]*C(4,0) + E[1]*C(4,1) + E[2]*C(4,2) + 2.0*(E[3]*C(4,3) + E[4]*C(4,4) + E[5]*C(4,5)); \
-			S[5] OP E[0]*C(5,0) + E[1]*C(5,1) + E[2]*C(5,2) + 2.0*(E[3]*C(5,3) + E[4]*C(5,4) + E[5]*C(5,5));
+			S[0] OP alpha*(E[0]*C(0,0) + E[1]*C(0,1) + E[2]*C(0,2) + 2.0*(E[3]*C(0,3) + E[4]*C(0,4) + E[5]*C(0,5))); \
+			S[1] OP alpha*(E[0]*C(1,0) + E[1]*C(1,1) + E[2]*C(1,2) + 2.0*(E[3]*C(1,3) + E[4]*C(1,4) + E[5]*C(1,5))); \
+			S[2] OP alpha*(E[0]*C(2,0) + E[1]*C(2,1) + E[2]*C(2,2) + 2.0*(E[3]*C(2,3) + E[4]*C(2,4) + E[5]*C(2,5))); \
+			S[3] OP alpha*(E[0]*C(3,0) + E[1]*C(3,1) + E[2]*C(3,2) + 2.0*(E[3]*C(3,3) + E[4]*C(3,4) + E[5]*C(3,5))); \
+			S[4] OP alpha*(E[0]*C(4,0) + E[1]*C(4,1) + E[2]*C(4,2) + 2.0*(E[3]*C(4,3) + E[4]*C(4,4) + E[5]*C(4,5))); \
+			S[5] OP alpha*(E[0]*C(5,0) + E[1]*C(5,1) + E[2]*C(5,2) + 2.0*(E[3]*C(5,3) + E[4]*C(5,4) + E[5]*C(5,5)));
 		if (gamma) {
 			PK1_OP(+=)
 		}
@@ -11275,12 +11276,12 @@ public:
 			// compute stress S
 			// set dS = C:W
 			#define PK1_OP(OP) \
-				dS[0] OP W[0]*C(0,0) + W[1]*C(0,1) + W[2]*C(0,2) + 2.0*(W[3]*C(0,3) + W[4]*C(0,4) + W[5]*C(0,5)); \
-				dS[1] OP W[0]*C(1,0) + W[1]*C(1,1) + W[2]*C(1,2) + 2.0*(W[3]*C(1,3) + W[4]*C(1,4) + W[5]*C(1,5)); \
-				dS[2] OP W[0]*C(2,0) + W[1]*C(2,1) + W[2]*C(2,2) + 2.0*(W[3]*C(2,3) + W[4]*C(2,4) + W[5]*C(2,5)); \
-				dS[3] OP W[0]*C(3,0) + W[1]*C(3,1) + W[2]*C(3,2) + 2.0*(W[3]*C(3,3) + W[4]*C(3,4) + W[5]*C(3,5)); \
-				dS[4] OP W[0]*C(4,0) + W[1]*C(4,1) + W[2]*C(4,2) + 2.0*(W[3]*C(4,3) + W[4]*C(4,4) + W[5]*C(4,5)); \
-				dS[5] OP W[0]*C(5,0) + W[1]*C(5,1) + W[2]*C(5,2) + 2.0*(W[3]*C(5,3) + W[4]*C(5,4) + W[5]*C(5,5));
+				dS[0] OP alpha*(W[0]*C(0,0) + W[1]*C(0,1) + W[2]*C(0,2) + 2.0*(W[3]*C(0,3) + W[4]*C(0,4) + W[5]*C(0,5))); \
+				dS[1] OP alpha*(W[0]*C(1,0) + W[1]*C(1,1) + W[2]*C(1,2) + 2.0*(W[3]*C(1,3) + W[4]*C(1,4) + W[5]*C(1,5))); \
+				dS[2] OP alpha*(W[0]*C(2,0) + W[1]*C(2,1) + W[2]*C(2,2) + 2.0*(W[3]*C(2,3) + W[4]*C(2,4) + W[5]*C(2,5))); \
+				dS[3] OP alpha*(W[0]*C(3,0) + W[1]*C(3,1) + W[2]*C(3,2) + 2.0*(W[3]*C(3,3) + W[4]*C(3,4) + W[5]*C(3,5))); \
+				dS[4] OP alpha*(W[0]*C(4,0) + W[1]*C(4,1) + W[2]*C(4,2) + 2.0*(W[3]*C(4,3) + W[4]*C(4,4) + W[5]*C(4,5))); \
+				dS[5] OP alpha*(W[0]*C(5,0) + W[1]*C(5,1) + W[2]*C(5,2) + 2.0*(W[3]*C(5,3) + W[4]*C(5,4) + W[5]*C(5,5)));
 			if (gamma) {
 				PK1_OP(+=)
 			}
@@ -11341,7 +11342,7 @@ public:
 
 	std::string str() const
 	{
-		return (boost::format("general isotropic C=\n%s") % format(C)).str();
+		return (boost::format("general isotropic C=%s") % format(C)).str();
 	}
 };
 
@@ -21725,7 +21726,7 @@ public:
 		return;
 #endif
 
-		bool update_ref = true;
+		bool update_ref = (_update_ref != "never");
 		ublas::vector<T> E;
 
 //		pRealTensor epsilon_old;
@@ -21814,10 +21815,12 @@ public:
 		// in general mixed bc need to be done correctly
 
 		bool check_bc = false;
-		bool update_ref = false;
+		bool update_ref = (_update_ref != "never");
 		ublas::vector<T> E, P0;
 
-		calcRefMaterial(_mu_0, _lambda_0, *_epsilon);
+		if (update_ref) {
+			calcRefMaterial(_mu_0, _lambda_0, *_epsilon);
+		}
 		E = calcBCMean(E0, S0);
 
 		epsilon.setConstant(4*_mu_0*E);
@@ -21827,13 +21830,6 @@ public:
 
 		for(;;)
 		{
-			if (update_ref) {
-				calcRefMaterial(_mu_0, _lambda_0, *_epsilon);
-				E = calcBCMean(E0, S0);
-				//LOG_COUT << "F(0) = " << format(E) << std::endl;
-				update_ref = false;
-			}
-
 			// compute mean polarization 2*C0:E
 			P0 = 4*_mu_0*E;
 
@@ -21944,7 +21940,9 @@ public:
 		ublas::vector<T> ZERO = ublas::zero_vector<T>(E0.size());
 
 		epsilon.setConstant(E0);
-		calcRefMaterial(_mu_0, _lambda_0, epsilon);
+		if (_update_ref != "never") {
+			calcRefMaterial(_mu_0, _lambda_0, epsilon);
+		}
 
 		basicScheme(ZERO, epsilon, depsilon, depsilon_hat, depsilon_hat, depsilon);
 
@@ -22008,20 +22006,15 @@ public:
 		RealTensor& epsilon = *peps;
 		boost::shared_ptr< ErrorEstimator<T> > ee(create_error_estimator());
 
-		bool update_ref = true;
-		ublas::vector<T> E;
-
 		tau.copyTo(epsilon);
+
+		if (_update_ref != "never") {
+			calcRefMaterial(_mu_0, _lambda_0, tau);
+		}
+		ublas::vector<T> E = calcBCMean(E0, S0);
 
 		for(;;)
 		{
-			if (update_ref) {
-				calcRefMaterial(_mu_0, _lambda_0, tau);
-				E = calcBCMean(E0, S0);
-				//LOG_COUT << "F(0) = " << format(E) << std::endl;
-				update_ref = false;
-			}
-
 			n += 1;
 			basicScheme(E, tau, tau, *_tau, *_tau, tau);
 			epsilon.xpay(tau, -1.0, epsilon);
@@ -23161,7 +23154,9 @@ public:
 
 		T small = boost::numeric::bounds<T>::smallest();
 	
-		calcRefMaterial(_mu_0, _lambda_0, *_epsilon);
+		if (_update_ref != "never") {
+			calcRefMaterial(_mu_0, _lambda_0, *_epsilon);
+		}
 		ublas::vector<T> E = calcBCMean(E0, S0);
 
 		// allocate required tensors
