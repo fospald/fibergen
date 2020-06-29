@@ -6,10 +6,10 @@ import builtins
 
 import fibergen
 import sys, os, re
+import six
 import webbrowser
 import base64
 import copy
-import cgi
 import pydoc
 import traceback
 import codecs
@@ -48,6 +48,11 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 import matplotlib.ticker as mtick
 import matplotlib.cm as mcmap
+
+if not six.PY2:
+	from html import escape as html_escape
+else:
+	from cgi import escape as html_escape
 
 class PreferencesWidget(QtWidgets.QDialog):
 
@@ -2080,7 +2085,7 @@ class HelpWidgetCommon(QtCore.QObject):
 				for k in ["fibergen.%s" % word, "fibergen.FG.%s" % word, word]:
 					try:
 						#helpstr = pydoc.render_doc(k, "Help on %s", renderer=pydoc.plaintext)
-						#helpstr = '<pre>' + cgi.escape(helpstr) + '</pre>'
+						#helpstr = '<pre>' + html_escape(helpstr) + '</pre>'
 						helpstr = pydoc.render_doc(k, "Help on %s", renderer=pydoc.html)
 						helpstr = helpstr.replace('&nbsp;', ' ')
 						return helpstr
@@ -2148,7 +2153,7 @@ p ~ p {
 		if en is None:
 			helpstr = self.getCursorHelp()
 		else:
-			helpstr = cgi.escape(e.get("help"))
+			helpstr = html_escape(e.get("help"))
 
 		html += '<div class="help">' + helpstr + "</div>"
 
@@ -2170,20 +2175,20 @@ p ~ p {
 					if i > 0:
 						html += " | "
 					if not item[1] is None:
-						html += '<a href="http://x#ins#' + v + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + cgi.escape(v) + '</a>'
+						html += '<a href="http://x#ins#' + v + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + html_escape(v) + '</a>'
 					else:
 						html += v
 				html += "</p>"
 
 			if not e.text is None and len(e.text.strip()) > 0:
-				html += '<p><b>Default:</b> ' + cgi.escape(e.text.strip()) + "</p>"
+				html += '<p><b>Default:</b> ' + html_escape(e.text.strip()) + "</p>"
 			
 			if (not en is None):
 				attr = ""
 				attribs = list(e.findall("attrib"))
 				attribs = sorted(attribs, key=lambda a: a.get("name").lower())
 				for a in attribs:
-					default = cgi.escape("" if a.text is None else a.text.strip())
+					default = html_escape("" if a.text is None else a.text.strip())
 					attr += "<tr>"
 					if not item[1] is None:
 						attr += '<td><b><a href="http://x#set#' + a.get("name") + '#' + default + '#' + str(item[1].start()) + '#' + str(item[1].end()) + '">' + a.get("name") + "</a></b></td>"
@@ -2196,7 +2201,7 @@ p ~ p {
 					if not helpstr is None:
 						values = a.get("values")
 						if not values is None:
-							helpstr += " (%s)" % cgi.escape(values)
+							helpstr += " (%s)" % html_escape(values)
 						attr += "<td>" + helpstr + "</td>"
 					attr += "</tr>"
 				if attr != "":
@@ -2218,7 +2223,7 @@ p ~ p {
 				if a.tag == "attrib":
 					continue
 				typ = a.get("type")
-				default = cgi.escape("" if a.text is None else a.text.strip())
+				default = html_escape("" if a.text is None else a.text.strip())
 				tags += "<tr>"
 				if not item[1] is None:
 					tags += '<td><b><a href="http://x#add#' + a.tag + '#' + typ + '#' + default + '">' + a.tag + "</a></b></td>"
@@ -2226,7 +2231,7 @@ p ~ p {
 					tags += '<td><b>' + help_link(a.tag) + '</b></td>'
 				tags += "<td>" + typ + "</td>"
 				tags += "<td>" + default + "</td>"
-				helpstr = cgi.escape(a.get("help"))
+				helpstr = html_escape(a.get("help"))
 				helpstr = re.sub('\[(.*?)\]', lambda m: help_link(m.group(1)), helpstr)
 				tags += "<td>" + helpstr + "</td>"
 
