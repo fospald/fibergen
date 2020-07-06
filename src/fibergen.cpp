@@ -25441,7 +25441,7 @@ public:
 
 				init_fibers();
 				LOG_COUT << "writing paraview py file: " << filename << std::endl;
-				gen->template writePVPy(filename, bbox, fibers, clusters);
+				gen->writePVPy(filename, bbox, fibers, clusters);
 			}
 			else if (v.first == "write_raw_data")
 			{
