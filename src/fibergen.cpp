@@ -125,7 +125,7 @@ multigrid improvements:
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
-#include <boost/detail/endian.hpp>
+#include <boost/predef/other/endian.h>
 #include <boost/math/special_functions/erf.hpp>
 #include <boost/math/special_functions/ellint_rj.hpp>
 #include <boost/math/special_functions/ellint_rf.hpp>
@@ -7834,17 +7834,17 @@ IACA_END
 		{
 			for (std::size_t jj = 0; jj < nyc; jj++)
 			{
-				register std::size_t kc = ii*nyzpc + jj*nzpc;
-				register std::size_t kf = ii*nyzp*(divx+1) + jj*nzp*(divy+1);
+				std::size_t kc = ii*nyzpc + jj*nzpc;
+				std::size_t kf = ii*nyzp*(divx+1) + jj*nzp*(divy+1);
 
 				for (std::size_t kk = 0; kk < nzc; kk++)
 				{
-					const register std::size_t x_plus = ffd_x[2*ii];
-					const register std::size_t x_minus = bfd_x[2*ii];
-					const register std::size_t y_plus = ffd_y[2*jj];
-					const register std::size_t y_minus = bfd_y[2*jj];
-					const register std::size_t z_plus = ffd_z[2*kk];
-					const register std::size_t z_minus = bfd_z[2*kk];
+					const std::size_t x_plus = ffd_x[2*ii];
+					const std::size_t x_minus = bfd_x[2*ii];
+					const std::size_t y_plus = ffd_y[2*jj];
+					const std::size_t y_minus = bfd_y[2*jj];
+					const std::size_t z_plus = ffd_z[2*kk];
+					const std::size_t z_minus = bfd_z[2*kk];
 
 					bc[kc] = div*(
 						r[kf] + 0.5*(
@@ -7938,7 +7938,7 @@ IACA_END
 					for (std::size_t kk = 0; kk < nzc; kk++)
 					{
 IACA_START
-						const register T a = xc[kc];
+						const T a = xc[kc];
 
 						x[kf] += a;
 						x[kf + 1] += a;
@@ -7975,7 +7975,7 @@ IACA_END
 
 				for (std::size_t kk = 0; kk < nzc; kk++)
 				{
-					const register T a = div*xc[kc];
+					const T a = div*xc[kc];
 
 					x[kf] += a;
 					x[kf + divz] += a;
@@ -8014,22 +8014,22 @@ IACA_END
 		{
 			for (std::size_t jj = 0; jj < nyc; jj++)
 			{
-				register std::size_t kc = ii*nyzpc + jj*nzpc;
-				register std::size_t kf = ii*nyzp*(divx+1) + jj*nzp*(divy+1);
+				std::size_t kc = ii*nyzpc + jj*nzpc;
+				std::size_t kf = ii*nyzp*(divx+1) + jj*nzp*(divy+1);
 
 				for (std::size_t kk = 0; kk < nzc; kk++)
 				{
-					const register T div_xc = div*xc[kc];
-					const register T a = 0.5*div_xc;
-					const register T b = 0.25*div_xc;
-					const register T c = 0.125*div_xc;
+					const T div_xc = div*xc[kc];
+					const T a = 0.5*div_xc;
+					const T b = 0.25*div_xc;
+					const T c = 0.125*div_xc;
 
-					const register std::size_t x_plus = ffd_x[2*ii];
-					const register std::size_t x_minus = bfd_x[2*ii];
-					const register std::size_t y_plus = ffd_y[2*jj];
-					const register std::size_t y_minus = bfd_y[2*jj];
-					const register std::size_t z_plus = ffd_z[2*kk];
-					const register std::size_t z_minus = bfd_z[2*kk];
+					const std::size_t x_plus = ffd_x[2*ii];
+					const std::size_t x_minus = bfd_x[2*ii];
+					const std::size_t y_plus = ffd_y[2*jj];
+					const std::size_t y_minus = bfd_y[2*jj];
+					const std::size_t z_plus = ffd_z[2*kk];
+					const std::size_t z_minus = bfd_z[2*kk];
 
 					x[kf] += div_xc;
 
@@ -25401,7 +25401,7 @@ public:
 
 				init_fibers();
 				LOG_COUT << "writing fiber data file: " << filename << std::endl;
-				gen->template writeData(filename);
+				gen->writeData(filename);
 			}
 			else if (v.first == "write_voxel_data")
 			{
@@ -25410,7 +25410,7 @@ public:
 				init_lss();
 				init_phase();
 				LOG_COUT << "writing voxel data file: " << filename << std::endl;
-				lss->template writeData(filename);
+				lss->writeData(filename);
 			}
 			else if (v.first == "write_vtk_phase")
 			{
