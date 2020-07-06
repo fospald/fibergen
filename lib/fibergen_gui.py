@@ -18,41 +18,48 @@ import argparse
 import tempfile
 import subprocess
 import xml.etree.ElementTree as ET
-import numpy as np
-import scipy.misc
 import keyword
 import textwrap
 import signal
 from weakref import WeakKeyDictionary
 
-from PyQt5 import QtCore, QtGui, QtWidgets
-
-try:
-	from PyQt5 import QtWebKitWidgets
-except:
-	from PyQt5 import QtWebEngineWidgets as QtWebKitWidgets
-	QtWebKitWidgets.QWebView = QtWebKitWidgets.QWebEngineView
-	QtWebKitWidgets.QWebPage = QtWebKitWidgets.QWebEnginePage
-
-import matplotlib
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-try:
-	from matplotlib.backends.backend_qt5agg import NavigationToolbar2QTAgg as NavigationToolbar
-except:
-	from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-
-from matplotlib.figure import Figure
-from matplotlib.backend_bases import cursors
-import matplotlib.pyplot as plt
-
-from matplotlib import rcParams
-import matplotlib.ticker as mtick
-import matplotlib.cm as mcmap
-
 if not six.PY2:
 	from html import escape as html_escape
 else:
 	from cgi import escape as html_escape
+
+try:
+	import numpy as np
+	import scipy.misc
+	from PyQt5 import QtCore, QtGui, QtWidgets
+
+	try:
+		from PyQt5 import QtWebKitWidgets
+	except:
+		from PyQt5 import QtWebEngineWidgets as QtWebKitWidgets
+		QtWebKitWidgets.QWebView = QtWebKitWidgets.QWebEngineView
+		QtWebKitWidgets.QWebPage = QtWebKitWidgets.QWebEnginePage
+
+	import matplotlib
+	from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+	try:
+		from matplotlib.backends.backend_qt5agg import NavigationToolbar2QTAgg as NavigationToolbar
+	except:
+		from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+
+	from matplotlib.figure import Figure
+	from matplotlib.backend_bases import cursors
+	import matplotlib.pyplot as plt
+
+	from matplotlib import rcParams
+	import matplotlib.ticker as mtick
+	import matplotlib.cm as mcmap
+
+except BaseException as e:
+	print(str(e))
+	print("Make sure you have the scipy, numpy, matplotlib and pyqt5 packages for Python%d installed" % sys.version_info[0])
+	sys.exit(1)
+
 
 class PreferencesWidget(QtWidgets.QDialog):
 
