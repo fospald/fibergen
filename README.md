@@ -135,6 +135,24 @@ If you have any question, idea or issue please create an new issue in the issue 
 If you want to contribute anything (e.g. demos) please contact me.
 
 
+## Citing
+
+You can use the following publication for citing fibergen:
+```
+@article{Ospald2019,
+        author = {F. Ospald},
+        title = {fibergen: An introductory tool for {FFT}-based material homogenization},
+        year  = {2019},
+        publisher = {The Open Journal},
+        journal = {Journal of Open Source Software},
+        volume = {4},
+        number = {34},
+        pages = {1027},
+        doi = {10.21105/joss.01027}
+}
+```
+
+
 ## Acknowledgements
 
 [Felix Ospald](https://www.tu-chemnitz.de/mathematik/part_dgl/people/ospald) gratefully acknowledges financial support by the [German Research Foundation](http://www.dfg.de/en/) (DFG), [Federal Cluster of Excellence EXC 1075](https://www.tu-chemnitz.de/MERGE/) "MERGE Technologies for Multifunctional Lightweight Structures". Many thanks to [Matti Schneider](https://www.itm.kit.edu/cm/287_3957.php) for his helpful introduction to FFT-based homogenization and ideas regarding the ACG distribution.
