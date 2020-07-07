@@ -85,7 +85,7 @@ in order to perform some internal tests of math and operators.
 You can generate a [Doxygen](http://www.doxygen.org/)-based documentation by running 
 ```bash
 cd doc/doxygen
-make (or just doxygen)
+make
 firefox html/index.html
 ```
 

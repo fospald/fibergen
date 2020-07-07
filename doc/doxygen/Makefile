@@ -3,7 +3,10 @@ DOXYFILE:=Doxyfile
 
 DOXYGEN:=doxygen
 
-all: doxygen
+all: doxygen images
+
+images:
+	cp screenshot*.png html
 
 doxygen: $(DOXYFILE)
 	$(DOXYGEN) $<
