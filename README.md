@@ -80,9 +80,19 @@ fibergen --test
 in order to perform some internal tests of math and operators.
 
 
+## Generating source code documentation
+
+You can generate a [Doxygen](http://www.doxygen.org/)-based documentation by running 
+```bash
+cd doc/doxygen
+make (or just doxygen)
+firefox html/index.html
+```
+
+
 ## Tutorial
 
-Further information on how to use fibergen, can be found in [the tutorial](TUTORIAL.md).
+Further information on how to use fibergen, can be found in [the tutorial](doc/doxygen/TUTORIAL.md) (also included in the doxygen documentation).
 
 
 ## Troubleshooting
@@ -118,15 +128,6 @@ git clone http://git.tiker.net/trees/boost-numeric-bindings.git
 export BOOSTNUMERICBINDINGS_DIR=$(pwd)/boost-numeric-bindings
 ```
 `install_dir` is the installation directory for boost-numeric-bindings. You should remove the `build` directory (`rm -r build`) before running `build.sh` again in order to clear the CMake cache.
-
-## Generating source code documentation
-
-You can generate a [Doxygen](http://www.doxygen.org/)-based documentation by running 
-```bash
-cd doc/doxygen
-make (or just doxygen)
-firefox html/index.html
-```
 
 
 ## Contributing
