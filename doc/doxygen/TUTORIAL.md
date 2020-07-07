@@ -10,7 +10,7 @@ fibergen-gui
 After startup the GUI offers to create an "empty" project, to open one of the demos from the "demos" folder
 or to open any other project using the "Open" menu. Alternatively the project filename to be opened can be appended to the command.
 
-![fibergen GUI](../screenshot_1.png "fibergen GUI")
+![fibergen GUI](screenshot_1.png "fibergen GUI")
 
 
 Creating an "empty" project shows the XML editor with the following contents
@@ -32,7 +32,7 @@ Creating an "empty" project shows the XML editor with the following contents
 </settings>
 ```
 
-![fibergen GUI](../screenshot_2.png "fibergen GUI")
+![fibergen GUI](screenshot_2.png "fibergen GUI")
 
 
 The editor shows context help for the XML element at the cursor position in the bottom window.
@@ -49,7 +49,7 @@ You can see the available settings by moving the cursor on "place_fiber".
 
 By clicking on "Run" in the menu bar the solver is run. In this case it just initializes and discretizes the geometry.
 
-![fibergen GUI](../screenshot_3.png "fibergen GUI")
+![fibergen GUI](screenshot_3.png "fibergen GUI")
 
 For each click on "Run" a new tab for the postprocessing view is opened. So it is possible to compared different runs.
 (Note: you can rename the tabs by double-clicking on them).
@@ -60,7 +60,7 @@ In order to solve an elasticity problem you have to append to the actions
 ```
 which solves an homogenization problem with periodic boundary conditions and prescribed (average) elastic strain of 1.0 for the 11 (xx) component. In order to get interesting results you also have to set for example E="2.0" for the fiber material.
 
-![fibergen GUI](../screenshot_4.png "fibergen GUI")
+![fibergen GUI](screenshot_4.png "fibergen GUI")
 
 In the top row of each tab you can select the current solution view. "mid" means to show the material id. This is followed by a list of the phases (materials).
 On the right are buttons to save the data as VTK file or to write the current view as PNG image.
@@ -99,7 +99,7 @@ paraview /tmp/data.vtk
 ```
 and apply custom filters.
 
-![ParaView](../screenshot_5.png "ParaView")
+![ParaView](screenshot_5.png "ParaView")
 
 
 ## XML code

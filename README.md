@@ -92,7 +92,7 @@ firefox html/index.html
 
 ## Tutorial
 
-Further information on how to use fibergen, can be found in [the tutorial](doc/doxygen/TUTORIAL.md) (also included in the doxygen documentation).
+Further information on how to use fibergen, can be found in [the tutorial](TUTORIAL.md) (also included in the doxygen documentation).
 
 
 ## Troubleshooting
