@@ -57,7 +57,7 @@ try:
 
 except BaseException as e:
 	print(str(e))
-	print("Make sure you have the scipy, numpy, matplotlib and pyqt5 packages for Python%d installed" % sys.version_info[0])
+	print("Make sure you have the scipy, numpy, matplotlib, pyqt5 and pyqt5-webengine packages for Python%d installed!" % sys.version_info[0])
 	sys.exit(1)
 
 
