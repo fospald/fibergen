@@ -26955,7 +26955,11 @@ py::object GetField(py::tuple args, py::dict kwargs)
 			BOOST_THROW_EXCEPTION(std::runtime_error("datatype not supported"));
 	}
 
+#if NPY_API_VERSION > 0x0000000C
+	py::object obj(py::handle<>(PyArray_SimpleNew(dims.size(), &dims[0], dtype)));
+#else
 	py::object obj(py::handle<>(PyArray_FromDims(dims.size(), &dims[0], dtype)));
+#endif
 	void* array_data = PyArray_DATA((PyArrayObject*) obj.ptr());
 
 	if (PyArray_ITEMSIZE((PyArrayObject*) obj.ptr()) != (int)elsize) {

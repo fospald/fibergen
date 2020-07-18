@@ -7,7 +7,7 @@ BUILD_DIR="$FIBERGEN_DIR/build/$HOST"
 mkdir -p "$BUILD_DIR" || exit
 cd "$BUILD_DIR" || exit
 cmake -DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF "$@" ../.. || exit
-make -j || exit
+make || exit
 
 echo ""
 echo "Build successful!"
