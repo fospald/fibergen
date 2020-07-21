@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 2.8)
 
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.0.0") 
+    PROJECT(fibergen)
+endif()
+
 # Set verbose output while testing CMake
 set(CMAKE_VERBOSE_MAKEFILE 1)
 

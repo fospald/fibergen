@@ -26941,11 +26941,17 @@ py::object GetField(py::tuple args, py::dict kwargs)
 	ExtractRangeArg("range_z", nz, range_z, kwargs);
 	ExtractRangeArg("components", components.size(), comp_range, kwargs);
 
-	std::vector<int> dims(4);
-	dims[0] = comp_range.size();
-	dims[1] = range_x.size();
-	dims[2] = range_y.size();
-	dims[3] = range_z.size();
+#if NPY_API_VERSION > 0x0000000C
+	#define NPY_DIM_TYPE npy_int
+#else
+	#define NPY_DIM_TYPE int
+#endif
+
+	std::vector<NPY_DIM_TYPE> dims(4);
+	dims[0] = (NPY_DIM_TYPE) comp_range.size();
+	dims[1] = (NPY_DIM_TYPE) range_x.size();
+	dims[2] = (NPY_DIM_TYPE) range_y.size();
+	dims[3] = (NPY_DIM_TYPE) range_z.size();
 
 	int dtype;
 	switch (elsize) {
