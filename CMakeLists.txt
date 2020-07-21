@@ -1,14 +1,12 @@
 cmake_minimum_required(VERSION 2.8)
 
-if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.0.0") 
-    PROJECT(fibergen)
-endif()
+PROJECT(fibergen CXX)
 
 # Set verbose output while testing CMake
-set(CMAKE_VERBOSE_MAKEFILE 1)
+SET(CMAKE_VERBOSE_MAKEFILE 1)
 
 # Use C++ 11
-set(CMAKE_CXX_STANDARD 11)
+SET(CMAKE_CXX_STANDARD 11)
 
 # Note for the use of -ffast-math:
 # http://stackoverflow.com/questions/22931147/stdisinf-does-not-work-with-ffast-math-how-to-check-for-infinity
