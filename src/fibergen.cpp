@@ -74,6 +74,8 @@ multigrid improvements:
 	#define IACA_END
 #endif
 
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 #include <boost/smart_ptr/shared_ptr.hpp>
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/serialization/shared_ptr.hpp>
@@ -26942,7 +26944,7 @@ py::object GetField(py::tuple args, py::dict kwargs)
 	ExtractRangeArg("components", components.size(), comp_range, kwargs);
 
 #if NPY_API_VERSION > 0x0000000C
-	#define NPY_DIM_TYPE npy_int
+	#define NPY_DIM_TYPE npy_intp
 #else
 	#define NPY_DIM_TYPE int
 #endif
