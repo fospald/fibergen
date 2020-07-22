@@ -536,10 +536,8 @@ class PlotWidget(QtWidgets.QWidget):
 		self.lastSliceIndices = [0, 0, 0] if other is None else list(other.lastSliceIndices)
 
 		QtWidgets.QWidget.__init__(self, parent)
+		self.setContentsMargins(2, 2, 2, 2)
 		
-		vbox = QtWidgets.QVBoxLayout()
-		#vbox.setContentsMargin(0)
-
 		self.fig = Figure(figsize=(20,20))
 		self.fig.set_tight_layout(None)
 		self.fig.set_frameon(False)
@@ -550,6 +548,8 @@ class PlotWidget(QtWidgets.QWidget):
 		self.axes.set_ylabel("y")
 
 		vbox = QtWidgets.QVBoxLayout(self)
+		vbox.setContentsMargins(2, 2, 2, 2)
+		#vbox.setSpacing(0)
 
 		def makeChangeFieldCallback(index):
 			return lambda checked: self.changeField(index, checked)
@@ -786,7 +786,6 @@ class PlotWidget(QtWidgets.QWidget):
 		self.figcanvas = FigureCanvas(self.fig)
 		self.figcanvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 
-		#self.figcanvas.setContentsMargins(0, 0, 0, 0)
 		#self.figcanvas.setStyle(app.style())
 		#self.figcanvas.setStyleSheet("background-color: yellow")
 
@@ -868,6 +867,8 @@ class PlotWidget(QtWidgets.QWidget):
 				"""
 
 		wvbox = QtWidgets.QVBoxLayout()
+		wvbox.setContentsMargins(2, 2, 2, 2)
+		#wvbox.setSpacing(0)
 		wvbox.addWidget(self.fignavbar)
 		wvbox.addWidget(self.figcanvas)
 		wrap = QtWidgets.QWidget()
@@ -3416,18 +3417,24 @@ class App(QtWidgets.QApplication):
 		parser.add_argument('project', metavar='filename', nargs='?', help='xml project filename to load')
 		parser.add_argument('--disable-browser', action='store_true', default=(not "QtWebKitWidgets" in globals()), help='disable browser components')
 		parser.add_argument('--disable-python', action='store_true', default=False, help='disable Python code evaluation in project files')
+		parser.add_argument('--style', default="", help='set application style')
 		self.pargs = parser.parse_args(args[1:])
 		print(self.pargs)
 
 		QtWidgets.QApplication.__init__(self, list(args) + ["--disable-web-security"])
 
 		self.setApplicationName("fibergen")
-		self.setApplicationVersion("2018.1")
+		self.setApplicationVersion("2020.1")
 		self.setOrganizationName("NumaPDE")
 
 		print("matplotlib:", matplotlib.__version__, "numpy:", np.__version__)
 
-		#self.setStyle('windows')
+		if self.pargs.style != "":
+			styles = QtWidgets.QStyleFactory.keys()
+			if not self.pargs.style in styles:
+				print("Available styles:", styles)
+				raise "unknown style"
+			self.setStyle(self.pargs.style)
 
 		# set matplotlib defaults
 		font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.GeneralFont)

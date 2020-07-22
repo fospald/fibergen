@@ -26943,7 +26943,7 @@ py::object GetField(py::tuple args, py::dict kwargs)
 	ExtractRangeArg("range_z", nz, range_z, kwargs);
 	ExtractRangeArg("components", components.size(), comp_range, kwargs);
 
-#if NPY_API_VERSION > 0x0000000C
+#if NPY_API_VERSION >= 0x0000000B
 	#define NPY_DIM_TYPE npy_intp
 #else
 	#define NPY_DIM_TYPE int
@@ -26963,7 +26963,7 @@ py::object GetField(py::tuple args, py::dict kwargs)
 			BOOST_THROW_EXCEPTION(std::runtime_error("datatype not supported"));
 	}
 
-#if NPY_API_VERSION > 0x0000000C
+#if NPY_API_VERSION >= 0x0000000B
 	py::object obj(py::handle<>(PyArray_SimpleNew(dims.size(), &dims[0], dtype)));
 #else
 	py::object obj(py::handle<>(PyArray_FromDims(dims.size(), &dims[0], dtype)));
