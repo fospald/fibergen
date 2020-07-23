@@ -224,9 +224,11 @@ class WriteVTKWidget(QtWidgets.QDialog):
 
 				write_componentwise = False
 				field_names = []
+				has_magnitude = False
 				for i, field in enumerate(field_group):
 					write_componentwise = write_componentwise or not field.check.isChecked()
 					field_names.append(field.name)
+					has_magnitude = has_magnitude or field.name.startswith("magnitude_")
 
 				for i, field in enumerate(field_group):
 
@@ -241,6 +243,11 @@ class WriteVTKWidget(QtWidgets.QDialog):
 					write("\n")
 
 					ncomp = len(field_group)
+					if has_magnitude:
+						ncomp -= 1
+
+					if field.name.startswith("magnitude_"):
+						ncomp = 1
 
 					if ncomp == 1 or field.name in ["phi"] or write_componentwise:
 						write("SCALARS")
@@ -260,7 +267,7 @@ class WriteVTKWidget(QtWidgets.QDialog):
 						data = data[[0, 5, 4, 8, 1, 3, 7, 6, 2]]
 						write("TENSORS")
 					else:
-						print(field.name, ncomp)
+						print(data.shape, loadstep, field.name, ncomp)
 						raise "problem"
 
 					npdtype = field_group[0].data[loadstep].dtype
@@ -287,13 +294,8 @@ class WriteVTKWidget(QtWidgets.QDialog):
 					if ncomp == 1:
 						write("LOOKUP_TABLE default\n")
 
-					if dtype == "long":
-						print(data.shape)
-
+					#print(label, data.shape, ncomp, i, dtype)
 					data = data[(i*ncomp):(i*ncomp + ncomp)].tobytes(order='F')
-
-					if dtype == "long":
-						print(label, len(data), ncomp)
 
 					f.write(data)
 
