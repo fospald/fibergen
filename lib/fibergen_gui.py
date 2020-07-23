@@ -757,7 +757,7 @@ class PlotWidget(QtWidgets.QWidget):
 		self.vmaxText.setEnabled(enabled)
 
 		self.replotButton = QtWidgets.QPushButton("Refresh")
-		self.replotButton.clicked.connect(self.replot)
+		self.replotButton.clicked.connect(lambda checked: self.replot)
 
 		hbox = QtWidgets.QHBoxLayout()
 		hbox.addWidget(QtWidgets.QLabel("Bounds:"))
@@ -1419,7 +1419,6 @@ class PlotWidget(QtWidgets.QWidget):
 		#traceback.print_stack()
 
 		self.replotCount += 1
-		self.axes.clear()
 
 		xlim = None
 		ylim = None
@@ -1435,6 +1434,8 @@ class PlotWidget(QtWidgets.QWidget):
 		else:
 			cbax = None
 		
+		self.axes.clear()
+
 		if (self.currentFieldIndex != None):
 			
 			if data is None:
@@ -1523,6 +1524,8 @@ class PlotWidget(QtWidgets.QWidget):
 		else:
 			self.figcanvas.setVisible(False)
 			self.fignavbar.setVisible(False)
+
+		print(xlim)
 
 		if (xlim != None):
 			self.axes.set_xlim(xlim)
@@ -2279,11 +2282,17 @@ class SimpleHelpWidget(QtWidgets.QTextBrowser):
 
 		QtWidgets.QTextBrowser.__init__(self, parent)
 
+		self.editor = editor
+
 		self.hwc = HelpWidgetCommon(editor)
-		self.hwc.updateHtml.connect(self.setHtml)
+		self.hwc.updateHtml.connect(self.updateHtml)
 
 		self.setOpenLinks(False)
 		self.anchorClicked.connect(self.hwc.linkClicked)
+
+	def updateHtml(self, html):
+		self.setHtml(html)
+		self.editor.setFocus()
 
 
 class HelpWidget(QtWebKitWidgets.QWebView):
@@ -2292,16 +2301,22 @@ class HelpWidget(QtWebKitWidgets.QWebView):
 
 		QtWebKitWidgets.QWebView.__init__(self, parent)
 
+		self.editor = editor
+
 		self.hwc = HelpWidgetCommon(editor)
 
 		self.mypage = MyWebPage()
 		self.mypage.linkClicked.connect(self.hwc.linkClicked)
 		self.setPage(self.mypage)
 
-		self.hwc.updateHtml.connect(self.mypage.setHtml)
+		self.hwc.updateHtml.connect(self.updateHtml)
 		
 		#self.setStyleSheet("background:transparent");
 		#self.setAttribute(QtCore.Qt.WA_TranslucentBackground);
+
+	def updateHtml(self, html):
+		self.mypage.setHtml(html)
+		self.editor.setFocus()
 
 
 class DocWidgetCommon(QtCore.QObject):
