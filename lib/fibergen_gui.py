@@ -1525,8 +1525,6 @@ class PlotWidget(QtWidgets.QWidget):
 			self.figcanvas.setVisible(False)
 			self.fignavbar.setVisible(False)
 
-		print(xlim)
-
 		if (xlim != None):
 			self.axes.set_xlim(xlim)
 		if (ylim != None):
