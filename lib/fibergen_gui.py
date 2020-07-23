@@ -328,8 +328,9 @@ class FlowLayout(QtWidgets.QLayout):
 	def addItem(self, item):
 		self.itemList.append(item)
 
-	def addStretch(self, stretch):
-		pass
+	def addStretch(self, stretch=0):
+		s = QtWidgets.QSpacerItem(0, 0)
+		self.addItem(s)
 
 	def addSpacing(self, spacing):
 		s = QtWidgets.QSpacerItem(spacing, 1)
@@ -387,27 +388,36 @@ class FlowLayout(QtWidgets.QLayout):
 		spaceY = self.spacing() # app.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Vertical)
 		spaceX = 0 # 2*app.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton, QtWidgets.QSizePolicy.PushButton, QtCore.Qt.Horizontal)
 
+		stretch = False
+
 		for item in self.itemList:
 
+			dx = item.sizeHint().width()
+
 			if isinstance(item, QtWidgets.QSpacerItem):
-				x += item.sizeHint().width()
+				stretch = (dx == 0)
+				x += dx
 				continue
 
-			nextX = x + item.sizeHint().width()
+			if stretch:
+				x = max(x, rect.right() - dx)
+			
+			nextX = x + dx
 
-			if nextX > rect.right():
-				x = rect.x()
+			if x > rect.x() and nextX > rect.right():
+				x = max(rect.x(), rect.right() - dx) if stretch else rect.x()
 				y = y + lineHeight + spaceY
-				nextX = x + item.sizeHint().width()
+				nextX = x + dx
 
 			if not testOnly:
 				item.setGeometry(QtCore.QRect(QtCore.QPoint(x, y), item.sizeHint()))
 
 			x = nextX + spaceX
 			lineHeight = max(lineHeight, item.sizeHint().height())
+			stretch = False
 
 		return y + lineHeight - rect.y()
-
+	
 
 class MyWebPage(QtWebKitWidgets.QWebPage):
 
@@ -561,7 +571,8 @@ class PlotWidget(QtWidgets.QWidget):
 
 		flow = FlowLayout()
 		for j, field_group in enumerate(field_groups):
-			gbox = QtWidgets.QHBoxLayout()
+			#gbox = QtWidgets.QHBoxLayout()
+			gbox = flow
 			for i, field in enumerate(field_group):
 				button = QtWidgets.QToolButton()
 				field.button = button
@@ -577,13 +588,14 @@ class PlotWidget(QtWidgets.QWidget):
 				self.fields.append(field)
 			if j > 0:
 				flow.addSpacing(spacing*4)
-			flow.addLayout(gbox)
+			#flow.addLayout(gbox)
+
+		flow.addSpacing(spacing*4)
+		flow.addStretch()
 
 		hbox = QtWidgets.QHBoxLayout()
 		hbox.setAlignment(QtCore.Qt.AlignTop)
 		hbox.setSpacing(spacing)
-		hbox.addLayout(flow)
-		hbox.addSpacing(4*spacing)
 
 		self.writeVTKButton = QtWidgets.QToolButton()
 		self.writeVTKButton.setText("Write VTK")
@@ -607,7 +619,9 @@ class PlotWidget(QtWidgets.QWidget):
 		self.viewXMLButton.toggled.connect(self.viewXML)
 		hbox.addWidget(self.viewXMLButton)
 
-		vbox.addLayout(hbox)
+		flow.addLayout(hbox)
+
+		vbox.addLayout(flow)
 
 		if len(self.fields) == 0:
 			data_shape = [0, 0, 0]
