@@ -109,7 +109,7 @@ All QtWebKit/QtWebEngine browser instances will then be replaced by simplified Q
 
 ### Setting the Python version
 
-If you get an error about "boost_python-pyXY" not found, try to figure out which Python version boost-python is compiled against byrunning
+If you get an error about "boost_python-pyXY" not found, try to figure out which Python version boost-python is compiled against by running
 ```bash
 locate boost_python-py
 ```
