@@ -9,6 +9,7 @@ then
 	PYTHON=python3
 fi
 
+export QT_XCB_GL_INTEGRATION=xcb_egl
 #$PYTHON -m trace --trace "${FIBERGEN_DIR}/../gui/main.py" "$@"
 exec -a $(basename "$0") "$PYTHON" -O "${FIBERGEN_DIR}/../gui/main.py" "$@"
 #valgrind $PYTHON "${FIBERGEN_DIR}/../gui/main.py" "$@"
