@@ -6,7 +6,6 @@ import builtins
 
 import fibergen
 import sys, os, re
-import six
 import webbrowser
 import base64
 import copy
@@ -22,11 +21,7 @@ import keyword
 import textwrap
 import signal
 from weakref import WeakKeyDictionary
-
-if not six.PY2:
-	from html import escape as html_escape
-else:
-	from cgi import escape as html_escape
+from html import escape as html_escape
 
 try:
 	import numpy as np
@@ -658,7 +653,7 @@ class PlotWidget(QtWidgets.QWidget):
 		if (other != None):
 			self.sliceSlider.setValue(int(other.sliceSlider.value()*(self.sliceSlider.maximum()+1)/(other.sliceSlider.maximum()+1)))
 		else:
-			self.sliceSlider.setValue((self.sliceSlider.maximum() + self.sliceSlider.minimum())/2)
+			self.sliceSlider.setValue(int((self.sliceSlider.maximum() + self.sliceSlider.minimum())/2))
 		self.sliceSlider.valueChanged.connect(self.sliceSliderChanged)
 		self.sliceLabel = QtWidgets.QLabel()
 		self.sliceLabel.setText("%s=%04d" % (self.sliceCombo.currentText(), self.sliceSlider.value()))
@@ -1005,7 +1000,9 @@ class PlotWidget(QtWidgets.QWidget):
 		if hasattr(self.fignavbar, "_views"):
 			views = self.fignavbar._views()
 		else:
-			arr = self.fignavbar._nav_stack().values()
+			ns = self.fignavbar._nav_stack()
+			if not ns is None:
+				arr = ns.values()
 			views = [n[0] for n in arr]
 
 		if not views is None and len(views):
@@ -2375,7 +2372,7 @@ body {
 }
 """
 		data = base64.b64encode(css.encode('utf8')).decode('ascii')
-		self.settings().setUserStyleSheetUrl(QtCore.QUrl("data:text/css;charset=utf-8;base64," + data))
+		#self.settings().setUserStyleSheetUrl(QtCore.QUrl("data:text/css;charset=utf-8;base64," + data))
 
 	def linkClicked(self, url):
 		self.mypage.setUrl(url)
@@ -2842,15 +2839,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
 		try:
 			app.restoreWindowState(self, "main")
-			self.hSplit.restoreState(app.settings.value("hSplitterSize"))
-			self.vSplit.restoreState(app.settings.value("vSplitterSize"))
+			val = app.settings.value("hSplitterSize")
+			if not val is None:
+				self.hSplit.restoreState(val)
+			val = app.settings.value("vSplitterSize")
+			if not val is None:
+				self.vSplit.restoreState(val)
 		except:
 			#print(traceback.format_exc())
 			screen = app.desktop().screenGeometry()
-			self.resize(screen.width()*2/3, screen.height()*2/3)
-			#self.setWindowState(QtCore.Qt.WindowMaximized)
-			self.hSplit.setSizes([self.width()/3, 2*self.width()/3])
-			self.vSplit.setSizes([2*self.height()/3, self.height()/3, 1])
+			w = screen.width()
+			h = screen.height()
+			self.resize(w*2/3, h*2/3)
+			self.setWindowState(QtCore.Qt.WindowMaximized)
+			self.hSplit.setSizes([w/3, 2*w/3])
+			self.vSplit.setSizes([2*h/3, h/3])
 
 		self.setDocumentVisible(False)
 		self.tabWidget.setVisible(False)
@@ -3291,7 +3294,7 @@ class MainWindow(QtWidgets.QMainWindow):
 			tab = "<table>\n"
 			for r in a:
 				tab += "<tr>\n"
-				if isinstance(r, collections.Iterable):
+				if isinstance(r, collections.abc.Iterable):
 					for c in r:
 						tab += "<td>%s</td>\n" % matrix(c)
 				else:
@@ -3511,9 +3514,13 @@ class App(QtWidgets.QApplication):
 		return False
 	
 	def restoreWindowState(self, win, prefix):
-		win.restoreGeometry(self.settings.value(prefix + "_geometry"))
+		val = self.settings.value(prefix + "_geometry")
+		if not val is None:
+			win.restoreGeometry(val)
 		if (isinstance(win, QtWidgets.QMainWindow)):
-			win.restoreState(self.settings.value(prefix + "_windowState"))
+			val = self.settings.value(prefix + "_windowState")
+			if not val is None:
+				win.restoreState(val)
 
 	def saveWindowState(self, win, prefix):
 		self.settings.setValue(prefix + "_geometry", win.saveGeometry())

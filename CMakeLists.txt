@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
-# PROJECT(fibergen CXX)
+PROJECT(fibergen CXX)
 
 # Set verbose output while testing CMake
 SET(CMAKE_VERBOSE_MAKEFILE 1)
