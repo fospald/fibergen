@@ -45,7 +45,22 @@ The following libraries are required, which are likely already installed on your
 If unsure, continue with the installation and check the error messages of CMake.
 
 
-## Installation
+## Docker Installation
+
+1. Make sure you have [Docker and Docker compose](https://docs.docker.com/engine/install/ubuntu/) installed.
+2. Build and run the container with GUI support in the background
+```bash
+cd docker
+docker compose -f docker-compose-gui.yml up --detach
+```
+3. Run shell inside the container
+```bash
+sudo docker compose exec fibergen bash
+```
+4. Start fibergen as described in the [Run section](#run)
+
+
+## Manual Installation
 
 1. download source
 ```bash

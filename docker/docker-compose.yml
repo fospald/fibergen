@@ -3,12 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    #stdin_open: true # Docker run -i
     tty: true        # Docker run -t
     privileged: true
     network_mode: "host"
     volumes: # Mount relevant folders into container
       - ../.:/code/fibergen
-#- ../src:/code/fibergen/src
-     #      - ../.vscode:/code/stereo_matching/.vscode # Necessary for using VS Code Tasks inside container
-
